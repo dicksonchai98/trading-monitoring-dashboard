@@ -1,0 +1,14 @@
+# Local environment and tool artifacts
+__pycache__/
+*.pyc
+.venv/
+.env
+
+# Node
+node_modules/
+dist/
+
+# Editor / OS
+.vscode/
+.DS_Store
+Thumbs.db
