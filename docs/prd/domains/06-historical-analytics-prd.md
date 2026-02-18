@@ -1,45 +1,63 @@
 # Domain PRD: Historical Analytics (Post-MVP)
 
-- Domain: Historical Analytics
-- Version: v0.1
-- Date: 2026-02-16
-- Parent: `docs/prd/2026-02-16-futures-dashboard-master-prd.md`
+- Domain: Historical Analytics (Post-MVP)
+- 版本: v1.0
+- 日期: 2026-02-16
+- 上層: `docs/prd/2026-02-16-futures-dashboard-master-prd.md`
 
-## 1. Domain Goal
-Define the future domain for scheduled historical ingestion, storage, and analytics on futures/options indicators.
+## 1. Domain 目標
+建立長期歷史資料抓取、排程與分析查詢能力，支援後續指標與回測。
 
-## 2. In Scope (Post-MVP)
-1. Scheduler-based data collection jobs.
-2. Long-term historical storage strategy.
-3. Statistical queries and trend analysis endpoints.
+## 2. 範圍 (Post-MVP)
+### 2.1 內含
+1. 歷史資料抓取與排程。
+2. 長期儲存與查詢模型。
+3. 基礎分析查詢 API。
 
-## 3. Out of Scope (Current MVP)
-1. Production-grade historical pipeline implementation.
-2. Full backfill execution.
-3. End-user analytics UI.
+### 2.2 不含
+1. 進階回測平台。
+2. 多區域分散式儲存。
+3. 即時高頻分析。
 
-## 4. Candidate Interfaces
-1. Scheduler jobs
-- periodic ingestion tasks by symbol/timeframe
+## 3. 依賴清單
+1. 共同基礎依賴: PostgreSQL/可能替代儲存引擎、排程基礎設施。
+2. `01-market-data-ingestion` 作為資料來源。
+3. `02-indicator-realtime` 的快照或指標基礎。
 
-2. Analytics APIs (future)
-- historical snapshots, rolling metrics, comparative windows
+## 4. 輸出與介面
+1. 歷史資料 API
+- 以時間區間查詢的快照/指標輸出。
 
-## 5. Data Architecture Decision Points
-1. Keep Postgres only vs introduce TimescaleDB/ClickHouse.
-2. Retention policy by granularity.
-3. Reprocessing/replay strategy for corrected formulas.
+2. 儲存模型
+- 長期歷史快照與衍生指標表。
 
-## 6. Risks
-1. High storage and query cost if schema is not time-series-optimized.
-2. Backfill jobs can impact realtime performance.
+## 5. 處理規則
+1. 排程需可重試與可恢復。
+2. 長期儲存需保留可擴充性。
+3. 查詢需明確限制成本。
 
-## 7. Preparation Requirements
-1. Preserve stable event contracts now.
-2. Keep compute pipeline deterministic and replay-friendly.
-3. Isolate historical workload from realtime SLA path.
+## 6. 失敗模式
+1. 排程失敗
+- 行動: 重試並告警。
 
-## 8. Exit Criteria to Start This Domain
-1. MVP realtime + subscription flows are stable.
-2. Product confirms analytics KPIs and retention policy.
-3. Data volume and query complexity justify dedicated historical design.
+2. 寫入過慢或儲存爆量
+- 行動: 降載與容量告警。
+
+## 7. 可觀測性
+1. 排程成功/失敗率。
+2. 儲存容量使用率。
+3. 查詢耗時與錯誤率。
+
+## 8. 測試情境
+1. 排程能持續寫入。
+2. 大量歷史查詢可控。
+3. 失敗重試可恢復。
+
+## 9. 執行順序 (依賴排序)
+1. 需在 `01-market-data-ingestion` 與 `02-indicator-realtime` 穩定後再啟動。
+2. 為 Post-MVP 最末段落。
+
+## 10. 驗收標準
+1. 長期資料可穩定寫入與查詢。
+2. 排程失敗可被偵測並恢復。
+3. 成本與效能指標可被觀測。

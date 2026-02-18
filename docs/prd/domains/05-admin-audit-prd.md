@@ -1,52 +1,62 @@
-# Domain PRD: Admin and Audit
+# Domain PRD: Admin & Audit
 
 - Domain: Admin & Audit
-- Version: v1.0
-- Date: 2026-02-16
-- Parent: `docs/prd/2026-02-16-futures-dashboard-master-prd.md`
+- 版本: v1.0
+- 日期: 2026-02-16
+- 上層: `docs/prd/2026-02-16-futures-dashboard-master-prd.md`
 
-## 1. Domain Goal
-Provide admin-only management capabilities with mandatory audit logging for security and traceability.
+## 1. Domain 目標
+提供管理端操作與安全相關事件的審計記錄。
 
-## 2. In Scope (MVP)
-1. Admin-protected CRUD endpoints.
-2. Audit event persistence for admin actions.
-3. Security event logging for denied access.
+## 2. 範圍 (MVP)
+### 2.1 內含
+1. 管理端受保護 CRUD。
+2. 審計事件記錄與查詢。
+3. 安全事件 (登入失敗、權限拒絕) 記錄。
 
-## 3. Out of Scope (MVP)
-1. Complex approval workflows.
-2. Full SIEM integrations.
-3. Multi-tenant admin segmentation.
+### 2.2 不含
+1. 高階稽核報表。
+2. 外部 SIEM 整合。
+3. 多租戶審計隔離。
 
-## 4. Public Interfaces
-1. Admin API group
-- `/admin/*` protected endpoints
+## 3. 依賴清單
+1. 共同基礎依賴: PostgreSQL、環境變數、基本可觀測性。
+2. `03-identity-access` 作為管理端權限來源。
 
-2. Audit event schema
-- `actor_id`, `role`, `action`, `resource`, `status`, `timestamp`
+## 4. 輸出與介面
+1. 管理端 API
+- 受保護 CRUD endpoints
 
-## 5. Processing Rules
-1. Every admin write operation creates an audit record.
-2. Authorization-denied events are also auditable.
-3. Audit records are immutable.
+2. 審計事件
+- `actor`, `action`, `resource`, `ts`, `result`, `metadata`
 
-## 6. Failure Modes
-1. Audit write failure.
-- Action: request fails for critical operations or logs fallback event based on policy.
+## 5. 處理規則
+1. 所有管理端操作必須寫入審計。
+2. 重要安全事件必須記錄。
+3. 事件寫入失敗需告警。
 
-2. Privilege escalation attempts.
-- Action: reject and record event.
+## 6. 失敗模式
+1. 審計寫入失敗
+- 行動: 重試並告警。
 
-## 7. Observability
-1. Admin operation volume.
-2. Failed admin operations.
-3. Audit write latency and failure count.
+2. 權限繞過嘗試
+- 行動: 拒絕並記錄事件。
 
-## 8. Test Scenarios
-1. Admin allowed action writes audit log.
-2. Member/visitor blocked from admin endpoints.
-3. Denied operations generate security audit events.
+## 7. 可觀測性
+1. 審計事件寫入成功/失敗。
+2. 管理端操作量與失敗率。
+3. 安全事件統計。
 
-## 9. Acceptance Criteria
-1. All admin write operations are traceable by audit records.
-2. Non-admin users cannot execute admin endpoints.
+## 8. 測試情境
+1. 管理端操作產生審計事件。
+2. 權限不足被拒絕並記錄。
+3. 審計寫入失敗可告警。
+
+## 9. 執行順序 (依賴排序)
+1. 在 `03-identity-access` 完成後。
+2. 可與 `04-subscription-billing` 平行。
+
+## 10. 驗收標準
+1. 管理端操作全部被審計。
+2. 安全事件可追蹤查詢。
+3. 權限繞過嘗試被拒絕。

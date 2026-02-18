@@ -1,57 +1,66 @@
 # Domain PRD: Market Data Ingestion
 
 - Domain: Market Data Ingestion
-- Version: v1.0
-- Date: 2026-02-16
-- Parent: `docs/prd/2026-02-16-futures-dashboard-master-prd.md`
+- 版本: v1.0
+- 日期: 2026-02-16
+- 上層: `docs/prd/2026-02-16-futures-dashboard-master-prd.md`
 
-## 1. Domain Goal
-Ingest near-month Taiwan index futures data from Shioaji, normalize it into stable internal events, and append events into Redis Streams.
+## 1. Domain 目標
+從 Shioaji 取得台指近月期貨，標準化為內部事件並寫入 Redis Streams。
 
-## 2. In Scope (MVP)
-1. Single provider integration: Shioaji.
-2. Near-month Taiwan index futures only.
-3. Event normalization and validation.
-4. Stream append to `stream:near_month_txf`.
+## 2. 範圍 (MVP)
+### 2.1 內含
+1. 單一供應商: Shioaji。
+2. 單一商品: 台指近月期貨。
+3. Tick 資料標準化與驗證。
+4. 寫入 `stream:near_month_txf`。
 
-## 3. Out of Scope (MVP)
-1. Multi-provider aggregation.
-2. Options/spot/institutional datasets.
-3. Historical scraping jobs.
+### 2.2 不含
+1. 多供應商聚合。
+2. 期權/現貨/法人資料。
+3. 歷史資料抓取與排程。
 
-## 4. Public Interfaces
-1. Internal adapter interface
+## 3. 依賴清單
+1. 共同基礎依賴: Redis、環境變數配置、基本可觀測性。
+2. 無其他 domain 強制依賴。
+
+## 4. 輸出與介面
+1. 內部 adapter 介面
 - `connect()`
 - `subscribe(symbol)`
 - `on_message(payload)`
 
-2. Event output contract
+2. 事件輸出契約
 - `TickEvent { symbol, ts, price, volume, source, market_type }`
 
-## 5. Processing Rules
-1. Invalid payloads are rejected with structured error logs.
-2. Timestamp normalization is required.
-3. Provider disconnection triggers exponential-backoff reconnect.
+## 5. 處理規則
+1. 無效 payload 需拒絕並記錄結構化錯誤。
+2. 時間戳需統一格式化。
+3. 斷線需 exponential backoff 重連。
 
-## 6. Failure Modes
-1. Provider unavailable.
-- Action: retry with backoff, emit system event.
+## 6. 失敗模式
+1. 來源不可用
+- 行動: 重試並記錄系統事件。
 
-2. Stream write failure.
-- Action: temporary retry and error alert.
+2. Stream 寫入失敗
+- 行動: 短暫重試並上報錯誤。
 
-## 7. Observability
-1. Ingestion rate.
-2. Stream write success/failure count.
-3. Provider reconnect count.
+## 7. 可觀測性
+1. Ingestion rate。
+2. Stream 寫入成功/失敗計數。
+3. 來源重連次數。
 
-## 8. Test Scenarios
-1. Valid payload normalization.
-2. Invalid payload rejection.
-3. Reconnect after connection loss.
-4. Stream append success and retry behavior.
+## 8. 測試情境
+1. 正常 payload 標準化。
+2. 無效 payload 拒絕。
+3. 斷線後重連。
+4. Stream 寫入與重試。
 
-## 9. Acceptance Criteria
-1. Valid Shioaji tick is converted to `TickEvent` and appended to stream.
-2. Connection interruptions recover automatically.
-3. Errors are visible in logs/metrics.
+## 9. 執行順序 (依賴排序)
+1. 在共同基礎依賴完成後執行。
+2. 需先於 `02-indicator-realtime` 與 `06-historical-analytics`。
+
+## 10. 驗收標準
+1. Shioaji tick 可轉成 `TickEvent` 並寫入 Stream。
+2. 斷線可自動恢復。
+3. 錯誤可被 logs/metrics 觀測。
