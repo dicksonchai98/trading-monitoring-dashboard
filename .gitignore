@@ -1,6 +1,7 @@
 # Local environment and tool artifacts
 __pycache__/
 *.pyc
+*.db
 .venv/
 .env
 
