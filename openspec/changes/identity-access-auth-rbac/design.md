@@ -7,6 +7,7 @@ Constraints:
 - Maintain secure cookie-based refresh handling (HttpOnly, Secure, SameSite=Strict).
 - Enforce authorization in backend regardless of frontend guard behavior.
 - Align with existing spec-driven workflow and existing `identity-access-prd` capability.
+- Current repository state does not yet contain backend module-level implementation files for auth/rbac routes; scaffolding is a prerequisite for this change.
 
 Stakeholders:
 - Backend API maintainers (auth, middleware, routes)
@@ -65,6 +66,13 @@ Rationale:
 Alternative considered:
 - Self-service admin escalation endpoints. Rejected due to elevated security risk and larger scope.
 
+6. Add minimal backend scaffolding as an explicit prerequisite in this change.
+Rationale:
+- The current repository has backend build scaffolds but lacks implementation modules and route handlers required by planned tasks.
+- Making scaffolding explicit avoids hidden prerequisites and reduces apply-time blocking.
+Alternative considered:
+- Keep scaffolding implicit and start from auth tasks directly. Rejected because task 1.1 has no concrete implementation targets without base modules.
+
 ## Risks / Trade-offs
 
 - [Refresh token theft despite HttpOnly cookie] -> Mitigation: enforce Secure + SameSite=Strict, short refresh TTL, rotation with denylist, and monitor suspicious refresh patterns.
@@ -75,12 +83,13 @@ Alternative considered:
 
 ## Migration Plan
 
-1. Add or align auth/token service interfaces for issue/verify/rotate operations.
-2. Introduce RBAC policy mapping for all routes in scope and wire middleware to route groups.
-3. Enable refresh endpoint validation against JWT + denylist and old-token invalidation on successful rotation.
-4. Update route handlers to use centralized authn/authz path for REST and SSE.
-5. Add/expand acceptance tests for login/register, refresh rotation, and RBAC matrix.
-6. Rollout behind normal deployment; rollback by reverting route guard wiring and refresh rotation enforcement changes as one unit.
+1. Establish backend implementation scaffolding for auth/rbac modules, route groups, middleware wiring points, and test harness baseline.
+2. Add or align auth/token service interfaces for issue/verify/rotate operations.
+3. Introduce RBAC policy mapping for all routes in scope and wire middleware to route groups.
+4. Enable refresh endpoint validation against JWT + denylist and old-token invalidation on successful rotation.
+5. Update route handlers to use centralized authn/authz path for REST and SSE.
+6. Add/expand acceptance tests for login/register, refresh rotation, and RBAC matrix.
+7. Rollout behind normal deployment; rollback by reverting route guard wiring and refresh rotation enforcement changes as one unit.
 
 ## Open Questions
 

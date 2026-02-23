@@ -4,6 +4,7 @@ The backend currently lacks a complete, enforceable identity and access baseline
 
 ## What Changes
 
+- Add backend implementation scaffolding for auth/rbac delivery (FastAPI app layout, route modules, auth middleware hooks, and test harness baseline) because the current repository state has only backend scaffolds and no module-level implementation targets.
 - Add backend authentication flows for register/login with JWT access tokens and refresh-token cookie issuance.
 - Add refresh-token rotation with denylist invalidation semantics for old refresh token JTIs.
 - Define and enforce RBAC authorization for REST and SSE endpoints using the route permission matrix.
@@ -25,6 +26,7 @@ The backend currently lacks a complete, enforceable identity and access baseline
 
 ## Impact
 
+- Affected project structure: backend app/module scaffolding and test scaffolding needed to host auth/rbac implementation.
 - Affected backend modules: auth services, token utilities, middleware/guards, RBAC policy layer, and route handlers (Auth, Billing, Realtime, Analytics, Admin).
 - Affected API/security behavior: Authorization header validation, HttpOnly refresh cookie policy, token TTL/rotation semantics, and 401/403 response contracts.
 - Affected testing: Integration and acceptance coverage for identity and access control paths, including protected SSE endpoint authorization.
