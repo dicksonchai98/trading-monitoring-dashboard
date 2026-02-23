@@ -1,25 +1,19 @@
-"""In-memory denylist store for refresh token JTI invalidation."""
+"""Refresh token denylist backed by repository."""
 
 from __future__ import annotations
 
-import time
+from app.repositories.refresh_denylist_repository import RefreshDenylistRepository
 
 
 class RefreshDenylist:
-    def __init__(self) -> None:
-        self._entries: dict[str, int] = {}
+    def __init__(self, repo: RefreshDenylistRepository) -> None:
+        self._repo = repo
 
     def add(self, jti: str, exp: int) -> None:
-        self._entries[jti] = exp
-        self.cleanup()
+        self._repo.add(jti=jti, exp=exp)
 
     def contains(self, jti: str) -> bool:
-        self.cleanup()
-        return jti in self._entries
+        return self._repo.contains(jti)
 
     def cleanup(self) -> None:
-        now = int(time.time())
-        expired = [jti for jti, exp in self._entries.items() if exp <= now]
-        for jti in expired:
-            self._entries.pop(jti, None)
-
+        self._repo.cleanup()
