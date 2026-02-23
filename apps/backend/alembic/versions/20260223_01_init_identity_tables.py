@@ -24,7 +24,7 @@ def upgrade() -> None:
         sa.Column("username", sa.String(length=64), nullable=False),
         sa.Column("password_hash", sa.String(length=255), nullable=False),
         sa.Column("role", sa.String(length=16), nullable=False),
-        sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.text("1")),
+        sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.text("true")),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.PrimaryKeyConstraint("id"),
@@ -52,4 +52,3 @@ def downgrade() -> None:
     op.drop_index("ix_refresh_token_denylist_expires_at", table_name="refresh_token_denylist")
     op.drop_table("refresh_token_denylist")
     op.drop_table("users")
-
