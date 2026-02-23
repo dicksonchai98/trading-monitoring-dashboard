@@ -13,6 +13,10 @@ FastAPI modular monolith for ingestion, processing, auth, subscription, and real
 ## Run (example)
 
 ```bash
+set DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/trading_dashboard
+alembic -c alembic.ini upgrade head
+set ADMIN_PASSWORD=admin-pass
+python scripts/seed_admin.py
 uvicorn app.main:app --reload
 pytest
 ```

@@ -36,11 +36,13 @@ def test_refresh_rotation_reuse_old_token_fails_with_401() -> None:
     client = TestClient(app)
     auth = _register_and_login(client, username="user2", password="pass2")
     headers = {"Authorization": f"Bearer {auth['access_token']}"}
+    current_refresh = auth["set_cookie"].split(";", 1)[0].split("=", 1)[1]
 
-    first_refresh = client.post("/auth/refresh", headers=headers)
+    first_refresh = client.post("/auth/refresh", headers=headers, cookies={"refresh_token": current_refresh})
     assert first_refresh.status_code == 200
     old_cookie = auth["set_cookie"].split(";", 1)[0]
-    second_refresh = client.post("/auth/refresh", headers=headers)
+    rotated_cookie = first_refresh.headers.get("set-cookie", "").split(";", 1)[0].split("=", 1)[1]
+    second_refresh = client.post("/auth/refresh", headers=headers, cookies={"refresh_token": rotated_cookie})
     assert second_refresh.status_code == 200
 
     # Reuse the old refresh cookie should fail due to denylist jti.
