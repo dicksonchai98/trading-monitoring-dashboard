@@ -2,43 +2,35 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Any
 
 from app.config import ACCESS_TOKEN_TTL_SECONDS, JWT_SECRET, REFRESH_TOKEN_TTL_SECONDS
+from app.repositories.user_repository import UserRecord, UserRepository
+from app.security.passwords import hash_password, verify_password
 from app.services.denylist import RefreshDenylist
 from app.services.metrics import Metrics
 from app.services.token_service import TokenError, issue_token, verify_token
 
 
-@dataclass
-class User:
-    username: str
-    password: str
-    role: str
-
-
 class AuthService:
-    def __init__(self, denylist: RefreshDenylist, metrics: Metrics) -> None:
+    def __init__(self, user_repository: UserRepository, denylist: RefreshDenylist, metrics: Metrics) -> None:
+        self._user_repository = user_repository
         self._denylist = denylist
         self._metrics = metrics
-        self._users: dict[str, User] = {
-            "admin": User(username="admin", password="admin-pass", role="admin")
-        }
 
     def register(self, username: str, password: str) -> tuple[str, str]:
-        if username in self._users:
-            raise ValueError("user_exists")
-        self._users[username] = User(username=username, password=password, role="user")
-        return self._mint_pair(self._users[username])
+        password_hash = hash_password(password)
+        try:
+            user = self._user_repository.create_user(username=username, password_hash=password_hash, role="user")
+        except ValueError as err:
+            if str(err) == "user_exists":
+                raise
+            raise ValueError("user_exists") from err
+        return self._mint_pair(user)
 
     def login(self, username: str, password: str) -> tuple[str, str]:
-        user = self._users.get(username)
-        if user is None or user.password != password:
-
-
-
-            
+        user = self._user_repository.get_by_username(username)
+        if user is None or not verify_password(password, user.password_hash):
             self._metrics.inc("login_failure")
             raise ValueError("invalid_credentials")
         self._metrics.inc("login_success")
@@ -57,7 +49,7 @@ class AuthService:
             self._metrics.inc("refresh_failure")
             raise TokenError("denylisted")
 
-        user = self._users.get(str(payload["sub"]))
+        user = self._user_repository.get_by_username(str(payload["sub"]))
         if user is None:
             self._metrics.inc("refresh_failure")
             raise TokenError("tampered")
@@ -69,9 +61,8 @@ class AuthService:
     def verify_access_token(self, token: str) -> dict[str, Any]:
         return verify_token(token, JWT_SECRET, expected_type="access")
 
-    def _mint_pair(self, user: User) -> tuple[str, str]:
+    def _mint_pair(self, user: UserRecord) -> tuple[str, str]:
         claims = {"sub": user.username, "role": user.role}
         access_token = issue_token(claims, ACCESS_TOKEN_TTL_SECONDS, JWT_SECRET, token_type="access")
         refresh_token = issue_token(claims, REFRESH_TOKEN_TTL_SECONDS, JWT_SECRET, token_type="refresh")
         return access_token, refresh_token
-
