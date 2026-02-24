@@ -4,10 +4,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from fastapi import Depends, Header, HTTPException, Request, status
+from fastapi import Depends, HTTPException, Request, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.services.token_service import TokenError
 from app.state import audit_log, auth_service, metrics
+
+import logging
 
 
 @dataclass
@@ -15,23 +18,28 @@ class Principal:
     username: str
     role: str
 
+logger = logging.getLogger(__name__)
+bearer_scheme = HTTPBearer(auto_error=False)
 
-def _extract_bearer_token(authorization: str | None) -> str:
+
+def _extract_bearer_token(authorization: str | None, credentials: HTTPAuthorizationCredentials | None) -> str:
     if authorization is None:
         metrics.inc("authorization_denied")
+
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="missing_authorization")
-    parts = authorization.split(" ", 1)
-    if len(parts) != 2 or parts[0].lower() != "bearer":
+    if credentials is None:
         metrics.inc("authorization_denied")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid_authorization")
-    return parts[1]
+    return credentials.credentials
 
 
 def require_authenticated(
     request: Request,
-    authorization: str | None = Header(default=None),
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
 ) -> Principal:
-    token = _extract_bearer_token(authorization)
+    authorization = request.headers.get("authorization")
+    # logger.info("auth header present=%s", authorization is not None)
+    token = _extract_bearer_token(authorization, credentials)
     try:
         payload = auth_service.verify_access_token(token)
     except TokenError as err:

@@ -10,7 +10,7 @@ FastAPI modular monolith for ingestion, processing, auth, subscription, and real
 - `app/deps.py`: shared authn/authz dependencies
 - `tests/`: acceptance-oriented API tests
 
-## Run (example)
+<!-- ## Run (example)
 
 ```bash
 set DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/trading_dashboard
@@ -19,4 +19,4 @@ set ADMIN_PASSWORD=admin-pass
 python scripts/seed_admin.py
 uvicorn app.main:app --reload
 pytest
-```
+``` -->

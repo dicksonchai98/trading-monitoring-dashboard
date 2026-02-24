@@ -72,3 +72,10 @@ def test_protected_sse_endpoint_rejects_unauthorized() -> None:
     client = TestClient(app)
     res = client.get("/realtime/weighted")
     assert res.status_code == 401
+
+
+def test_protected_routes_expose_http_bearer_security_in_openapi() -> None:
+    client = TestClient(app)
+    schema = client.get("/openapi.json").json()
+    operation = schema["paths"]["/billing/status"]["get"]
+    assert operation.get("security") == [{"HTTPBearer": []}]
