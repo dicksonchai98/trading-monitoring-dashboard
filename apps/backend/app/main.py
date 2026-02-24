@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 from fastapi import FastAPI
+import logging
 
 from app.routes import admin, analytics, auth, billing, realtime
 from app.state import metrics
+
+logging.basicConfig(level=logging.INFO)
 
 app = FastAPI(title="Trading Dashboard Backend")
 
