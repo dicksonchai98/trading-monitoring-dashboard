@@ -1,0 +1,25 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 220 35% 8%;
+  --foreground: 210 20% 96%;
+  --card: 220 28% 12%;
+  --card-foreground: 210 20% 96%;
+  --primary: 24 95% 53%;
+  --primary-foreground: 0 0% 100%;
+  --muted: 220 22% 16%;
+  --muted-foreground: 220 10% 68%;
+  --border: 220 20% 20%;
+  --radius: 0.625rem;
+}
+
+* {
+  @apply border-border;
+}
+
+body {
+  @apply bg-background text-foreground antialiased;
+  font-family: "IBM Plex Sans", "Noto Sans TC", sans-serif;
+}
