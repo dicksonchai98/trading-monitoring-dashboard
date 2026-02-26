@@ -10,6 +10,13 @@ FastAPI modular monolith for ingestion, processing, auth, subscription, and real
 - `app/deps.py`: shared authn/authz dependencies
 - `tests/`: acceptance-oriented API tests
 
+## Billing Routes (Stripe)
+
+- `POST /billing/checkout` (`user`/`admin`)
+- `POST /billing/webhooks/stripe` (public, `Stripe-Signature` required)
+- `GET /billing/status` (`user`/`admin`)
+- `POST /billing/portal-session` (`user`/`admin`)
+
 <!-- ## Run (example)
 
 ```bash
