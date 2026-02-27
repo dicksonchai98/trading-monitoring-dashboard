@@ -26,8 +26,9 @@ Build an Admin-only historical data load feature that ingests futures and spot (
 - Granularity: 1-minute data only (daily bars can be derived later)
 
 ## Data Source
-- Source: sinotrade historical futures/spot data
+- Source: Shioaji documentation (sinotrade) at https://sinotrade.github.io/
 - Source selection is explicit in request payload for traceability
+  - When querying documentation, you can use Context7 MCP for faster lookup.
 
 ## ETL Flow
 1. Extract: fetch data from sinotrade for each date in range and symbol.
@@ -72,9 +73,12 @@ Build an Admin-only historical data load feature that ingests futures and spot (
   - Task master record and status/progress
 - `history_load_task_events`
   - Detailed events and errors
-- `market_history_1m`
-  - Cleaned historical 1-minute data
+- `txf_tick_data` (原 `market_history_1m`)
+  - Cleaned historical 1-minute data for near-month TXF
   - Primary key: `(symbol, market_type, ts)` to support upsert
+  - `symbol`: instrument code, e.g. `TXF`
+  - `market_type`: market category, e.g. `futures`
+  - `ts`: timezone-aware timestamp for the 1-minute bar
 
 ## Security and RBAC
 - Admin-only API access
