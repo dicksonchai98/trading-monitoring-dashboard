@@ -1,123 +1,195 @@
-# Real-Time Data Ingestor (Ordering + Gap Signals MVP) Implementation Plan
+# Real-Time Data Ingestor (Shioaji -> Redis Streams) Implementation Plan
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Build a Redis Streams ingestor that guarantees per-stream write ordering and emits gap-detection signals, while deferring backfill and K-line correction to Phase 2.
+**Goal:** Implement a production-ready MVP ingestor that logs in to Shioaji, subscribes to near-month futures tick/bidask, writes lightweight envelopes to Redis Streams with MAXLEN retention, and exposes ordering/gap signals.
 
-**Architecture:** Add a dedicated `market_ingestion` module in backend with a callback-to-queue-to-writer pipeline. Keep ingestor stateless and transport-focused: normalize lightweight envelope, write with Redis `XADD MAXLEN ~`, and expose metrics/reconnect signals. Downstream services consume ordering and gap signals; they own gap decisions and correction logic.
+**Architecture:** Build a transport-only ingestion module: Shioaji adapter (login/subscribe/callback) -> bounded asyncio queue -> single Redis writer task. Keep ingestor stateless and avoid business logic (no aggregation, no K-line correction, no backfill in MVP). Ordering guarantee is per stream key within one ingestor process.
 
-**Tech Stack:** FastAPI, Python, redis-py, asyncio, pytest
+**Tech Stack:** Python, FastAPI, asyncio, redis-py, Shioaji SDK, pytest
 
 ---
 
-### Task 1: Add ingestion configuration and stream naming primitives
+### Task 1: Add secure Shioaji/Redis ingestor configuration
 
 **Files:**
 - Modify: `apps/backend/app/config.py`
-- Create: `apps/backend/app/market_ingestion/__init__.py`
-- Create: `apps/backend/app/market_ingestion/stream_keys.py`
-- Test: `apps/backend/tests/test_market_ingestion_stream_keys.py`
+- Test: `apps/backend/tests/test_market_ingestion_config.py`
 
 **Step 1: Write the failing test**
 
 ```python
-from app.market_ingestion.stream_keys import stream_key
+from app import config
 
 
-def test_stream_key_uses_env_quote_type_and_code() -> None:
-    assert stream_key(env="prod", quote_type="tick", code="MTX") == "prod:stream:tick:MTX"
+def test_ingestor_and_shioaji_defaults() -> None:
+    assert config.INGESTOR_ENABLED is False
+    assert config.INGESTOR_ENV in {"dev", "prod"}
 ```
 
 **Step 2: Run test to verify it fails**
 
-Run: `cd apps/backend; pytest tests/test_market_ingestion_stream_keys.py -v`  
-Expected: FAIL with import/module not found.
+Run: `cd apps/backend; python -m pytest tests/test_market_ingestion_config.py -v`  
+Expected: FAIL with missing attributes.
 
 **Step 3: Write minimal implementation**
 
-```python
-def stream_key(env: str, quote_type: str, code: str) -> str:
-    return f"{env}:stream:{quote_type}:{code}"
-```
-
-Also add config defaults:
-
-```python
-INGESTOR_ENV = os.getenv("INGESTOR_ENV", "dev")
-INGESTOR_CODE = os.getenv("INGESTOR_CODE", "MTX")
-INGESTOR_STREAM_MAXLEN = int(os.getenv("INGESTOR_STREAM_MAXLEN", "100000"))
-INGESTOR_QUEUE_MAXSIZE = int(os.getenv("INGESTOR_QUEUE_MAXSIZE", "5000"))
-```
+Add config keys:
+- `INGESTOR_ENABLED`
+- `INGESTOR_ENV`
+- `INGESTOR_CODE`
+- `INGESTOR_QUEUE_MAXSIZE`
+- `INGESTOR_STREAM_MAXLEN`
+- `SHIOAJI_API_KEY`
+- `SHIOAJI_SECRET_KEY`
+- `SHIOAJI_SIMULATION`
+- `REDIS_URL`
 
 **Step 4: Run test to verify it passes**
 
-Run: `cd apps/backend; pytest tests/test_market_ingestion_stream_keys.py -v`  
+Run: `cd apps/backend; python -m pytest tests/test_market_ingestion_config.py -v`  
 Expected: PASS.
 
 **Step 5: Commit**
 
 ```bash
-git add apps/backend/app/config.py apps/backend/app/market_ingestion/__init__.py apps/backend/app/market_ingestion/stream_keys.py apps/backend/tests/test_market_ingestion_stream_keys.py
-git commit -m "feat: add ingestion config and stream key helper"
+git add apps/backend/app/config.py apps/backend/tests/test_market_ingestion_config.py
+git commit -m "feat: add shioaji and ingestor runtime configuration"
 ```
 
-### Task 2: Add lightweight envelope contract for ingest events
+### Task 2: Implement Shioaji client login/logout wrapper
+
+**Files:**
+- Create: `apps/backend/app/market_ingestion/shioaji_client.py`
+- Test: `apps/backend/tests/test_market_ingestion_shioaji_client.py`
+
+**Step 1: Write the failing test**
+
+```python
+from app.market_ingestion.shioaji_client import ShioajiClient
+
+
+def test_login_calls_shioaji_api_login() -> None:
+    api = FakeAPI()
+    client = ShioajiClient(api=api, api_key="k", secret_key="s", simulation=True)
+    client.login()
+    assert api.login_called is True
+```
+
+**Step 2: Run test to verify it fails**
+
+Run: `cd apps/backend; python -m pytest tests/test_market_ingestion_shioaji_client.py -v`  
+Expected: FAIL with import error.
+
+**Step 3: Write minimal implementation**
+
+Implement wrapper methods:
+- `login()` -> `api.login(api_key=..., secret_key=...)`
+- `logout()` -> `api.logout()`
+- constructor supports `simulation=True/False`.
+
+**Step 4: Run test to verify it passes**
+
+Run: `cd apps/backend; python -m pytest tests/test_market_ingestion_shioaji_client.py -v`  
+Expected: PASS.
+
+**Step 5: Commit**
+
+```bash
+git add apps/backend/app/market_ingestion/shioaji_client.py apps/backend/tests/test_market_ingestion_shioaji_client.py
+git commit -m "feat: add shioaji client login wrapper"
+```
+
+### Task 3: Resolve near-month futures contract and subscribe tick/bidask
+
+**Files:**
+- Create: `apps/backend/app/market_ingestion/shioaji_subscription.py`
+- Test: `apps/backend/tests/test_market_ingestion_shioaji_subscription.py`
+
+**Step 1: Write the failing test**
+
+```python
+from app.market_ingestion.shioaji_subscription import subscribe_topics
+
+
+def test_subscribe_tick_and_bidask_for_target_contract() -> None:
+    api = FakeAPI()
+    contract = object()
+    subscribe_topics(api, contract)
+    assert ("tick", contract) in api.subscriptions
+    assert ("bidask", contract) in api.subscriptions
+```
+
+**Step 2: Run test to verify it fails**
+
+Run: `cd apps/backend; python -m pytest tests/test_market_ingestion_shioaji_subscription.py -v`  
+Expected: FAIL with import error.
+
+**Step 3: Write minimal implementation**
+
+Implement:
+- `resolve_contract(api, code)` for near-month contract lookup.
+- `subscribe_topics(api, contract)` for tick + bidask subscriptions.
+
+**Step 4: Run test to verify it passes**
+
+Run: `cd apps/backend; python -m pytest tests/test_market_ingestion_shioaji_subscription.py -v`  
+Expected: PASS.
+
+**Step 5: Commit**
+
+```bash
+git add apps/backend/app/market_ingestion/shioaji_subscription.py apps/backend/tests/test_market_ingestion_shioaji_subscription.py
+git commit -m "feat: add near-month contract resolution and subscriptions"
+```
+
+### Task 4: Add callback -> envelope -> queue path with non-blocking backpressure
 
 **Files:**
 - Create: `apps/backend/app/market_ingestion/contracts.py`
-- Test: `apps/backend/tests/test_market_ingestion_contracts.py`
+- Create: `apps/backend/app/market_ingestion/pipeline.py`
+- Test: `apps/backend/tests/test_market_ingestion_pipeline.py`
 
 **Step 1: Write the failing test**
 
 ```python
-from app.market_ingestion.contracts import make_envelope
+from app.market_ingestion.pipeline import IngestionPipeline
 
 
-def test_make_envelope_keeps_payload_and_adds_timestamps() -> None:
-    raw = {"close": 20123.0, "volume": 2}
-    event = make_envelope(source="shioaji", code="MTX", quote_type="tick", event_ts="2026-02-28T01:00:00Z", payload=raw)
-    assert event["payload"] == raw
-    assert event["source"] == "shioaji"
-    assert "recv_ts" in event
+def test_enqueue_drops_newest_when_queue_full() -> None:
+    pipeline = IngestionPipeline(queue_maxsize=1, metrics=FakeMetrics())
+    assert pipeline.enqueue("dev:stream:tick:MTX", {"event_ts": "2026-02-28T00:00:00+00:00"}) is True
+    assert pipeline.enqueue("dev:stream:tick:MTX", {"event_ts": "2026-02-28T00:00:01+00:00"}) is False
 ```
 
 **Step 2: Run test to verify it fails**
 
-Run: `cd apps/backend; pytest tests/test_market_ingestion_contracts.py -v`  
-Expected: FAIL with import/module not found.
+Run: `cd apps/backend; python -m pytest tests/test_market_ingestion_pipeline.py -v`  
+Expected: FAIL with import error.
 
 **Step 3: Write minimal implementation**
 
-```python
-from datetime import datetime, timezone
-
-
-def make_envelope(source: str, code: str, quote_type: str, event_ts: str, payload: dict) -> dict:
-    return {
-        "source": source,
-        "code": code,
-        "quote_type": quote_type,
-        "event_ts": event_ts,
-        "recv_ts": datetime.now(timezone.utc).isoformat(),
-        "payload": payload,
-    }
-```
+Implement:
+- lightweight envelope fields: `source`, `code`, `quote_type`, `event_ts`, `recv_ts`, `payload`
+- bounded queue with `put_nowait`
+- on overflow increment `events_dropped_total` and do not block callback.
 
 **Step 4: Run test to verify it passes**
 
-Run: `cd apps/backend; pytest tests/test_market_ingestion_contracts.py -v`  
+Run: `cd apps/backend; python -m pytest tests/test_market_ingestion_pipeline.py -v`  
 Expected: PASS.
 
 **Step 5: Commit**
 
 ```bash
-git add apps/backend/app/market_ingestion/contracts.py apps/backend/tests/test_market_ingestion_contracts.py
-git commit -m "feat: add ingestion envelope contract"
+git add apps/backend/app/market_ingestion/contracts.py apps/backend/app/market_ingestion/pipeline.py apps/backend/tests/test_market_ingestion_pipeline.py
+git commit -m "feat: add non-blocking callback queue ingestion path"
 ```
 
-### Task 3: Implement queue writer that preserves per-stream ordering
+### Task 5: Implement Redis stream writer (XADD MAXLEN ~) and per-stream ordering
 
 **Files:**
+- Create: `apps/backend/app/market_ingestion/stream_keys.py`
 - Create: `apps/backend/app/market_ingestion/writer.py`
 - Test: `apps/backend/tests/test_market_ingestion_writer.py`
 
@@ -127,102 +199,43 @@ git commit -m "feat: add ingestion envelope contract"
 from app.market_ingestion.writer import RedisWriter
 
 
-def test_writer_uses_fifo_order_for_same_stream() -> None:
+def test_writer_xadd_uses_maxlen_approximate() -> None:
     redis = FakeRedis()
     writer = RedisWriter(redis_client=redis, maxlen=100000)
-    writer.write("dev:stream:tick:MTX", {"seq": 1})
-    writer.write("dev:stream:tick:MTX", {"seq": 2})
-    assert redis.writes[0][1]["seq"] == 1
-    assert redis.writes[1][1]["seq"] == 2
+    writer.write("dev:stream:tick:MTX", {"k": "v"})
+    assert redis.last_maxlen == 100000
+    assert redis.last_approximate is True
 ```
 
 **Step 2: Run test to verify it fails**
 
-Run: `cd apps/backend; pytest tests/test_market_ingestion_writer.py -v`  
-Expected: FAIL with import/module not found.
+Run: `cd apps/backend; python -m pytest tests/test_market_ingestion_writer.py -v`  
+Expected: FAIL with import error.
 
 **Step 3: Write minimal implementation**
 
-```python
-class RedisWriter:
-    def __init__(self, redis_client, maxlen: int) -> None:
-        self._redis = redis_client
-        self._maxlen = maxlen
-
-    def write(self, stream: str, fields: dict) -> str:
-        return self._redis.xadd(stream, fields, maxlen=self._maxlen, approximate=True)
-```
-
-Add an async consumer loop in same module that pulls from `asyncio.Queue` and writes sequentially with one task.
+Implement:
+- key format: `{env}:stream:{quote_type}:{code}`
+- single writer task consuming queue sequentially
+- retry (3 attempts, short backoff) for transient Redis write errors.
 
 **Step 4: Run test to verify it passes**
 
-Run: `cd apps/backend; pytest tests/test_market_ingestion_writer.py -v`  
+Run: `cd apps/backend; python -m pytest tests/test_market_ingestion_writer.py -v`  
 Expected: PASS.
 
 **Step 5: Commit**
 
 ```bash
-git add apps/backend/app/market_ingestion/writer.py apps/backend/tests/test_market_ingestion_writer.py
-git commit -m "feat: add redis writer with per-stream order semantics"
+git add apps/backend/app/market_ingestion/stream_keys.py apps/backend/app/market_ingestion/writer.py apps/backend/tests/test_market_ingestion_writer.py
+git commit -m "feat: add redis stream writer with maxlen and retry"
 ```
 
-### Task 4: Add backpressure and gap-signal metrics
-
-**Files:**
-- Modify: `apps/backend/app/services/metrics.py`
-- Create: `apps/backend/app/market_ingestion/signals.py`
-- Test: `apps/backend/tests/test_market_ingestion_signals.py`
-
-**Step 1: Write the failing test**
-
-```python
-from app.services.metrics import Metrics
-
-
-def test_metrics_include_gap_signals() -> None:
-    metrics = Metrics()
-    required = {"events_received_total", "events_written_redis_total", "ws_reconnect_count", "queue_depth", "ingest_lag_ms", "events_dropped_total"}
-    assert required.issubset(set(metrics.counters))
-```
-
-**Step 2: Run test to verify it fails**
-
-Run: `cd apps/backend; pytest tests/test_market_ingestion_signals.py -v`  
-Expected: FAIL because keys are missing.
-
-**Step 3: Write minimal implementation**
-
-Add counters in `Metrics.__init__`:
-
-```python
-"events_received_total": 0,
-"events_written_redis_total": 0,
-"ws_reconnect_count": 0,
-"queue_depth": 0,
-"ingest_lag_ms": 0,
-"events_dropped_total": 0,
-```
-
-In `signals.py`, add helpers to update queue depth, dropped events, and lag from `event_ts`.
-
-**Step 4: Run test to verify it passes**
-
-Run: `cd apps/backend; pytest tests/test_market_ingestion_signals.py -v`  
-Expected: PASS.
-
-**Step 5: Commit**
-
-```bash
-git add apps/backend/app/services/metrics.py apps/backend/app/market_ingestion/signals.py apps/backend/tests/test_market_ingestion_signals.py
-git commit -m "feat: add ingestion gap-signal metrics"
-```
-
-### Task 5: Implement reconnect and resubscribe orchestration
+### Task 6: Add reconnect + re-login + re-subscribe runner
 
 **Files:**
 - Create: `apps/backend/app/market_ingestion/runner.py`
-- Create: `apps/backend/tests/test_market_ingestion_runner.py`
+- Test: `apps/backend/tests/test_market_ingestion_runner.py`
 
 **Step 1: Write the failing test**
 
@@ -230,35 +243,25 @@ git commit -m "feat: add ingestion gap-signal metrics"
 from app.market_ingestion.runner import reconnect_delays
 
 
-def test_reconnect_delays_capped_at_30_seconds() -> None:
+def test_reconnect_backoff_is_exponential_and_capped() -> None:
     assert reconnect_delays(6) == [1, 2, 4, 8, 16, 30]
 ```
 
 **Step 2: Run test to verify it fails**
 
-Run: `cd apps/backend; pytest tests/test_market_ingestion_runner.py -v`  
-Expected: FAIL with import/module not found.
+Run: `cd apps/backend; python -m pytest tests/test_market_ingestion_runner.py -v`  
+Expected: FAIL with import error.
 
 **Step 3: Write minimal implementation**
 
-```python
-def reconnect_delays(attempts: int) -> list[int]:
-    delays: list[int] = []
-    current = 1
-    for _ in range(attempts):
-        delays.append(min(current, 30))
-        current *= 2
-    return delays
-```
-
-Add runner methods:
-- `connect_login_subscribe()`
-- `run_forever()` with retry loop
-- increment `ws_reconnect_count` on reconnect.
+Implement runner loop:
+- on disconnect: sleep with `1 -> 2 -> 4 -> ... -> 30s`
+- reconnect sequence: `login -> resolve contract -> subscribe topics`
+- increment `ws_reconnect_count`.
 
 **Step 4: Run test to verify it passes**
 
-Run: `cd apps/backend; pytest tests/test_market_ingestion_runner.py -v`  
+Run: `cd apps/backend; python -m pytest tests/test_market_ingestion_runner.py -v`  
 Expected: PASS.
 
 **Step 5: Commit**
@@ -268,84 +271,99 @@ git add apps/backend/app/market_ingestion/runner.py apps/backend/tests/test_mark
 git commit -m "feat: add reconnect and resubscribe runner"
 ```
 
-### Task 6: Wire app startup and provide integration coverage
+### Task 7: Wire startup lifecycle and observability metrics
 
 **Files:**
+- Modify: `apps/backend/app/services/metrics.py`
 - Modify: `apps/backend/app/state.py`
 - Modify: `apps/backend/app/main.py`
-- Create: `apps/backend/tests/test_market_ingestion_pipeline.py`
-- Modify: `apps/backend/tests/conftest.py`
+- Test: `apps/backend/tests/test_market_ingestion_startup.py`
 
 **Step 1: Write the failing test**
 
 ```python
-def test_pipeline_drops_when_queue_full_and_increments_counter(app_client) -> None:
-    # Fill queue, push one more event, then verify events_dropped_total increased.
-    response = app_client.get("/metrics")
-    assert response.status_code == 200
+from fastapi.testclient import TestClient
+from app.main import app
+
+
+def test_metrics_include_ingestor_gap_signals() -> None:
+    client = TestClient(app)
+    counters = client.get("/metrics").json()["counters"]
+    assert "events_dropped_total" in counters
+    assert "ingest_lag_ms" in counters
 ```
 
 **Step 2: Run test to verify it fails**
 
-Run: `cd apps/backend; pytest tests/test_market_ingestion_pipeline.py -v`  
-Expected: FAIL because pipeline wiring/fixtures are missing.
+Run: `cd apps/backend; python -m pytest tests/test_market_ingestion_startup.py -v`  
+Expected: FAIL with missing metric keys.
 
 **Step 3: Write minimal implementation**
 
-- Initialize ingestor dependencies in `state.py`.
-- Start ingestor runner in FastAPI startup when env flag `INGESTOR_ENABLED=true`.
-- Keep test mode deterministic by defaulting `INGESTOR_ENABLED=false` in tests.
+Add metrics:
+- `events_received_total`
+- `events_written_redis_total`
+- `redis_write_latency_ms`
+- `ws_reconnect_count`
+- `queue_depth`
+- `ingest_lag_ms`
+- `events_dropped_total`
+
+Wire startup:
+- if `INGESTOR_ENABLED=true`, start ingestor background tasks.
 
 **Step 4: Run test to verify it passes**
 
-Run: `cd apps/backend; pytest tests/test_market_ingestion_pipeline.py -v`  
+Run: `cd apps/backend; python -m pytest tests/test_market_ingestion_startup.py -v`  
 Expected: PASS.
 
 **Step 5: Commit**
 
 ```bash
-git add apps/backend/app/state.py apps/backend/app/main.py apps/backend/tests/test_market_ingestion_pipeline.py apps/backend/tests/conftest.py
-git commit -m "feat: wire ingestion pipeline lifecycle with tests"
+git add apps/backend/app/services/metrics.py apps/backend/app/state.py apps/backend/app/main.py apps/backend/tests/test_market_ingestion_startup.py
+git commit -m "feat: wire ingestor lifecycle and observability metrics"
 ```
 
-### Task 7: Update docs and explicitly defer Phase 2 items
+### Task 8: Add integration test and operations docs (MVP boundary explicit)
 
 **Files:**
+- Create: `apps/backend/tests/test_market_ingestion_integration.py`
 - Modify: `apps/backend/README.md`
 - Create: `apps/backend/docs/market-ingestor-ops.md`
 - Modify: `infra/README.md`
 
-**Step 1: Write the failing docs checklist**
+**Step 1: Write the failing test**
 
-```text
-Checklist:
-1) Env vars and stream key format documented.
-2) Ordering guarantee scope documented (per-stream only).
-3) Gap-signal metrics documented.
-4) Backfill and K-line correction marked Phase 2.
+```python
+def test_ingestor_flow_callback_to_redis_write(fake_shioaji, fake_redis) -> None:
+    # simulate callback event and assert one Redis stream write occurred
+    ...
 ```
 
-**Step 2: Run checklist and verify it fails**
+**Step 2: Run test to verify it fails**
 
-Run: manual checklist review  
-Expected: At least one checklist item missing.
+Run: `cd apps/backend; python -m pytest tests/test_market_ingestion_integration.py -v`  
+Expected: FAIL with missing fixtures/flow.
 
-**Step 3: Write minimal documentation updates**
+**Step 3: Write minimal implementation**
 
-- Add startup/env section for ingestor.
-- Add troubleshooting for reconnect, queue overflow, lag.
-- Add "Not in MVP" section for backfill and K-line correction.
+Add docs and test coverage for:
+- login prerequisites (`SHIOAJI_API_KEY`, `SHIOAJI_SECRET_KEY`)
+- stream naming
+- ordering scope (per-stream only)
+- gap signal interpretation
+- explicit Phase 2 defer: backfill and K-line correction.
 
-**Step 4: Run checklist and verify it passes**
+**Step 4: Run test to verify it passes**
 
-Run: manual checklist review  
-Expected: All checklist items complete.
+Run: `cd apps/backend; python -m pytest tests/test_market_ingestion_integration.py -v`  
+Expected: PASS.
 
 **Step 5: Commit**
 
 ```bash
-git add apps/backend/README.md apps/backend/docs/market-ingestor-ops.md infra/README.md
-git commit -m "docs: add ingestor mvp operations and phase-2 boundaries"
+git add apps/backend/tests/test_market_ingestion_integration.py apps/backend/README.md apps/backend/docs/market-ingestor-ops.md infra/README.md
+git commit -m "test/docs: add ingestor integration coverage and mvp runbook"
 ```
 
 ## Final Verification Gate
@@ -354,15 +372,15 @@ Run:
 
 ```bash
 cd apps/backend
-pytest -v
+python -m pytest -v
 ```
 
 Expected:
-- New market ingestor tests pass.
-- Existing auth/billing/realtime tests pass without regression.
+- All new ingestor tests pass.
+- Existing auth/billing/realtime tests pass.
+- No backfill/K-line logic introduced into ingestor module.
 
-## Required Skills During Execution
+## External References (Design Validation)
 
-- `@test-driven-development` for each code task.
-- `@systematic-debugging` whenever a test fails unexpectedly.
-- `@verification-before-completion` before claiming completion.
+- Shioaji login and API usage: https://sinotrade.github.io/
+- Shioaji futures market data callbacks/subscriptions: https://sinotrade.github.io/tutor/market_data/streaming/futures/
