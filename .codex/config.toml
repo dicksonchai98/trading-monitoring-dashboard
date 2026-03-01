@@ -3,6 +3,6 @@ command = "npx"
 args = ["shadcn@latest", "mcp"]
 
 [mcp_servers.context7]
-args = ["-y", "@upstash/context7-mcp", "--api-key", "${CONTEXT_API_KEY}"]
+args = ["-y", "@upstash/context7-mcp"]
 command = "npx"
 startup_timeout_ms = 20_000
