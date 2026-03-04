@@ -3,6 +3,10 @@ services:
     build:
       context: ./apps/backend
       dockerfile: Dockerfile
+    env_file:
+      - ./.env
+    depends_on:
+      - redis
     ports:
       - "8000:8000"
     environment:
@@ -12,6 +16,8 @@ services:
       STRIPE_SUCCESS_URL: ${STRIPE_SUCCESS_URL:-http://localhost:3000/success}
       STRIPE_CANCEL_URL: ${STRIPE_CANCEL_URL:-http://localhost:3000/cancel}
       STRIPE_PORTAL_RETURN_URL: ${STRIPE_PORTAL_RETURN_URL:-http://localhost:3000/success}
+      DATABASE_URL: ${DATABASE_URL_DOCKER:-postgresql+psycopg://postgres:981025060598Cc!@host.docker.internal:5432/trading_dashboard}
+      REDIS_URL: ${REDIS_URL_DOCKER:-redis://redis:6379/0}
 
   frontend:
     build:
@@ -19,3 +25,20 @@ services:
       dockerfile: Dockerfile
     profiles:
       - build
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  redisinsight:
+    image: redis/redisinsight:latest
+    ports:
+      - "5540:5540"
+    depends_on:
+      - redis
+
+volumes:
+  redis_data:
