@@ -39,7 +39,7 @@ def test_ingestor_flow_callback_to_redis_write() -> None:
 
 class FakeQuote:
     def __init__(self) -> None:
-        self.subscriptions: list[tuple[object, object, object]] = []
+        self.subscriptions: list[tuple[object, object, object | None]] = []
         self.tick_callback = None
         self.bidask_callback = None
 
@@ -49,7 +49,7 @@ class FakeQuote:
     def set_on_bidask_fop_v1_callback(self, callback) -> None:
         self.bidask_callback = callback
 
-    def subscribe(self, contract, quote_type, version) -> None:
+    def subscribe(self, contract, quote_type, version=None) -> None:
         self.subscriptions.append((contract, quote_type, version))
 
 
