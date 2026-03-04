@@ -1,0 +1,80 @@
+"""Shioaji futures contract resolution and quote subscription helpers."""
+
+from __future__ import annotations
+
+from collections.abc import Iterable
+from contextlib import suppress
+from typing import Any
+
+
+def _quote_type(value: str) -> Any:
+    try:
+        import shioaji as sj  # type: ignore
+
+        if value == "tick":
+            return sj.constant.QuoteType.Tick
+        return sj.constant.QuoteType.BidAsk
+    except Exception:
+        return value
+
+
+def _quote_version_v1() -> Any:
+    try:
+        import shioaji as sj  # type: ignore
+
+        return sj.constant.QuoteVersion.v1
+    except Exception:
+        return "v1"
+
+
+def _resolve_from_futures(futures: Any, code: str) -> Any:
+    if hasattr(futures, "__getitem__"):
+        with suppress(Exception):
+            contract = futures[code]
+            if contract is not None:
+                return contract
+    contract = getattr(futures, code, None)
+    if contract is not None:
+        return contract
+    return None
+
+
+def _available_futures_codes(futures: Any, limit: int = 20) -> list[str]:
+    if hasattr(futures, "keys"):
+        try:
+            return [str(key) for key in list(futures.keys())[:limit]]
+        except Exception:
+            return []
+    names = [name for name in dir(futures) if not name.startswith("_")]
+    return names[:limit]
+
+
+def resolve_contract(api: Any, code: str) -> Any:
+    # Prefer near-month shorthand (e.g., TXFR1 / MTXR1) when available.
+    near_month_code = f"{code}R1"
+    futures = api.Contracts.Futures
+    candidates = [near_month_code, code]
+    for candidate in candidates:
+        contract = _resolve_from_futures(futures, candidate)
+        if contract is not None:
+            return contract
+    raise RuntimeError(
+        "unable to resolve futures contract "
+        f"code={code} candidates={candidates} available={_available_futures_codes(futures)}"
+    )
+
+
+def subscribe_topics(api: Any, contract: Any, quote_types: Iterable[str] | None = None) -> None:
+    if contract is None:
+        raise RuntimeError("resolved futures contract is empty; cannot subscribe topics")
+    quote = api.quote
+    types = list(quote_types) if quote_types is not None else ["tick", "bidask"]
+    allowed = {"tick", "bidask"}
+    seen: set[str] = set()
+    for value in types:
+        normalized = value.strip().lower()
+        if normalized in allowed and normalized not in seen:
+            quote.subscribe(
+                contract, quote_type=_quote_type(normalized), version=_quote_version_v1()
+            )
+            seen.add(normalized)
