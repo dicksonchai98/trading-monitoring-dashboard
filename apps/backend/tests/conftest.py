@@ -7,6 +7,11 @@ from fastapi.testclient import TestClient
 
 # Ensure DB URL is set before importing app modules that create engine/session.
 os.environ.setdefault("DATABASE_URL", "sqlite+pysqlite:///./test_backend.db")
+os.environ.setdefault("STRIPE_SECRET_KEY", "sk_test_local")
+os.environ.setdefault("STRIPE_WEBHOOK_SECRET", "whsec_local")
+os.environ.setdefault("STRIPE_PRICE_ID", "price_local")
+os.environ.setdefault("STRIPE_SUCCESS_URL", "https://example.com/success")
+os.environ.setdefault("STRIPE_CANCEL_URL", "https://example.com/cancel")
 
 from app.db.base import Base
 from app.db.session import engine

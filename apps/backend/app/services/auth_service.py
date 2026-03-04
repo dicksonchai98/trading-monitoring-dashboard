@@ -11,9 +11,14 @@ from app.services.denylist import RefreshDenylist
 from app.services.metrics import Metrics
 from app.services.token_service import TokenError, issue_token, verify_token
 
+ACCESS_TOKEN_TYPE = "access"
+REFRESH_TOKEN_TYPE = "refresh"
+
 
 class AuthService:
-    def __init__(self, user_repository: UserRepository, denylist: RefreshDenylist, metrics: Metrics) -> None:
+    def __init__(
+        self, user_repository: UserRepository, denylist: RefreshDenylist, metrics: Metrics
+    ) -> None:
         self._user_repository = user_repository
         self._denylist = denylist
         self._metrics = metrics
@@ -21,7 +26,9 @@ class AuthService:
     def register(self, username: str, password: str) -> tuple[str, str]:
         password_hash = hash_password(password)
         try:
-            user = self._user_repository.create_user(username=username, password_hash=password_hash, role="user")
+            user = self._user_repository.create_user(
+                username=username, password_hash=password_hash, role="user"
+            )
         except ValueError as err:
             if str(err) == "user_exists":
                 raise
@@ -38,7 +45,7 @@ class AuthService:
 
     def refresh(self, refresh_token: str) -> tuple[str, str]:
         try:
-            payload = verify_token(refresh_token, JWT_SECRET, expected_type="refresh")
+            payload = verify_token(refresh_token, JWT_SECRET, expected_type=REFRESH_TOKEN_TYPE)
         except TokenError:
             self._metrics.inc("refresh_failure")
             raise
@@ -59,10 +66,20 @@ class AuthService:
         return self._mint_pair(user)
 
     def verify_access_token(self, token: str) -> dict[str, Any]:
-        return verify_token(token, JWT_SECRET, expected_type="access")
+        return verify_token(token, JWT_SECRET, expected_type=ACCESS_TOKEN_TYPE)
 
     def _mint_pair(self, user: UserRecord) -> tuple[str, str]:
         claims = {"sub": user.username, "role": user.role}
-        access_token = issue_token(claims, ACCESS_TOKEN_TTL_SECONDS, JWT_SECRET, token_type="access")
-        refresh_token = issue_token(claims, REFRESH_TOKEN_TTL_SECONDS, JWT_SECRET, token_type="refresh")
+        access_token = issue_token(
+            claims,
+            ACCESS_TOKEN_TTL_SECONDS,
+            JWT_SECRET,
+            token_type=ACCESS_TOKEN_TYPE,
+        )
+        refresh_token = issue_token(
+            claims,
+            REFRESH_TOKEN_TTL_SECONDS,
+            JWT_SECRET,
+            token_type=REFRESH_TOKEN_TYPE,
+        )
         return access_token, refresh_token

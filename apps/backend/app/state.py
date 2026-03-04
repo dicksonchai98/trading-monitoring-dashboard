@@ -2,30 +2,86 @@
 
 from __future__ import annotations
 
+import logging
+
 from sqlalchemy import delete
 
+from app.config import (
+    INGESTOR_QUEUE_MAXSIZE,
+    INGESTOR_REDIS_RETRY_ATTEMPTS,
+    INGESTOR_REDIS_RETRY_BACKOFF_MS,
+    INGESTOR_STREAM_MAXLEN,
+    REDIS_URL,
+    SHIOAJI_SIMULATION,
+    get_stripe_settings,
+)
 from app.db.session import SessionLocal
+from app.market_ingestion.runner import MarketIngestionRunner
+from app.models.billing_event import BillingEventModel
 from app.models.refresh_denylist import RefreshTokenDenylistModel
+from app.models.subscription import SubscriptionModel
 from app.models.user import UserModel
+from app.repositories.billing_event_repository import BillingEventRepository
 from app.repositories.refresh_denylist_repository import RefreshDenylistRepository
+from app.repositories.subscription_repository import SubscriptionRepository
 from app.repositories.user_repository import UserRepository
 from app.services.audit import AuditLog
 from app.services.auth_service import AuthService
+from app.services.billing_service import BillingService
 from app.services.denylist import RefreshDenylist
 from app.services.metrics import Metrics
+from app.services.stripe_provider import StripeProvider
+
+logger = logging.getLogger(__name__)
 
 user_repository = UserRepository(session_factory=SessionLocal)
 refresh_denylist_repository = RefreshDenylistRepository(session_factory=SessionLocal)
+subscription_repository = SubscriptionRepository(session_factory=SessionLocal)
+billing_event_repository = BillingEventRepository(session_factory=SessionLocal)
 metrics = Metrics()
 denylist = RefreshDenylist(repo=refresh_denylist_repository)
 audit_log = AuditLog()
 auth_service = AuthService(user_repository=user_repository, denylist=denylist, metrics=metrics)
+billing_service = BillingService(
+    settings=get_stripe_settings(),
+    user_repository=user_repository,
+    subscription_repository=subscription_repository,
+    billing_event_repository=billing_event_repository,
+    audit_log=audit_log,
+    stripe_provider=StripeProvider(secret_key=get_stripe_settings().secret_key),
+)
+ingestor_runner: MarketIngestionRunner | None = None
+
+
+def build_ingestor_runner() -> MarketIngestionRunner:
+    global ingestor_runner
+    if ingestor_runner is not None:
+        return ingestor_runner
+    try:
+        import redis
+        import shioaji as sj  # type: ignore
+    except Exception as err:  # pragma: no cover - depends on runtime dependency
+        raise RuntimeError("ingestor dependencies unavailable: install redis and shioaji") from err
+
+    ingestor_runner = MarketIngestionRunner(
+        shioaji_api=sj.Shioaji(simulation=SHIOAJI_SIMULATION),
+        redis_client=redis.from_url(REDIS_URL),
+        metrics=metrics,
+        queue_maxsize=INGESTOR_QUEUE_MAXSIZE,
+        stream_maxlen=INGESTOR_STREAM_MAXLEN,
+        retry_attempts=INGESTOR_REDIS_RETRY_ATTEMPTS,
+        retry_backoff_ms=INGESTOR_REDIS_RETRY_BACKOFF_MS,
+    )
+    logger.info("ingestor runner created")
+    return ingestor_runner
 
 
 def reset_state_for_tests() -> None:
     metrics.counters = {k: 0 for k in metrics.counters}
     audit_log.events.clear()
     with SessionLocal() as session:
+        session.execute(delete(BillingEventModel))
+        session.execute(delete(SubscriptionModel))
         session.execute(delete(RefreshTokenDenylistModel))
         session.execute(delete(UserModel))
         session.commit()

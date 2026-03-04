@@ -1,0 +1,18 @@
+[tool.ruff]
+line-length = 100
+src = ["apps/backend/app", "apps/backend/tests", "apps/backend/scripts"]
+extend-exclude = ["apps/backend/alembic/versions"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "C4", "A", "S"]
+ignore = ["B008"]
+
+[tool.ruff.lint.per-file-ignores]
+"apps/backend/app/services/auth_service.py" = ["S105", "S106"]
+"apps/backend/tests/**/*.py" = ["S101", "S106", "S107"]
+"apps/backend/scripts/**/*.py" = ["S101"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
