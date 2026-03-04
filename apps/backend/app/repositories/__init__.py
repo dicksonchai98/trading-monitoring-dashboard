@@ -1,5 +1,3 @@
-"""Repository modules."""
-
 """Repository package."""
 
 from app.repositories.billing_event_repository import BillingEventRepository

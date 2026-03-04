@@ -36,9 +36,13 @@ class SubscriptionRepository:
                 return None
             return self._to_record(model)
 
-    def get_by_stripe_subscription_id(self, stripe_subscription_id: str) -> SubscriptionRecord | None:
+    def get_by_stripe_subscription_id(
+        self, stripe_subscription_id: str
+    ) -> SubscriptionRecord | None:
         with self._session_factory() as session:
-            stmt = select(SubscriptionModel).where(SubscriptionModel.stripe_subscription_id == stripe_subscription_id)
+            stmt = select(SubscriptionModel).where(
+                SubscriptionModel.stripe_subscription_id == stripe_subscription_id
+            )
             model = session.execute(stmt).scalar_one_or_none()
             if model is None:
                 return None
@@ -46,7 +50,9 @@ class SubscriptionRepository:
 
     def get_by_stripe_customer_id(self, stripe_customer_id: str) -> SubscriptionRecord | None:
         with self._session_factory() as session:
-            stmt = select(SubscriptionModel).where(SubscriptionModel.stripe_customer_id == stripe_customer_id)
+            stmt = select(SubscriptionModel).where(
+                SubscriptionModel.stripe_customer_id == stripe_customer_id
+            )
             model = session.execute(stmt).scalar_one_or_none()
             if model is None:
                 return None
