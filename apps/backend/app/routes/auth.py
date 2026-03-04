@@ -35,7 +35,10 @@ def register(payload: CredentialRequest, response: Response) -> dict[str, str]:
         access_token, refresh_token = auth_service.register(payload.username, payload.password)
     except ValueError as err:
         if str(err) == "user_exists":
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="user_exists")
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="user_exists",
+            ) from err
         raise
     _set_refresh_cookie(response, refresh_token)
     return {"access_token": access_token, "token_type": "bearer"}
@@ -45,8 +48,11 @@ def register(payload: CredentialRequest, response: Response) -> dict[str, str]:
 def login(payload: CredentialRequest, response: Response) -> dict[str, str]:
     try:
         access_token, refresh_token = auth_service.login(payload.username, payload.password)
-    except ValueError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid_credentials")
+    except ValueError as err:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="invalid_credentials",
+        ) from err
     _set_refresh_cookie(response, refresh_token)
     return {"access_token": access_token, "token_type": "bearer"}
 
@@ -59,10 +65,15 @@ def refresh(
     refresh_token = request.cookies.get(REFRESH_COOKIE_NAME)
     if not refresh_token:
         metrics.inc("refresh_failure")
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="missing_refresh_cookie")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="missing_refresh_cookie"
+        )
     try:
         access_token, rotated_refresh = auth_service.refresh(refresh_token)
     except TokenError as err:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=err.reason)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=err.reason,
+        ) from err
     _set_refresh_cookie(response, rotated_refresh)
     return {"access_token": access_token, "token_type": "bearer"}

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-
 PUBLIC_ROUTES = {
     ("POST", "/auth/register"),
     ("POST", "/auth/login"),
@@ -41,4 +40,3 @@ def classify_route(method: str, path: str) -> str:
         return "admin"
     # Default deny for unknown routes can be handled by explicit dependencies.
     return "unknown"
-
