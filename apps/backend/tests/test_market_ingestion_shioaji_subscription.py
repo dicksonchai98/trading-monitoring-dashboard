@@ -6,14 +6,13 @@ from app.market_ingestion.shioaji_subscription import resolve_contract, subscrib
 
 class FakeQuote:
     def __init__(self) -> None:
-        self.subscriptions: list[tuple[str, object]] = []
+        self.subscriptions: list[tuple[str, object, object | None]] = []
 
-    def subscribe(self, contract, quote_type, version) -> None:
-        _ = version
+    def subscribe(self, contract, quote_type, version=None) -> None:
         normalized = str(quote_type).lower()
         if "." in normalized:
             normalized = normalized.split(".")[-1]
-        self.subscriptions.append((normalized, contract))
+        self.subscriptions.append((normalized, contract, version))
 
 
 class FakeFutures(dict):
@@ -42,16 +41,32 @@ def test_subscribe_tick_and_bidask_for_target_contract() -> None:
     contract = object()
     api = FakeAPI(FakeFutures({"MTX": contract}))
     subscribe_topics(api, contract)
-    assert ("tick", contract) in api.quote.subscriptions
-    assert ("bidask", contract) in api.quote.subscriptions
+    assert any(kind == "tick" and target is contract for kind, target, _ in api.quote.subscriptions)
+    assert any(
+        kind == "bidask" and target is contract for kind, target, _ in api.quote.subscriptions
+    )
 
 
 def test_subscribe_honors_quote_types() -> None:
     contract = object()
     api = FakeAPI(FakeFutures({"MTX": contract}))
     subscribe_topics(api, contract, ["tick"])
-    assert ("tick", contract) in api.quote.subscriptions
-    assert ("bidask", contract) not in api.quote.subscriptions
+    assert any(kind == "tick" and target is contract for kind, target, _ in api.quote.subscriptions)
+    assert all(kind != "bidask" for kind, _, _ in api.quote.subscriptions)
+
+
+def test_subscribe_bidask_does_not_force_v1_version() -> None:
+    contract = object()
+    api = FakeAPI(FakeFutures({"MTX": contract}))
+    subscribe_topics(api, contract, ["bidask"])
+
+    bidask_subscriptions = [
+        (kind, target, version)
+        for kind, target, version in api.quote.subscriptions
+        if kind == "bidask" and target is contract
+    ]
+    assert len(bidask_subscriptions) == 1
+    assert bidask_subscriptions[0][2] is None
 
 
 def test_resolve_contract_raises_when_code_not_found() -> None:

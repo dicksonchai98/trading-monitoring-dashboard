@@ -74,7 +74,12 @@ def subscribe_topics(api: Any, contract: Any, quote_types: Iterable[str] | None 
     for value in types:
         normalized = value.strip().lower()
         if normalized in allowed and normalized not in seen:
-            quote.subscribe(
-                contract, quote_type=_quote_type(normalized), version=_quote_version_v1()
-            )
+            if normalized == "tick":
+                quote.subscribe(
+                    contract, quote_type=_quote_type(normalized), version=_quote_version_v1()
+                )
+            else:
+                # BidAsk v1 payloads can be unstable in some sessions.
+                # Fall back to SDK default version.
+                quote.subscribe(contract, quote_type=_quote_type(normalized))
             seen.add(normalized)
