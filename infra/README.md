@@ -20,6 +20,7 @@ Configure these backend environment variables before enabling Stripe billing rou
 Suggested env template:
 
 - `infra/.env.backend.stripe.example`
+- `infra/.env.backend.ingestor.example`
 
 Webhook endpoint to register in Stripe:
 
@@ -35,3 +36,20 @@ Recommended Stripe test-mode setup:
    - `invoice.payment_failed`
    - `customer.subscription.deleted`
 4. Set webhook endpoint URL to `<backend-base-url>/billing/webhooks/stripe`.
+
+## Market Ingestor Environment
+
+Configure these backend environment variables before enabling ingestor:
+
+- `INGESTOR_ENABLED` (`true` or `false`)
+- `INGESTOR_ENV` (`dev` / `prod`)
+- `INGESTOR_CODE` (e.g. `MTX`)
+- `INGESTOR_QUOTE_TYPES` (comma-separated, default `tick,bidask`)
+- `INGESTOR_QUEUE_MAXSIZE`
+- `INGESTOR_STREAM_MAXLEN`
+- `INGESTOR_REDIS_RETRY_ATTEMPTS`
+- `INGESTOR_REDIS_RETRY_BACKOFF_MS`
+- `REDIS_URL`
+- `SHIOAJI_API_KEY`
+- `SHIOAJI_SECRET_KEY`
+- `SHIOAJI_SIMULATION`

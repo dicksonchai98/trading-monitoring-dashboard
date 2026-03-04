@@ -115,7 +115,8 @@ from app.market_ingestion.shioaji_subscription import subscribe_topics
 def test_subscribe_tick_and_bidask_for_target_contract() -> None:
     api = FakeAPI()
     contract = object()
-    subscribe_topics(api, contract)
+    quote_types = ["tick", "bidask"]
+    subscribe_topics(api, contract, quote_types)
     assert ("tick", contract) in api.subscriptions
     assert ("bidask", contract) in api.subscriptions
 ```
@@ -129,7 +130,7 @@ Expected: FAIL with import error.
 
 Implement:
 - `resolve_contract(api, code)` for near-month contract lookup.
-- `subscribe_topics(api, contract)` for tick + bidask subscriptions.
+- `subscribe_topics(api, contract, quote_types)` for subscriptions matching configured quote types.
 
 **Step 4: Run test to verify it passes**
 

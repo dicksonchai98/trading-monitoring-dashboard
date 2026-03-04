@@ -17,6 +17,17 @@ FastAPI modular monolith for ingestion, processing, auth, subscription, and real
 - `GET /billing/status` (`user`/`admin`)
 - `POST /billing/portal-session` (`user`/`admin`)
 
+## Market Ingestor (Shioaji -> Redis Streams)
+
+- Enable with `INGESTOR_ENABLED=true`
+- Required credentials: `SHIOAJI_API_KEY`, `SHIOAJI_SECRET_KEY`
+- Stream naming: `{env}:stream:{quote_type}:{code}` (for example `dev:stream:tick:MTX`)
+- Ordering guarantee: per stream key only (no cross-stream global ordering)
+- Gap signals: `event_ts`, `recv_ts`, `events_dropped_total`, `ws_reconnect_count`, `queue_depth`, `ingest_lag_ms`
+
+Runbook:
+- `apps/backend/docs/market-ingestor-ops.md`
+
 <!-- ## Run (example)
 
 ```bash
