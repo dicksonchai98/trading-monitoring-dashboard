@@ -8,7 +8,7 @@ import logging
 from fastapi import FastAPI
 
 from app import state
-from app.config import INGESTOR_ENABLED, validate_stripe_settings
+from app.config import AGGREGATOR_ENABLED, INGESTOR_ENABLED, validate_stripe_settings
 from app.routes import admin, analytics, auth, billing, realtime
 from app.state import metrics
 
@@ -32,12 +32,19 @@ async def validate_billing_configuration() -> None:
         runner = state.build_ingestor_runner()
         task = asyncio.create_task(runner.start())
         task.add_done_callback(_log_ingestor_start_failure)
+    logging.info(f"AGGREGATOR_ENABLED: {AGGREGATOR_ENABLED}")
+    if AGGREGATOR_ENABLED:
+        runner = state.build_aggregator_runner()
+        task = asyncio.create_task(runner.start())
+        task.add_done_callback(_log_aggregator_start_failure)
 
 
 @app.on_event("shutdown")
 async def shutdown_ingestor() -> None:
     if state.ingestor_runner is not None:
         await state.ingestor_runner.stop()
+    if state.aggregator_runner is not None:
+        await state.aggregator_runner.stop_async()
 
 
 @app.get("/metrics")
@@ -50,3 +57,10 @@ def _log_ingestor_start_failure(task: asyncio.Task[None]) -> None:
         task.result()
     except Exception:
         logger.exception("ingestor startup failed")
+
+
+def _log_aggregator_start_failure(task: asyncio.Task[None]) -> None:
+    try:
+        task.result()
+    except Exception:
+        logger.exception("aggregator startup failed")
