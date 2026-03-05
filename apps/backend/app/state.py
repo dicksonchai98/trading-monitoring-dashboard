@@ -7,6 +7,18 @@ import logging
 from sqlalchemy import delete
 
 from app.config import (
+    AGGREGATOR_BIDASK_CONSUMER,
+    AGGREGATOR_BIDASK_GROUP,
+    AGGREGATOR_BLOCK_MS,
+    AGGREGATOR_CLAIM_COUNT,
+    AGGREGATOR_CLAIM_IDLE_MS,
+    AGGREGATOR_CODE,
+    AGGREGATOR_ENV,
+    AGGREGATOR_READ_COUNT,
+    AGGREGATOR_SERIES_FIELDS,
+    AGGREGATOR_STATE_TTL_SECONDS,
+    AGGREGATOR_TICK_CONSUMER,
+    AGGREGATOR_TICK_GROUP,
     INGESTOR_QUEUE_MAXSIZE,
     INGESTOR_REDIS_RETRY_ATTEMPTS,
     INGESTOR_REDIS_RETRY_BACKOFF_MS,
@@ -18,6 +30,7 @@ from app.config import (
 from app.db.session import SessionLocal
 from app.market_ingestion.runner import MarketIngestionRunner
 from app.models.billing_event import BillingEventModel
+from app.models.kbar_1m import Kbar1mModel
 from app.models.refresh_denylist import RefreshTokenDenylistModel
 from app.models.subscription import SubscriptionModel
 from app.models.user import UserModel
@@ -31,6 +44,7 @@ from app.services.billing_service import BillingService
 from app.services.denylist import RefreshDenylist
 from app.services.metrics import Metrics
 from app.services.stripe_provider import StripeProvider
+from app.stream_processing.runner import StreamProcessingRunner
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +65,7 @@ billing_service = BillingService(
     stripe_provider=StripeProvider(secret_key=get_stripe_settings().secret_key),
 )
 ingestor_runner: MarketIngestionRunner | None = None
+aggregator_runner: StreamProcessingRunner | None = None
 
 
 def build_ingestor_runner() -> MarketIngestionRunner:
@@ -76,11 +91,42 @@ def build_ingestor_runner() -> MarketIngestionRunner:
     return ingestor_runner
 
 
+def build_aggregator_runner() -> StreamProcessingRunner:
+    global aggregator_runner
+    if aggregator_runner is not None:
+        return aggregator_runner
+    try:
+        import redis
+    except Exception as err:  # pragma: no cover - depends on runtime dependency
+        raise RuntimeError("aggregator dependencies unavailable: install redis") from err
+
+    aggregator_runner = StreamProcessingRunner(
+        redis_client=redis.from_url(REDIS_URL),
+        session_factory=SessionLocal,
+        metrics=metrics,
+        env=AGGREGATOR_ENV,
+        code=AGGREGATOR_CODE,
+        tick_group=AGGREGATOR_TICK_GROUP,
+        bidask_group=AGGREGATOR_BIDASK_GROUP,
+        tick_consumer=AGGREGATOR_TICK_CONSUMER,
+        bidask_consumer=AGGREGATOR_BIDASK_CONSUMER,
+        read_count=AGGREGATOR_READ_COUNT,
+        block_ms=AGGREGATOR_BLOCK_MS,
+        claim_idle_ms=AGGREGATOR_CLAIM_IDLE_MS,
+        claim_count=AGGREGATOR_CLAIM_COUNT,
+        ttl_seconds=AGGREGATOR_STATE_TTL_SECONDS,
+        series_fields=AGGREGATOR_SERIES_FIELDS,
+    )
+    logger.info("aggregator runner created")
+    return aggregator_runner
+
+
 def reset_state_for_tests() -> None:
     metrics.counters = {k: 0 for k in metrics.counters}
     audit_log.events.clear()
     with SessionLocal() as session:
         session.execute(delete(BillingEventModel))
+        session.execute(delete(Kbar1mModel))
         session.execute(delete(SubscriptionModel))
         session.execute(delete(RefreshTokenDenylistModel))
         session.execute(delete(UserModel))

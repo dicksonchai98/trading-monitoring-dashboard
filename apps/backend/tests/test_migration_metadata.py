@@ -11,3 +11,8 @@ def test_initial_migration_file_exists() -> None:
 def test_stripe_billing_migration_file_exists() -> None:
     path = Path("alembic/versions/20260225_01_add_stripe_billing_tables.py")
     assert path.exists()
+
+
+def test_kbars_migration_file_exists() -> None:
+    path = Path("alembic/versions/20260305_01_add_kbars_1m.py")
+    assert path.exists()
