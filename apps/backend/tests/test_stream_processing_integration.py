@@ -68,11 +68,11 @@ class FakeRedis:
 
 
 def build_event_fields(
-    quote_type: str, event_ts: str, payload: dict[str, object]
+    quote_type: str, event_ts: str, payload: dict[str, object], code: str = "MTX"
 ) -> dict[str, str]:
     event = {
         "source": "shioaji",
-        "code": "MTX",
+        "code": code,
         "quote_type": quote_type,
         "event_ts": event_ts,
         "recv_ts": datetime.now(tz=timezone.utc).isoformat(),
@@ -111,17 +111,23 @@ def test_stream_processing_writes_redis_state() -> None:
     tick_stream = "dev:stream:tick:MTX"
     redis.xadd(
         tick_stream,
-        build_event_fields("tick", "2026-03-05T09:30:10+08:00", {"price": 100, "volume": 1}),
+        build_event_fields(
+            "tick", "2026-03-05T09:30:10+08:00", {"price": 100, "volume": 1}, code="TXFC6"
+        ),
     )
     redis.xadd(
         tick_stream,
-        build_event_fields("tick", "2026-03-05T09:31:01+08:00", {"price": 101, "volume": 2}),
+        build_event_fields(
+            "tick", "2026-03-05T09:31:01+08:00", {"price": 101, "volume": 2}, code="TXFC6"
+        ),
     )
 
     bidask_stream = "dev:stream:bidask:MTX"
     redis.xadd(
         bidask_stream,
-        build_event_fields("bidask", "2026-03-05T09:31:02+08:00", {"bid": 100, "ask": 102}),
+        build_event_fields(
+            "bidask", "2026-03-05T09:31:02+08:00", {"bid": 100, "ask": 102}, code="TXFC6"
+        ),
     )
 
     assert runner.consume_tick_once() == 2
@@ -129,14 +135,14 @@ def test_stream_processing_writes_redis_state() -> None:
 
     trade_date = "2026-03-04"
     current_key = build_state_key(
-        "dev", "MTX", datetime.fromisoformat(trade_date).date(), "k:current"
+        "dev", "TXFC6", datetime.fromisoformat(trade_date).date(), "k:current"
     )
-    zset_key = build_state_key("dev", "MTX", datetime.fromisoformat(trade_date).date(), "k:zset")
+    zset_key = build_state_key("dev", "TXFC6", datetime.fromisoformat(trade_date).date(), "k:zset")
     metrics_key = build_state_key(
-        "dev", "MTX", datetime.fromisoformat(trade_date).date(), "metrics:latest"
+        "dev", "TXFC6", datetime.fromisoformat(trade_date).date(), "metrics:latest"
     )
     metric_zset_key = build_state_key(
-        "dev", "MTX", datetime.fromisoformat(trade_date).date(), "metrics:zset"
+        "dev", "TXFC6", datetime.fromisoformat(trade_date).date(), "metrics:zset"
     )
 
     assert current_key in redis.hashes
@@ -153,11 +159,15 @@ def test_stream_processing_persists_kbars_to_postgres() -> None:
     tick_stream = "dev:stream:tick:MTX"
     redis.xadd(
         tick_stream,
-        build_event_fields("tick", "2026-03-05T09:30:10+08:00", {"price": 100, "volume": 1}),
+        build_event_fields(
+            "tick", "2026-03-05T09:30:10+08:00", {"price": 100, "volume": 1}, code="TXFC6"
+        ),
     )
     redis.xadd(
         tick_stream,
-        build_event_fields("tick", "2026-03-05T09:31:05+08:00", {"price": 101, "volume": 2}),
+        build_event_fields(
+            "tick", "2026-03-05T09:31:05+08:00", {"price": 101, "volume": 2}, code="TXFC6"
+        ),
     )
 
     assert runner.consume_tick_once() == 2
@@ -165,3 +175,4 @@ def test_stream_processing_persists_kbars_to_postgres() -> None:
     with SessionLocal() as session:
         rows = session.query(Kbar1mModel).all()
         assert len(rows) == 1
+        assert rows[0].code == "TXFC6"

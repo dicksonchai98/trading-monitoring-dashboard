@@ -240,7 +240,7 @@ class StreamProcessingRunner:
         self._session_factory = session_factory
         self._metrics = metrics
         self._env = env
-        self._code = code
+        self._stream_code = code
         self._tick_group = tick_group
         self._bidask_group = bidask_group
         self._tick_consumer = tick_consumer
@@ -251,8 +251,8 @@ class StreamProcessingRunner:
         self._claim_count = claim_count
         self._ttl_seconds = ttl_seconds
         self._series_fields = set(series_fields)
-        self._tick_state = TickStateMachine()
-        self._bidask_state = BidAskStateMachine(MetricsRegistry())
+        self._tick_states: dict[str, TickStateMachine] = {}
+        self._bidask_states: dict[str, BidAskStateMachine] = {}
         self._stop = False
         self._tick_task: asyncio.Task[None] | None = None
         self._bidask_task: asyncio.Task[None] | None = None
@@ -304,11 +304,11 @@ class StreamProcessingRunner:
 
     @property
     def _tick_stream_key(self) -> str:
-        return build_stream_key(self._env, "tick", self._code)
+        return build_stream_key(self._env, "tick", self._stream_code)
 
     @property
     def _bidask_stream_key(self) -> str:
-        return build_stream_key(self._env, "bidask", self._code)
+        return build_stream_key(self._env, "bidask", self._stream_code)
 
     def consume_tick_once(self) -> int:
         return self._consume_once(
@@ -382,6 +382,10 @@ class StreamProcessingRunner:
     def _handle_tick_entry(self, entry_id: str, fields: dict[str, Any]) -> bool:
         start = time.perf_counter()
         data = self._normalize_fields(fields)
+        code = self._extract_code(data)
+        if code is None:
+            self._metrics.inc("late_tick_drops")
+            return True
         event_ts_raw = data.get("event_ts", "")
         event_ts = parse_event_ts(event_ts_raw)
         if event_ts is None:
@@ -390,13 +394,14 @@ class StreamProcessingRunner:
         payload = data.get("payload", {})
         if not isinstance(payload, dict):
             payload = {}
-        archived, dropped = self._tick_state.apply_tick(self._code, event_ts, payload)
+        tick_state = self._tick_states.setdefault(code, TickStateMachine())
+        archived, dropped = tick_state.apply_tick(code, event_ts, payload)
         if dropped:
             self._metrics.inc("late_tick_drops")
             return True
         try:
-            if self._tick_state.current is not None:
-                self._write_current_k(self._tick_state.current)
+            if tick_state.current is not None:
+                self._write_current_k(tick_state.current)
             if archived is not None:
                 self._write_k_archive(archived)
                 self._persist_kbar(archived)
@@ -413,6 +418,9 @@ class StreamProcessingRunner:
     def _handle_bidask_entry(self, entry_id: str, fields: dict[str, Any]) -> bool:
         start = time.perf_counter()
         data = self._normalize_fields(fields)
+        code = self._extract_code(data)
+        if code is None:
+            return True
         event_ts_raw = data.get("event_ts", "")
         event_ts = parse_event_ts(event_ts_raw)
         if event_ts is None:
@@ -421,12 +429,15 @@ class StreamProcessingRunner:
         if not isinstance(payload, dict):
             payload = {}
         try:
-            latest = self._bidask_state.update_latest(event_ts, payload)
-            self._write_latest_metrics(latest, event_ts)
-            samples = self._bidask_state.sample_series(
+            bidask_state = self._bidask_states.setdefault(
+                code, BidAskStateMachine(MetricsRegistry())
+            )
+            latest = bidask_state.update_latest(event_ts, payload)
+            self._write_latest_metrics(latest, event_ts, code)
+            samples = bidask_state.sample_series(
                 event_ts=event_ts,
                 series_fields=self._series_fields,
-                on_sample=self._write_metric_sample,
+                on_sample=lambda second, sample: self._write_metric_sample(second, sample, code),
             )
             if samples:
                 self._metrics.inc("sampling_rate")
@@ -440,16 +451,22 @@ class StreamProcessingRunner:
             return False
 
     def _sample_carry_forward(self) -> None:
-        if self._bidask_state.latest is None:
+        if not self._bidask_states:
             return
         try:
-            samples = self._bidask_state.sample_series(
-                event_ts=datetime.now(tz=TZ_TAIPEI),
-                series_fields=self._series_fields,
-                on_sample=self._write_metric_sample,
-            )
-            if samples:
-                self._metrics.inc("sampling_rate")
+            now = datetime.now(tz=TZ_TAIPEI)
+            for code, state in self._bidask_states.items():
+                if state.latest is None:
+                    continue
+                samples = state.sample_series(
+                    event_ts=now,
+                    series_fields=self._series_fields,
+                    on_sample=lambda second, sample, code=code: self._write_metric_sample(
+                        second, sample, code
+                    ),
+                )
+                if samples:
+                    self._metrics.inc("sampling_rate")
         except Exception:
             self._metrics.inc("write_errors")
 
@@ -459,27 +476,33 @@ class StreamProcessingRunner:
             normalized["payload"] = _parse_json(normalized["payload"])
         return normalized
 
+    def _extract_code(self, data: dict[str, Any]) -> str | None:
+        code = data.get("code")
+        if isinstance(code, str) and code.strip():
+            return code.strip()
+        return None
+
     def _write_current_k(self, bar: KBar) -> None:
-        key = build_state_key(self._env, self._code, bar.trade_date, "k:current")
+        key = build_state_key(self._env, bar.code, bar.trade_date, "k:current")
         self._redis.hset(key, mapping={k: str(v) for k, v in bar.to_dict().items()})
         self._redis.expire(key, self._ttl_seconds)
 
     def _write_k_archive(self, bar: KBar) -> None:
-        key = build_state_key(self._env, self._code, bar.trade_date, "k:zset")
+        key = build_state_key(self._env, bar.code, bar.trade_date, "k:zset")
         member = json.dumps(bar.to_dict(), ensure_ascii=True)
         self._redis.zadd(key, {member: unix_seconds(bar.minute_ts)})
         self._redis.expire(key, self._ttl_seconds)
 
-    def _write_latest_metrics(self, metrics: dict[str, Any], event_ts: datetime) -> None:
+    def _write_latest_metrics(self, metrics: dict[str, Any], event_ts: datetime, code: str) -> None:
         trade_date = trade_date_for(event_ts)
-        key = build_state_key(self._env, self._code, trade_date, "metrics:latest")
+        key = build_state_key(self._env, code, trade_date, "metrics:latest")
         payload = json.dumps(metrics, ensure_ascii=True)
         self._redis.set(key, payload)
         self._redis.expire(key, self._ttl_seconds)
 
-    def _write_metric_sample(self, second: int, sample: dict[str, Any]) -> None:
+    def _write_metric_sample(self, second: int, sample: dict[str, Any], code: str) -> None:
         trade_date = trade_date_for(datetime.fromtimestamp(second, tz=TZ_TAIPEI))
-        key = build_state_key(self._env, self._code, trade_date, "metrics:zset")
+        key = build_state_key(self._env, code, trade_date, "metrics:zset")
         member = json.dumps(sample, ensure_ascii=True)
         self._redis.zadd(key, {member: second})
         self._redis.expire(key, self._ttl_seconds)
