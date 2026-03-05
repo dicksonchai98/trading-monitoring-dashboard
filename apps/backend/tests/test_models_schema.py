@@ -20,4 +20,3 @@ def test_subscription_model_table_name() -> None:
 
 def test_billing_event_model_table_name() -> None:
     assert BillingEventModel.__tablename__ == "billing_events"
-

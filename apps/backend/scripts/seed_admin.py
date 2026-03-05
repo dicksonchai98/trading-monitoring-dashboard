@@ -32,4 +32,3 @@ if __name__ == "__main__":
     except Exception as exc:  # pragma: no cover
         print(f"seed_admin failed: {exc}", file=sys.stderr)
         raise
-

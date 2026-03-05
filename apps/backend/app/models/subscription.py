@@ -19,14 +19,22 @@ class SubscriptionModel(Base):
     __tablename__ = "subscriptions"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
-    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False, unique=True)
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id"), nullable=False, unique=True
+    )
     stripe_customer_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
-    stripe_subscription_id: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True)
+    stripe_subscription_id: Mapped[str | None] = mapped_column(
+        String(255), unique=True, nullable=True
+    )
     stripe_price_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    current_period_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    current_period_end: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending")
     entitlement_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_utcnow
+    )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_utcnow, onupdate=_utcnow
     )

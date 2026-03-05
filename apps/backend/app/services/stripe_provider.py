@@ -46,16 +46,22 @@ class StripeProvider:
             cancel_url=cancel_url,
             metadata={"user_id": user_id},
         )
-        return CheckoutSessionResult(checkout_url=str(session["url"]), session_id=str(session["id"]))
+        return CheckoutSessionResult(
+            checkout_url=str(session["url"]), session_id=str(session["id"])
+        )
 
     def create_portal_session(self, *, customer_id: str, return_url: str) -> PortalSessionResult:
         stripe = self._client()
         session = stripe.billing_portal.Session.create(customer=customer_id, return_url=return_url)
         return PortalSessionResult(portal_url=str(session["url"]))
 
-    def construct_event(self, payload: bytes, signature: str, webhook_secret: str) -> dict[str, Any]:
+    def construct_event(
+        self, payload: bytes, signature: str, webhook_secret: str
+    ) -> dict[str, Any]:
         stripe = self._client()
-        event = stripe.Webhook.construct_event(payload=payload, sig_header=signature, secret=webhook_secret)
+        event = stripe.Webhook.construct_event(
+            payload=payload, sig_header=signature, secret=webhook_secret
+        )
         return dict(event)
 
     def retrieve_subscription(self, subscription_id: str) -> dict[str, Any]:

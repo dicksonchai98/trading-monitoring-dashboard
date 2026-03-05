@@ -3,11 +3,10 @@ from __future__ import annotations
 from logging.config import fileConfig
 
 from alembic import context
-from sqlalchemy import engine_from_config, pool
-
 from app.db.base import Base
 from app.db.settings import get_database_url
 from app.models import billing_event, refresh_denylist, subscription, user  # noqa: F401
+from sqlalchemy import engine_from_config, pool
 
 config = context.config
 config.set_main_option("sqlalchemy.url", get_database_url())
@@ -44,4 +43,3 @@ if context.is_offline_mode():
     run_migrations_offline()
 else:
     run_migrations_online()
-

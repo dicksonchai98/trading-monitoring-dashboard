@@ -102,4 +102,3 @@ class UserRepository:
                 role=model.role,
                 stripe_customer_id=model.stripe_customer_id,
             )
-

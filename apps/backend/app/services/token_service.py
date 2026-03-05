@@ -29,7 +29,9 @@ def _b64url_decode(data: str) -> bytes:
 
 
 def _sign(signing_input: str, secret: str) -> str:
-    digest = hmac.new(secret.encode("utf-8"), signing_input.encode("utf-8"), hashlib.sha256).digest()
+    digest = hmac.new(
+        secret.encode("utf-8"), signing_input.encode("utf-8"), hashlib.sha256
+    ).digest()
     return _b64url_encode(digest)
 
 
@@ -43,8 +45,12 @@ def issue_token(claims: dict[str, Any], ttl_seconds: int, secret: str, token_typ
         "type": token_type,
     }
     header = {"alg": "HS256", "typ": "JWT"}
-    header_b64 = _b64url_encode(json.dumps(header, separators=(",", ":"), sort_keys=True).encode("utf-8"))
-    payload_b64 = _b64url_encode(json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8"))
+    header_b64 = _b64url_encode(
+        json.dumps(header, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    )
+    payload_b64 = _b64url_encode(
+        json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    )
     signing_input = f"{header_b64}.{payload_b64}"
     signature = _sign(signing_input, secret)
     return f"{signing_input}.{signature}"
@@ -62,8 +68,8 @@ def verify_token(token: str, secret: str, expected_type: str) -> dict[str, Any]:
 
     try:
         payload = json.loads(_b64url_decode(parts[1]).decode("utf-8"))
-    except (ValueError, UnicodeDecodeError):
-        raise TokenError("tampered")
+    except (ValueError, UnicodeDecodeError) as err:
+        raise TokenError("tampered") from err
 
     if payload.get("type") != expected_type:
         raise TokenError("tampered")
@@ -72,4 +78,3 @@ def verify_token(token: str, secret: str, expected_type: str) -> dict[str, Any]:
         raise TokenError("expired")
 
     return payload
-

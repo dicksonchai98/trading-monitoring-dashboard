@@ -15,4 +15,3 @@ def test_refresh_denylist_contains_and_cleanup() -> None:
     expired_jti = "00000000-0000-0000-0000-000000000002"
     repo.add(jti=expired_jti, exp=int(time.time()) - 1)
     assert not repo.contains(expired_jti)
-

@@ -50,7 +50,9 @@ class BillingService:
         self._audit_log = audit_log
         self._stripe = stripe_provider
 
-    def create_checkout_session(self, *, username: str, requested_price_id: str | None) -> CheckoutResponse:
+    def create_checkout_session(
+        self, *, username: str, requested_price_id: str | None
+    ) -> CheckoutResponse:
         user = self._users.get_by_username(username)
         if user is None:
             raise BillingError("user_not_found")
@@ -110,7 +112,11 @@ class BillingService:
         if not signature:
             raise BillingError("invalid_signature")
         try:
-            event = self._stripe.construct_event(payload=payload, signature=signature, webhook_secret=self._settings.webhook_secret)
+            event = self._stripe.construct_event(
+                payload=payload,
+                signature=signature,
+                webhook_secret=self._settings.webhook_secret,
+            )
         except Exception as exc:
             raise BillingError("invalid_signature") from exc
 
@@ -267,7 +273,9 @@ class BillingService:
 
     def _extract_period_end(self, obj: dict[str, Any]) -> datetime | None:
         # Stripe payload shape differs by event type.
-        direct = self._to_datetime(obj.get("current_period_end")) or self._to_datetime(obj.get("period_end"))
+        direct = self._to_datetime(obj.get("current_period_end")) or self._to_datetime(
+            obj.get("period_end")
+        )
         if direct is not None:
             return direct
 
