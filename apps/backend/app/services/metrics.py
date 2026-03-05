@@ -21,6 +21,13 @@ class Metrics:
             "queue_depth": 0,
             "ingest_lag_ms": 0,
             "events_dropped_total": 0,
+            "consume_rate": 0,
+            "archive_rate": 0,
+            "sampling_rate": 0,
+            "stream_lag": 0,
+            "write_errors": 0,
+            "write_latency": 0,
+            "late_tick_drops": 0,
         }
 
     def inc(self, key: str) -> None:
