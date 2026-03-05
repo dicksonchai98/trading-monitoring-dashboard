@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import fnmatch
 from datetime import datetime, timezone
 
 from app.db.session import SessionLocal
@@ -51,6 +52,14 @@ class FakeRedis:
     def xack(self, key, group, entry_id):
         self.acks.append((key, group, entry_id))
         return 1
+
+    def scan_iter(self, pattern):
+        for key in self.streams:
+            if fnmatch.fnmatch(key, pattern):
+                yield key
+
+    def xlen(self, key):
+        return len(self.streams.get(key, []))
 
     def hset(self, key, mapping):
         self.hashes[key] = dict(mapping)
