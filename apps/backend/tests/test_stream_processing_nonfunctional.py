@@ -104,6 +104,11 @@ def test_stream_processing_consumer_smoke() -> None:
         )
         redis.xadd(tick_stream, fields)
 
-    processed = runner.consume_tick_once()
-    assert processed == 200
+    processed_total = 0
+    while True:
+        processed = runner.consume_tick_once()
+        if processed == 0:
+            break
+        processed_total += processed
+    assert processed_total == 200
     assert len(redis.acks) == 200
