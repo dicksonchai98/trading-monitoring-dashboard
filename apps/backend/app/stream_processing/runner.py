@@ -7,7 +7,7 @@ import json
 import logging
 import time
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timedelta
 from datetime import time as dt_time
 from typing import Any, Callable, Iterable
 
@@ -40,8 +40,8 @@ def parse_event_ts(event_ts: str) -> datetime | None:
     except ValueError:
         return None
     if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
-    return parsed.astimezone(TZ_TAIPEI)
+        parsed = parsed.replace(tzinfo=TZ_TAIPEI)
+    return parsed
 
 
 def trade_date_for(event_ts: datetime) -> date:
