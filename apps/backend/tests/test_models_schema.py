@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from app.models.billing_event import BillingEventModel
+from app.models.kbar_1m import Kbar1mModel
 from app.models.refresh_denylist import RefreshTokenDenylistModel
 from app.models.subscription import SubscriptionModel
 from app.models.user import UserModel
@@ -20,3 +21,7 @@ def test_subscription_model_table_name() -> None:
 
 def test_billing_event_model_table_name() -> None:
     assert BillingEventModel.__tablename__ == "billing_events"
+
+
+def test_kbar_1m_model_table_name() -> None:
+    assert Kbar1mModel.__tablename__ == "kbars_1m"
