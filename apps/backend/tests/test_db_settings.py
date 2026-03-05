@@ -17,4 +17,3 @@ def test_get_database_url_default(monkeypatch) -> None:
     finally:
         if current is not None:
             os.environ["DATABASE_URL"] = current
-

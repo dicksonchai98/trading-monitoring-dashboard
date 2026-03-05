@@ -29,4 +29,3 @@ class AuditLog:
                 timestamp=datetime.now(tz=timezone.utc).isoformat(),
             )
         )
-

@@ -2,11 +2,10 @@ from __future__ import annotations
 
 import json
 
-from fastapi.testclient import TestClient
-
 from app.main import app
 from app.services.stripe_provider import CheckoutSessionResult, PortalSessionResult
 from app.state import billing_service
+from fastapi.testclient import TestClient
 
 
 class FakeStripeProvider:
@@ -29,7 +28,9 @@ class FakeStripeProvider:
     def create_portal_session(self, *, customer_id: str, return_url: str) -> PortalSessionResult:
         return PortalSessionResult(portal_url=f"https://portal.test/{customer_id}")
 
-    def construct_event(self, payload: bytes, signature: str, webhook_secret: str) -> dict[str, object]:
+    def construct_event(
+        self, payload: bytes, signature: str, webhook_secret: str
+    ) -> dict[str, object]:
         if signature != "valid":
             raise ValueError("invalid signature")
         return json.loads(payload.decode("utf-8"))

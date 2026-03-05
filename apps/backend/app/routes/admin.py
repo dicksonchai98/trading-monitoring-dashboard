@@ -29,4 +29,3 @@ def logs(_: Principal = Depends(require_admin)) -> dict[str, list[dict[str, str 
 @router.get("/logs/{item_id}")
 def logs_detail(item_id: str, _: Principal = Depends(require_admin)) -> dict[str, str]:
     return {"id": item_id}
-

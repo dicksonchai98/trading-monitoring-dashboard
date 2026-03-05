@@ -6,4 +6,3 @@ from app.models.subscription import SubscriptionModel
 from app.models.user import UserModel
 
 __all__ = ["UserModel", "RefreshTokenDenylistModel", "SubscriptionModel", "BillingEventModel"]
-
