@@ -256,12 +256,16 @@ class StreamProcessingRunner:
         self._stop = False
         self._tick_task: asyncio.Task[None] | None = None
         self._bidask_task: asyncio.Task[None] | None = None
+        self._tick_streams: list[str] = []
+        self._bidask_streams: list[str] = []
+        self._last_stream_refresh = 0.0
+        self._stream_refresh_seconds = 5.0
 
     def stop(self) -> None:
         self._stop = True
 
     async def start(self) -> None:
-        self.ensure_consumer_groups()
+        self._refresh_streams(force=True)
         self._stop = False
         self._tick_task = asyncio.create_task(self._run_tick_loop())
         self._bidask_task = asyncio.create_task(self._run_bidask_loop())
@@ -292,8 +296,8 @@ class StreamProcessingRunner:
 
     def ensure_consumer_groups(self) -> None:
         for stream_key, group in (
-            (self._tick_stream_key, self._tick_group),
-            (self._bidask_stream_key, self._bidask_group),
+            *[(key, self._tick_group) for key in self._tick_streams],
+            *[(key, self._bidask_group) for key in self._bidask_streams],
         ):
             try:
                 self._redis.xgroup_create(stream_key, group, id="0-0", mkstream=True)
@@ -311,16 +315,18 @@ class StreamProcessingRunner:
         return build_stream_key(self._env, "bidask", self._stream_code)
 
     def consume_tick_once(self) -> int:
+        self._refresh_streams()
         return self._consume_once(
-            stream_key=self._tick_stream_key,
+            stream_keys=self._tick_streams,
             group=self._tick_group,
             consumer=self._tick_consumer,
             handler=self._handle_tick_entry,
         )
 
     def consume_bidask_once(self) -> int:
+        self._refresh_streams()
         return self._consume_once(
-            stream_key=self._bidask_stream_key,
+            stream_keys=self._bidask_streams,
             group=self._bidask_group,
             consumer=self._bidask_consumer,
             handler=self._handle_bidask_entry,
@@ -328,20 +334,23 @@ class StreamProcessingRunner:
 
     def _consume_once(
         self,
-        stream_key: str,
+        stream_keys: list[str],
         group: str,
         consumer: str,
         handler: Callable[[str, dict[str, Any]], bool],
     ) -> int:
+        if not stream_keys:
+            return 0
         processed = 0
-        for entry_id, fields in self._claim_pending(stream_key, group, consumer):
-            if handler(entry_id, fields):
-                self._redis.xack(stream_key, group, entry_id)
-                processed += 1
-        for entry_id, fields in self._read_new(stream_key, group, consumer):
-            if handler(entry_id, fields):
-                self._redis.xack(stream_key, group, entry_id)
-                processed += 1
+        for stream_key in stream_keys:
+            for entry_id, fields in self._claim_pending(stream_key, group, consumer):
+                if handler(entry_id, fields):
+                    self._redis.xack(stream_key, group, entry_id)
+                    processed += 1
+            for entry_id, fields in self._read_new(stream_key, group, consumer):
+                if handler(entry_id, fields):
+                    self._redis.xack(stream_key, group, entry_id)
+                    processed += 1
         return processed
 
     def _claim_pending(
@@ -378,6 +387,44 @@ class StreamProcessingRunner:
             for entry_id, fields in messages:
                 result.append((entry_id, fields))
         return result
+
+    def _refresh_streams(self, force: bool = False) -> None:
+        now = time.monotonic()
+        if not force and (now - self._last_stream_refresh) < self._stream_refresh_seconds:
+            return
+        self._last_stream_refresh = now
+        tick_streams = self._discover_streams("tick")
+        bidask_streams = self._discover_streams("bidask")
+        if tick_streams:
+            self._tick_streams = tick_streams
+        if bidask_streams:
+            self._bidask_streams = bidask_streams
+        self.ensure_consumer_groups()
+
+    def _discover_streams(self, quote_type: str) -> list[str]:
+        pattern = f"{self._env}:stream:{quote_type}:*"
+        streams: list[str] = []
+        scan_iter = getattr(self._redis, "scan_iter", None)
+        if callable(scan_iter):
+            candidates = [
+                key.decode("utf-8") if isinstance(key, bytes) else str(key)
+                for key in scan_iter(pattern)
+            ]
+        else:  # pragma: no cover - depends on redis client
+            candidates = []
+        for key in candidates:
+            if self._stream_has_entries(key):
+                streams.append(key)
+        return streams
+
+    def _stream_has_entries(self, key: str) -> bool:
+        xlen = getattr(self._redis, "xlen", None)
+        if callable(xlen):
+            try:
+                return int(xlen(key)) > 0
+            except Exception:
+                return False
+        return True
 
     def _handle_tick_entry(self, entry_id: str, fields: dict[str, Any]) -> bool:
         start = time.perf_counter()
