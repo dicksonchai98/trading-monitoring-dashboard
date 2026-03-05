@@ -27,7 +27,8 @@ class FakeRedis:
         self.streams.setdefault(key, []).append((entry_id, fields))
         return entry_id
 
-    def xgroup_create(self, key, group, stream_id="0-0", mkstream=False):
+    def xgroup_create(self, key, group, stream_id="0-0", mkstream=False, **kwargs):
+        stream_id = kwargs.get("id", stream_id)
         _ = (group, stream_id, mkstream)
         self.streams.setdefault(key, [])
 
