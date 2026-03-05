@@ -8,7 +8,6 @@ import logging
 import time
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
-from datetime import time as dt_time
 from typing import Any, Callable, Iterable
 
 from zoneinfo import ZoneInfo
@@ -45,8 +44,8 @@ def parse_event_ts(event_ts: str) -> datetime | None:
 
 
 def trade_date_for(event_ts: datetime) -> date:
-    cutoff = dt_time(15, 0, 0)
-    if event_ts.timetz() >= cutoff:
+    cutoff = (15, 0, 0)
+    if (event_ts.hour, event_ts.minute, event_ts.second) >= cutoff:
         return event_ts.date()
     return event_ts.date() - timedelta(days=1)
 
