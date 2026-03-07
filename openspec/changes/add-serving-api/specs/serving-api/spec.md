@@ -43,7 +43,11 @@ The SSE pipeline SHALL emit heartbeat events at a fixed interval to keep connect
 - **THEN** the system emits a heartbeat event at the configured interval
 
 ### Requirement: MVP safety controls are enforced
-The system SHALL enforce basic rate limiting and CORS allowlists for external access.
+The system SHALL enforce JWT-based access control, basic rate limiting, and CORS allowlists for external access.
+
+#### Scenario: Auth required
+- **WHEN** a client calls a serving endpoint without a valid access token
+- **THEN** the system returns an authorization error
 
 #### Scenario: Rate limit enforced
 - **WHEN** a client exceeds the allowed request rate
@@ -69,6 +73,13 @@ The system SHALL return consistent response schemas and a unified time format (e
 #### Scenario: Consistent response format
 - **WHEN** a client calls multiple serving endpoints
 - **THEN** the responses use the same schema conventions and time format
+
+### Requirement: Default contract code is resolved from stream payloads
+When no code is provided, the system SHALL resolve a default contract code by reading the latest stream payload code for the configured ingestor code.
+
+#### Scenario: Default code resolved from stream
+- **WHEN** a client omits the code parameter
+- **THEN** the system derives the contract code from the latest stream entry payload and uses it for state reads
 
 ### Requirement: Availability behavior is explicit under dependency failure
 The system SHALL return clear errors when Redis or Postgres is unavailable and define SSE behavior during dependency outages.
