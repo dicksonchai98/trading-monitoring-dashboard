@@ -43,6 +43,7 @@ from app.services.auth_service import AuthService
 from app.services.billing_service import BillingService
 from app.services.denylist import RefreshDenylist
 from app.services.metrics import Metrics
+from app.services.rate_limiter import SimpleRateLimiter
 from app.services.stripe_provider import StripeProvider
 from app.stream_processing.runner import StreamProcessingRunner
 
@@ -64,8 +65,10 @@ billing_service = BillingService(
     audit_log=audit_log,
     stripe_provider=StripeProvider(secret_key=get_stripe_settings().secret_key),
 )
+serving_rate_limiter = SimpleRateLimiter()
 ingestor_runner: MarketIngestionRunner | None = None
 aggregator_runner: StreamProcessingRunner | None = None
+serving_redis_client = None
 
 
 def build_ingestor_runner() -> MarketIngestionRunner:
@@ -119,6 +122,18 @@ def build_aggregator_runner() -> StreamProcessingRunner:
     )
     logger.info("aggregator runner created")
     return aggregator_runner
+
+
+def get_serving_redis_client():
+    global serving_redis_client
+    if serving_redis_client is not None:
+        return serving_redis_client
+    try:
+        import redis
+    except Exception as err:  # pragma: no cover - depends on runtime dependency
+        raise RuntimeError("serving dependencies unavailable: install redis") from err
+    serving_redis_client = redis.from_url(REDIS_URL)
+    return serving_redis_client
 
 
 def reset_state_for_tests() -> None:

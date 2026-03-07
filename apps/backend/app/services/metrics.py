@@ -28,6 +28,14 @@ class Metrics:
             "write_errors": 0,
             "write_latency": 0,
             "late_tick_drops": 0,
+            "serving_rest_requests_total": 0,
+            "serving_rest_latency_ms": 0,
+            "serving_sse_connections_active": 0,
+            "serving_sse_push_total": 0,
+            "serving_redis_errors_total": 0,
+            "serving_db_errors_total": 0,
+            "serving_rate_limit_denied": 0,
+            "serving_auth_denied": 0,
         }
 
     def inc(self, key: str) -> None:
