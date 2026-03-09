@@ -352,6 +352,7 @@ run_range(dataset_code: str, start_date: date, end_date: date, trigger_type: str
 ```
 
 Range backfill execution model for MVP:
+- one range trigger creates one parent job id / correlation id
 - `run_range` decomposes into per-date `run` calls
 - one date = one persistence transaction boundary
 - rerun and failure recovery operate at per-date granularity
@@ -407,6 +408,8 @@ Purpose:
 
 Fields:
 - id
+- parent_job_id
+- correlation_id
 - job_type
 - dataset_code
 - target_date
@@ -505,6 +508,18 @@ Non-retryable errors:
 - DB schema mismatch
 - validation failure caused by code or source layout breakage
 
+Retry precedence and counting rules:
+- each scheduled trigger execution is one run context
+- in one run context, transient fetch errors may retry up to max attempts (3)
+- publication-window schedule (`13:50` to `18:00` + `T+1 08:30`) defines when new run contexts are created
+- max-attempt counter is per run context, not global across the full publication window
+
+Publication readiness classification rules (MVP):
+- classify as `publication_not_ready` when fetch succeeds but source payload is not yet published/complete for target date
+- candidate signals include: empty CSV body, header-only CSV, explicit "no data yet" marker, or parsed row count below dataset minimum
+- classify as `source_format_error` when payload format is broken (unexpected columns, parse failure, encoding break)
+- classification logic must be deterministic and dataset-specific in validator rules
+
 ## 13. Logging Specification
 
 Each crawler execution stage should emit structured logs.
@@ -559,6 +574,7 @@ Behavior:
 - endpoint creates or queries jobs
 - crawler execution does not run inline inside the request thread
 - backend RBAC must protect these endpoints
+- `POST /admin/crawler/backfill` returns parent job id / correlation id for range-level progress queries
 
 ## 16. Failure Handling Rules
 

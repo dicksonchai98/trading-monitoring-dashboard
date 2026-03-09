@@ -98,6 +98,7 @@ For date-range backfill:
 - request range is split into per-date jobs
 - each date is an independent idempotent execution unit
 - failure and rerun happen at per-date granularity
+- range trigger must create one parent job/correlation id, and all per-date jobs must reference it
 
 ## 5. Canonical Pipeline
 
@@ -192,6 +193,35 @@ For MVP TAIFEX dataset:
 
 `publication_not_ready` is treated as retryable only within configured publication retry windows.
 
+Publication readiness classification rules (MVP):
+- classify as `publication_not_ready` when fetch succeeds but source payload is not yet published/complete for target date
+- candidate signals include: empty CSV body, header-only CSV, explicit "no data yet" marker, or parsed row count below dataset minimum
+- classify as `source_format_error` when payload format is broken (unexpected columns, parse failure, encoding break)
+- classification logic must be deterministic and dataset-specific in validator rules
+
+### 7.4 MVP Normalized Schema (Design Baseline)
+
+For `market_open_interest_daily`, MVP normalized fields are:
+- `data_date: date`
+- `market_code: text`
+- `instrument_code: text`
+- `entity_code: text`
+- `long_trade_oi: bigint`
+- `short_trade_oi: bigint`
+- `net_trade_oi: bigint`
+- `long_trade_amount_k: numeric`
+- `short_trade_amount_k: numeric`
+- `net_trade_amount_k: numeric`
+- `long_open_interest: bigint`
+- `short_open_interest: bigint`
+- `net_open_interest: bigint`
+- `long_open_interest_amount_k: numeric`
+- `short_open_interest_amount_k: numeric`
+- `net_open_interest_amount_k: numeric`
+- `source: text`
+- `parser_version: text`
+- `ingested_at: timestamptz`
+
 ## 8. Job Lifecycle and Error Model
 
 ### 8.1 Lifecycle States
@@ -225,6 +255,12 @@ Each failed job must persist:
 - transient network/HTTP 5xx: exponential backoff, max 3 attempts
 - publication-not-ready: use scheduled window retries and delayed retry slot
 - parser/validation/schema mismatch: fail fast, no blind retry
+
+Retry precedence and counting rules:
+- each scheduled trigger execution is one run context
+- in one run context, transient fetch errors may retry up to 3 attempts with exponential backoff
+- publication-window schedule (`13:50` to `18:00` + `T+1 08:30`) defines when new run contexts are created
+- max-attempt counter is per run context, not global across the full publication window
 
 ## 9. Observability and Operations
 
@@ -284,8 +320,10 @@ Design is considered implementable when all items below are met:
 
 - crawler can execute single-date run by `dataset_code + target_date`
 - date-range request is split and tracked as per-date jobs
+- date-range request provides a parent job/correlation id to query aggregated progress/result
 - rerun of same date is idempotent (no duplicate logical rows)
 - retry behavior distinguishes retryable vs non-retryable failures
+- publication_not_ready vs source_format_error classification is deterministic by dataset rules
 - publication-window retries follow defined Taipei-time schedule
 - admin trigger endpoints are RBAC-protected and audit logged
 - observability fields/metrics are available for operations
