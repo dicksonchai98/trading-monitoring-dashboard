@@ -27,5 +27,11 @@ class BatchJobModel(Base):
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     rows_processed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    checkpoint_cursor: Mapped[str | None] = mapped_column(Text, nullable=True)
+    processed_chunks: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    total_chunks: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    last_heartbeat_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     metadata_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
