@@ -36,7 +36,11 @@ Historical Backfill Job
 v
 PostgreSQL
 
-Both pipelines write into the same bar table.
+Both pipelines write into the same bar table: `kbars_1m`.
+
+Time semantics:
+- Timezone baseline: `Asia/Taipei` (aligned with current realtime pipeline).
+- Minute key semantics: minute start timestamp (`minute_ts`), e.g. 09:30 bar uses `09:30:00+08:00`.
 
 3. Execution Model
 
@@ -87,8 +91,9 @@ Responsibilities:
 
 Transform raw data into the bar schema:
 
-- symbol
-- bar_time
+- code
+- trade_date
+- minute_ts
 - open
 - high
 - low
@@ -103,34 +108,35 @@ Transform raw data into the bar schema:
 
 SQL example:
 
-INSERT INTO market_1m_bars (...)
-ON CONFLICT (symbol, bar_time)
+INSERT INTO kbars_1m (...)
+ON CONFLICT (code, minute_ts)
 DO UPDATE ...
+
+Conflict resolution policy:
+- When historical and realtime rows conflict on `(code, minute_ts)`, historical backfill data overwrites realtime values.
 
 5. Database Schema
 
-Table: market_1m_bars
+Table: kbars_1m
 
 Field Description
-symbol instrument symbol
-bar_time bar timestamp
+code instrument code
+trade_date trade date
+minute_ts bar minute timestamp (Asia/Taipei, minute-start semantics)
 open open price
 high high price
 low low price
 close close price
 volume trade volume
-source data source
-created_at created time
-updated_at updated time
 
 Unique key:
-(symbol, bar_time)
+(code, minute_ts)
 
 Table: historical_backfill_jobs
 
 Field Description
 job_id job id
-symbol instrument symbol
+code instrument code
 start_time start time
 end_time end time
 status job status

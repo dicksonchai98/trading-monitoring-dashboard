@@ -36,7 +36,8 @@ class JobRepository:
             if job is None:
                 return
             job.status = JobStatus.RUNNING.value
-            job.started_at = _utcnow()
+            if job.started_at is None:
+                job.started_at = _utcnow()
 
     def mark_retrying(self, job_id: int, retry_count: int) -> None:
         with session_scope() as session:
@@ -54,6 +55,9 @@ class JobRepository:
             job.status = JobStatus.COMPLETED.value
             job.finished_at = _utcnow()
             job.rows_processed = rows_processed
+            if job.total_chunks is not None and job.total_chunks > 0:
+                job.processed_chunks = job.total_chunks
+            job.last_heartbeat_at = _utcnow()
 
     def mark_failed(self, job_id: int, error_message: str | None = None) -> None:
         with session_scope() as session:
@@ -64,12 +68,45 @@ class JobRepository:
             job.finished_at = _utcnow()
             job.error_message = error_message
 
-    def update_progress(self, job_id: int, rows_processed: int) -> None:
+    def update_progress(
+        self,
+        job_id: int,
+        rows_processed: int | None = None,
+        *,
+        rows_written: int | None = None,
+        checkpoint_cursor: str | None = None,
+        processed_chunks: int | None = None,
+        total_chunks: int | None = None,
+        last_heartbeat_at: datetime | None = None,
+    ) -> None:
         with session_scope() as session:
             job = session.get(BatchJobModel, job_id)
             if job is None:
                 return
-            job.rows_processed = rows_processed
+            effective_rows = rows_processed if rows_processed is not None else rows_written
+            if effective_rows is not None:
+                job.rows_processed = effective_rows
+            if checkpoint_cursor is not None:
+                job.checkpoint_cursor = checkpoint_cursor
+            if processed_chunks is not None:
+                job.processed_chunks = processed_chunks
+            if total_chunks is not None:
+                job.total_chunks = total_chunks
+            job.last_heartbeat_at = last_heartbeat_at or _utcnow()
+
+            has_chunk_progress = (
+                job.total_chunks is not None
+                and job.total_chunks > 0
+                and job.processed_chunks < job.total_chunks
+            )
+            if has_chunk_progress and job.status in {
+                JobStatus.RUNNING.value,
+                JobStatus.RETRYING.value,
+                JobStatus.PARTIALLY_COMPLETED.value,
+            }:
+                job.status = JobStatus.PARTIALLY_COMPLETED.value
+            elif not has_chunk_progress and job.status == JobStatus.PARTIALLY_COMPLETED.value:
+                job.status = JobStatus.RUNNING.value
 
     def get_job(self, job_id: int) -> BatchJobModel | None:
         with session_scope() as session:

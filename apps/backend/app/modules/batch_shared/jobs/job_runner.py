@@ -29,16 +29,32 @@ class JobRunner:
             JobLogContext(job_id=job.id, job_type=job_type, execution_stage="start"),
         )
         logger.info("job starting")
-        self.repository.mark_running(job.id)
 
         context = JobContext(job_id=job.id, job_type=job_type)
 
-        def update_progress(rows_processed: int) -> None:
-            self.repository.update_progress(job.id, rows_processed)
+        def update_progress(
+            rows_processed: int | None = None,
+            *,
+            rows_written: int | None = None,
+            checkpoint_cursor: str | None = None,
+            processed_chunks: int | None = None,
+            total_chunks: int | None = None,
+            last_heartbeat_at: Any | None = None,
+        ) -> None:
+            self.repository.update_progress(
+                job.id,
+                rows_processed=rows_processed,
+                rows_written=rows_written,
+                checkpoint_cursor=checkpoint_cursor,
+                processed_chunks=processed_chunks,
+                total_chunks=total_chunks,
+                last_heartbeat_at=last_heartbeat_at,
+            )
 
         context.update_progress = update_progress
 
         def operation() -> JobResult:
+            self.repository.mark_running(job.id)
             return job_impl.execute(params=params, context=context)
 
         def on_retry(attempt: int, _category: object) -> None:
@@ -67,8 +83,9 @@ class JobRunner:
             raise
 
         elapsed = time.perf_counter() - start_time
-        self.repository.mark_completed(job.id, rows_processed=result.rows_processed)
-        self.metrics.inc("batch_rows_processed_total", result.rows_processed)
+        rows_processed = result.normalized_rows_processed
+        self.repository.mark_completed(job.id, rows_processed=rows_processed)
+        self.metrics.inc("batch_rows_processed_total", rows_processed)
         self.metrics.set_gauge("batch_job_duration_seconds", elapsed)
         complete_logger = get_job_logger(
             self.logger_name,
