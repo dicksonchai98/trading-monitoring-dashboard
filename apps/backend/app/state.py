@@ -43,6 +43,7 @@ from app.services.auth_service import AuthService
 from app.services.billing_service import BillingService
 from app.services.denylist import RefreshDenylist
 from app.services.metrics import Metrics
+from app.services.rate_limiter import SimpleRateLimiter
 from app.services.shioaji_session import build_shioaji_client
 from app.services.stripe_provider import StripeProvider
 from app.stream_processing.runner import StreamProcessingRunner
