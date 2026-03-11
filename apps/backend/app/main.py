@@ -10,7 +10,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
 from app import state
-from app.config import AGGREGATOR_ENABLED, INGESTOR_ENABLED, validate_stripe_settings
+from app.config import (
+    AGGREGATOR_ENABLED,
+    INGESTOR_ENABLED,
+    SERVING_CORS_ALLOW_ORIGINS,
+    validate_stripe_settings,
+)
 from app.routes import admin, analytics, auth, billing, historical_backfill, realtime
 from app.state import metrics
 

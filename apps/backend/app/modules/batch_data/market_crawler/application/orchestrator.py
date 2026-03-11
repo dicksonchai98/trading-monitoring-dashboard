@@ -7,6 +7,11 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Callable, Protocol
 
+try:  # Optional dependency used by fetchers.
+    import httpx
+except Exception:  # pragma: no cover - optional import
+    httpx = None
+
 from app.modules.batch_data.market_crawler.domain.contracts import (
     FetchedPayload,
     NormalizedRecord,
@@ -189,8 +194,19 @@ class CrawlerOrchestrator:
 def classify_failure(err: Exception) -> str:
     if isinstance(err, CrawlerFailure):
         return err.category
+    if httpx is not None and isinstance(err, httpx.RequestError):
+        return "network_error"
+    if isinstance(err, OSError):
+        return "network_error"
     message = str(err).lower()
-    if "http" in message or "timeout" in message or "connection" in message:
+    if (
+        "http" in message
+        or "timeout" in message
+        or "connection" in message
+        or "connecterror" in message
+        or "socket" in message
+        or "winerror" in message
+    ):
         return "network_error"
     if "publication not ready" in message:
         return "publication_not_ready"
