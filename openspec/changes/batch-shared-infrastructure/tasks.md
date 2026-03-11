@@ -27,15 +27,15 @@
 ## 5. Service Integration
 
 - [x] 5.1 Implement worker startup flow (load config, init logger/db, register jobs, loop)
-- [ ] 5.2 Integrate historical backfill worker with shared runtime
-- [ ] 5.3 Integrate market crawler worker with shared runtime
+- [x] 5.2 Integrate historical backfill worker with shared runtime
+- [x] 5.3 Integrate market crawler worker with shared runtime
 
 ## 6. Validation
 
-- [ ] 6.1 Add unit tests for lifecycle, retry, and progress tracking
-- [ ] 6.2 Add unit tests for JobRepository and error classification
-- [ ] 6.3 Add integration tests for worker + runtime DB write path
-- [ ] 6.4 Add metrics emission validation in integration tests
+- [x] 6.1 Add unit tests for lifecycle, retry, and progress tracking
+- [x] 6.2 Add unit tests for JobRepository and error classification
+- [x] 6.3 Add integration tests for worker + runtime DB write path
+- [x] 6.4 Add metrics emission validation in integration tests
 
 ## 7. Shared Spec Alignment (2026-03-09)
 
