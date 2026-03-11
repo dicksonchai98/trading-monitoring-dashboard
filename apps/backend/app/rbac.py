@@ -20,6 +20,9 @@ PROTECTED_ROUTES = {
 ADMIN_ROUTES = {
     ("GET", "/admin/logs"),
     ("GET", "/admin/logs/{id}"),
+    ("POST", "/api/admin/backfill/historical-jobs"),
+    ("GET", "/api/admin/backfill/historical-jobs"),
+    ("GET", "/api/admin/backfill/historical-jobs/{job_id}"),
 }
 
 
@@ -27,6 +30,8 @@ def path_template(method: str, path: str) -> tuple[str, str]:
     # Keep one explicit template for the admin log detail route.
     if method == "GET" and path.startswith("/admin/logs/"):
         return method, "/admin/logs/{id}"
+    if method == "GET" and path.startswith("/api/admin/backfill/historical-jobs/"):
+        return method, "/api/admin/backfill/historical-jobs/{job_id}"
     return method, path
 
 

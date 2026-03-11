@@ -10,14 +10,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
 from app import state
-from app.config import (
-    AGGREGATOR_ENABLED,
-    INGESTOR_ENABLED,
-    SERVING_CORS_ALLOW_ORIGINS,
-    validate_stripe_settings,
-)
-from app.db.session import get_session
-from app.routes import admin, analytics, auth, billing, realtime, serving
+from app.config import AGGREGATOR_ENABLED, INGESTOR_ENABLED, validate_stripe_settings
+from app.routes import admin, analytics, auth, billing, historical_backfill, realtime
 from app.state import metrics
 
 logging.basicConfig(level=logging.INFO)
@@ -38,27 +32,7 @@ app.include_router(billing.router)
 app.include_router(realtime.router)
 app.include_router(analytics.router)
 app.include_router(admin.router)
-app.include_router(serving.router)
-
-
-@app.get("/health")
-def health() -> dict[str, object]:
-    redis_ok = False
-    db_ok = False
-    try:
-        redis_client = state.get_serving_redis_client()
-        redis_ok = bool(redis_client.ping())
-    except Exception:
-        state.metrics.inc("serving_redis_errors_total")
-    try:
-        session = get_session()
-        session.execute(text("SELECT 1"))
-        session.close()
-        db_ok = True
-    except Exception:
-        state.metrics.inc("serving_db_errors_total")
-    status_code = 200 if redis_ok and db_ok else 503
-    return {"status": status_code, "redis": redis_ok, "db": db_ok}
+app.include_router(historical_backfill.router)
 
 
 @app.on_event("startup")
