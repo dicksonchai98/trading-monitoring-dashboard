@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from app.market_ingestion.runner import MarketIngestionRunner, reconnect_delays
+from app.market_ingestion.shioaji_client import ShioajiClient
 from app.services.metrics import Metrics
 
 
@@ -49,7 +50,12 @@ def test_reconnect_backoff_is_exponential_and_capped() -> None:
 
 def test_quote_event_disconnect_codes_trigger_reconnect() -> None:
     runner = MarketIngestionRunner(
-        shioaji_api=_FakeAPI(),
+        shioaji_client=ShioajiClient(
+            api=_FakeAPI(),
+            api_key="k",
+            secret_key="s",
+            simulation=True,
+        ),
         redis_client=_FakeRedis(),
         metrics=Metrics(),
         queue_maxsize=8,
@@ -70,7 +76,12 @@ def test_quote_event_disconnect_codes_trigger_reconnect() -> None:
 
 def test_quote_event_reconnected_codes_trigger_resubscribe() -> None:
     runner = MarketIngestionRunner(
-        shioaji_api=_FakeAPI(),
+        shioaji_client=ShioajiClient(
+            api=_FakeAPI(),
+            api_key="k",
+            secret_key="s",
+            simulation=True,
+        ),
         redis_client=_FakeRedis(),
         metrics=Metrics(),
         queue_maxsize=8,
