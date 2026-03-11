@@ -60,7 +60,10 @@ Based on Context7 source `/llmstxt/sinotrade_github_io_llms-full_txt`, the start
 ## MVP boundaries
 
 Deferred to phase 2:
-- Historical backfill.
 - K-line correction/recompute.
 - Multi-session sharding.
+
+Historical backfill is operated by dedicated worker runtime:
+- Start worker: `python -m app.historical_backfill_worker`
+- Trigger jobs via admin API: `POST /api/admin/backfill/historical-jobs`
 
