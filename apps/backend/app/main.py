@@ -6,6 +6,8 @@ import asyncio
 import logging
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 
 from app import state
 from app.config import AGGREGATOR_ENABLED, INGESTOR_ENABLED, validate_stripe_settings
@@ -16,6 +18,14 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Trading Dashboard Backend")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=SERVING_CORS_ALLOW_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.include_router(auth.router)
 app.include_router(billing.router)

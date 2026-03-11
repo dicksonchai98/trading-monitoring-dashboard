@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import logging
+import time
 from dataclasses import dataclass
 
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from app.config import SERVING_RATE_LIMIT_PER_MIN, SERVING_SSE_CONN_LIMIT
 from app.services.token_service import TokenError
-from app.state import audit_log, auth_service, metrics
+from app.state import audit_log, auth_service, metrics, serving_rate_limiter
 
 
 @dataclass
@@ -20,6 +22,15 @@ class Principal:
 
 logger = logging.getLogger(__name__)
 bearer_scheme = HTTPBearer(auto_error=False)
+
+
+def _client_key(request: Request) -> str:
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    if request.client is not None:
+        return request.client.host
+    return "unknown"
 
 
 def _extract_bearer_token(
@@ -89,3 +100,27 @@ def require_admin(
         )
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="insufficient_role")
     return principal
+
+
+def enforce_serving_rate_limit(request: Request) -> None:
+    key = _client_key(request)
+    if not serving_rate_limiter.allow_request(key, SERVING_RATE_LIMIT_PER_MIN, window_seconds=60):
+        metrics.inc("serving_rate_limit_denied")
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="rate_limited")
+
+
+def try_open_sse_slot(request: Request) -> str:
+    key = _client_key(request)
+    if not serving_rate_limiter.try_open_sse(key, SERVING_SSE_CONN_LIMIT):
+        metrics.inc("serving_rate_limit_denied")
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="sse_limit")
+    return key
+
+
+async def record_serving_latency() -> None:
+    start = time.perf_counter()
+    try:
+        yield
+    finally:
+        elapsed_ms = int((time.perf_counter() - start) * 1000)
+        metrics.set_gauge("serving_rest_latency_ms", elapsed_ms)
