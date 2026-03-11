@@ -5,7 +5,6 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass
 from datetime import date
-from secrets import SystemRandom
 from typing import Any, Callable
 
 from sqlalchemy.orm import Session
@@ -17,8 +16,6 @@ from app.modules.historical_backfill.fetcher import HistoricalFetcher
 from app.modules.historical_backfill.logging import BackfillLogContext, get_backfill_logger
 from app.modules.historical_backfill.transformer import transform_historical_rows
 from app.modules.historical_backfill.writer import upsert_kbars
-
-_RNG = SystemRandom()
 
 
 def _parse_date(raw: object, field: str) -> date:
@@ -90,48 +87,53 @@ class HistoricalBackfillJobImplementation:
                     status="running",
                 ),
             )
-            attempt = 0
-            while True:
-                attempt += 1
-                chunk_start_time = time.perf_counter()
-                try:
-                    raw_rows = self.fetcher.fetch_bars(
-                        code=code, start_date=chunk_start, end_date=chunk_end
+            chunk_start_time = time.perf_counter()
+            try:
+                raw_rows = self.fetcher.fetch_bars(
+                    code=code, start_date=chunk_start, end_date=chunk_end
+                )
+                transformed = transform_historical_rows(code=code, rows=raw_rows)
+                with self.session_factory() as session, session.begin():
+                    write_result = upsert_kbars(
+                        session, transformed.valid_rows, overwrite_mode=overwrite_mode
                     )
-                    transformed = transform_historical_rows(code=code, rows=raw_rows)
-                    with self.session_factory() as session, session.begin():
-                        write_result = upsert_kbars(
-                            session, transformed.valid_rows, overwrite_mode=overwrite_mode
-                        )
-                except Exception as err:
-                    err_class = classify_error(err)
-                    if err_class == ErrorClass.RETRYABLE and attempt < self.retry_max_attempts:
-                        if hasattr(context, "on_chunk_retry"):
-                            context.on_chunk_retry(  # type: ignore[attr-defined]
-                                chunk_cursor=chunk_cursor, attempt=attempt
-                            )
-                        backoff = self._backoff_with_jitter(attempt)
-                        logger.warning(
-                            "chunk retry scheduled",
-                            extra={"attempt": attempt, "error_class": err_class.value},
-                        )
-                        time.sleep(backoff)
-                        continue
-                    logger.error(
-                        "chunk failed",
-                        extra={
-                            "attempt": attempt,
-                            "error_class": err_class.value,
-                            "error_message": str(err),
-                        },
-                    )
-                    raise
+            except Exception as err:
+                err_class = classify_error(err)
+                logger.error(
+                    "chunk failed",
+                    extra={
+                        "error_class": err_class.value,
+                        "error_message": str(err),
+                    },
+                )
+                raise
 
-                rows_processed += len(transformed.valid_rows) + transformed.invalid_count
-                rows_written += write_result.rows_written
-                rows_failed_validation += transformed.invalid_count
-                rows_skipped_conflict += write_result.rows_skipped_conflict
-                processed_chunks = index + 1
+            rows_processed += len(transformed.valid_rows) + transformed.invalid_count
+            rows_written += write_result.rows_written
+            rows_failed_validation += transformed.invalid_count
+            rows_skipped_conflict += write_result.rows_skipped_conflict
+            processed_chunks = index + 1
+            self._update_progress(
+                context,
+                rows_processed=rows_processed,
+                rows_written=rows_written,
+                rows_failed_validation=rows_failed_validation,
+                rows_skipped_conflict=rows_skipped_conflict,
+                checkpoint_cursor=chunk_cursor,
+                processed_chunks=processed_chunks,
+                total_chunks=total_chunks,
+            )
+            elapsed_ms = int((time.perf_counter() - chunk_start_time) * 1000)
+            logger.info(
+                "chunk completed",
+                extra={
+                    "elapsed_ms": elapsed_ms,
+                    "status": "completed",
+                },
+            )
+
+            now = time.monotonic()
+            if now - last_heartbeat >= self.heartbeat_interval_seconds:
                 self._update_progress(
                     context,
                     rows_processed=rows_processed,
@@ -142,37 +144,9 @@ class HistoricalBackfillJobImplementation:
                     processed_chunks=processed_chunks,
                     total_chunks=total_chunks,
                 )
-                elapsed_ms = int((time.perf_counter() - chunk_start_time) * 1000)
-                logger.info(
-                    "chunk completed",
-                    extra={
-                        "elapsed_ms": elapsed_ms,
-                        "status": "completed",
-                    },
-                )
-
-                now = time.monotonic()
-                if now - last_heartbeat >= self.heartbeat_interval_seconds:
-                    self._update_progress(
-                        context,
-                        rows_processed=rows_processed,
-                        rows_written=rows_written,
-                        rows_failed_validation=rows_failed_validation,
-                        rows_skipped_conflict=rows_skipped_conflict,
-                        checkpoint_cursor=chunk_cursor,
-                        processed_chunks=processed_chunks,
-                        total_chunks=total_chunks,
-                    )
-                    last_heartbeat = now
-                break
+                last_heartbeat = now
 
         return JobResult(rows_processed=rows_processed, rows_written=rows_written)
-
-    def _backoff_with_jitter(self, attempt: int) -> float:
-        base = self.retry_backoff_seconds * (2 ** (attempt - 1))
-        capped = min(base, 30.0)
-        jitter = _RNG.uniform(0.0, capped * 0.1)
-        return capped + jitter
 
     def _update_progress(self, context: JobContext, **kwargs: Any) -> None:
         try:

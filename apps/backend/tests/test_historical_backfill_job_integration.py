@@ -6,6 +6,11 @@ from typing import Any
 import pytest
 from app.db.session import SessionLocal
 from app.models.kbar_1m import Kbar1mModel
+from app.modules.batch_shared.jobs.interfaces import JobResult
+from app.modules.batch_shared.jobs.job_runner import JobRunner
+from app.modules.batch_shared.metrics.metrics import BatchMetrics
+from app.modules.batch_shared.repositories.job_repository import JobRepository
+from app.modules.batch_shared.retry.policy import RetryPolicy
 from app.modules.batch_shared.jobs.interfaces import JobContext
 from app.modules.historical_backfill.fetcher import HistoricalFetcher
 from app.modules.historical_backfill.job import HistoricalBackfillJobImplementation
@@ -116,3 +121,26 @@ def test_resume_from_checkpoint_cursor_skips_committed_chunks(
     assert result.rows_processed == 2
     assert [call[0].isoformat() for call in fetcher.calls] == ["2026-03-02", "2026-03-03"]
     assert retry_events == []
+
+
+def test_job_runner_retry_handles_transient_errors() -> None:
+    repository = JobRepository()
+    metrics = BatchMetrics()
+    retry_policy = RetryPolicy(max_attempts=2, backoff_seconds=0)
+    runner = JobRunner(repository=repository, retry_policy=retry_policy, metrics=metrics)
+
+    class _FlakyJob:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def execute(self, params: dict[str, object], context: JobContext) -> JobResult:
+            _ = (params, context)
+            self.calls += 1
+            if self.calls == 1:
+                raise TimeoutError("transient")
+            return JobResult(rows_processed=4)
+
+    result = runner.run(job_type="backfill-retry", params={}, job_impl=_FlakyJob())
+
+    assert result.normalized_rows_processed == 4
+    assert metrics.counters["batch_retry_count_total"] == 1
