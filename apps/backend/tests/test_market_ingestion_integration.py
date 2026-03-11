@@ -4,6 +4,7 @@ import asyncio
 
 from app.market_ingestion.pipeline import IngestionPipeline
 from app.market_ingestion.runner import MarketIngestionRunner
+from app.market_ingestion.shioaji_client import ShioajiClient
 from app.market_ingestion.writer import RedisWriter
 from app.services.metrics import Metrics
 
@@ -79,7 +80,12 @@ def test_reconnect_resubscribes_after_login_recovery() -> None:
     api = FakeAPI()
     redis = FakeRedis()
     runner = MarketIngestionRunner(
-        shioaji_api=api,
+        shioaji_client=ShioajiClient(
+            api=api,
+            api_key="k",
+            secret_key="s",
+            simulation=True,
+        ),
         redis_client=redis,
         metrics=metrics,
         queue_maxsize=8,
