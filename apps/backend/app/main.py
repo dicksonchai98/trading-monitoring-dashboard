@@ -9,7 +9,7 @@ from fastapi import FastAPI
 
 from app import state
 from app.config import AGGREGATOR_ENABLED, INGESTOR_ENABLED, validate_stripe_settings
-from app.routes import admin, analytics, auth, billing, realtime
+from app.routes import admin, analytics, auth, billing, historical_backfill, realtime
 from app.state import metrics
 
 logging.basicConfig(level=logging.INFO)
@@ -22,6 +22,7 @@ app.include_router(billing.router)
 app.include_router(realtime.router)
 app.include_router(analytics.router)
 app.include_router(admin.router)
+app.include_router(historical_backfill.router)
 
 
 @app.on_event("startup")
