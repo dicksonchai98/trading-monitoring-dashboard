@@ -36,3 +36,10 @@
 - [ ] 6.2 Add unit tests for JobRepository and error classification
 - [ ] 6.3 Add integration tests for worker + runtime DB write path
 - [ ] 6.4 Add metrics emission validation in integration tests
+
+## 7. Shared Spec Alignment (2026-03-09)
+
+- [x] 7.1 Align lifecycle transitions to include `RETRYING` and `PARTIALLY_COMPLETED` transitions
+- [x] 7.2 Add metadata compatibility mapping (`rows_processed` canonical, `rows_written` service-level)
+- [x] 7.3 Add checkpoint/resume contract fields (`checkpoint_cursor`, `processed_chunks`, `total_chunks`, `retry_count`, `last_heartbeat_at`)
+- [x] 7.4 Update Job Runner behavior to distinguish retryable vs non-retryable failure paths

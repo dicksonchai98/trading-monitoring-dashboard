@@ -29,6 +29,7 @@ from app.config import (
 from app.db.session import SessionLocal
 from app.market_ingestion.runner import MarketIngestionRunner
 from app.models.billing_event import BillingEventModel
+from app.models.historical_backfill_job import HistoricalBackfillJobModel
 from app.models.kbar_1m import Kbar1mModel
 from app.models.refresh_denylist import RefreshTokenDenylistModel
 from app.models.subscription import SubscriptionModel
@@ -144,6 +145,7 @@ def reset_state_for_tests() -> None:
     audit_log.events.clear()
     with SessionLocal() as session:
         session.execute(delete(BillingEventModel))
+        session.execute(delete(HistoricalBackfillJobModel))
         session.execute(delete(Kbar1mModel))
         session.execute(delete(SubscriptionModel))
         session.execute(delete(RefreshTokenDenylistModel))

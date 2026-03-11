@@ -1,4 +1,4 @@
-# Batch Shared Infrastructure Design
+﻿# Batch Shared Infrastructure Design
 
 Version: v1.0
 Status: Draft
@@ -104,20 +104,20 @@ Batch services follow a layered architecture:
 
 ```
 Batch Worker Process
-       │
-       ▼
+       ->
+       ->
 Batch Runtime Framework
-       │
-       ▼
+       ->
+       ->
 Job Implementation
-       │
-       ▼
+       ->
+       ->
 Data Source / Processing Logic
-       │
-       ▼
+       ->
+       ->
 Repository Layer
-       │
-       ▼
+       ->
+       ->
 PostgreSQL
 ```
 
@@ -152,10 +152,11 @@ PARTIALLY_COMPLETED
 ## 4.2 Job Lifecycle Transitions
 
 ```
-CREATED → RUNNING → COMPLETED
-CREATED → RUNNING → FAILED
-RUNNING → FAILED → RETRYING
-RETRYING → RUNNING
+CREATED -> RUNNING -> COMPLETED
+CREATED -> RUNNING -> FAILED
+RUNNING -> RETRYING -> RUNNING
+RETRYING -> FAILED
+RUNNING -> PARTIALLY_COMPLETED -> RUNNING
 ```
 
 ---
@@ -174,6 +175,24 @@ Each job execution should record metadata including:
 - error_message
 
 These records allow operators to audit execution history.
+
+Metadata compatibility note:
+
+- Shared canonical metric name: `rows_processed`.
+- Service-level tables may use a different physical column name (for example `rows_written`) if mapped consistently in the repository layer.
+- `job_type` should be present in shared runtime records; service-specific tables may infer it from module context when only one job type exists.
+
+## 4.4 Checkpoint and Resume Contract
+
+To support safe resume and partial rerun, shared runtime should persist checkpoint metadata:
+
+- `checkpoint_cursor` (service-defined cursor, e.g. chunk id or date window)
+- `processed_chunks`
+- `total_chunks`
+- `retry_count`
+- `last_heartbeat_at`
+
+This checkpoint contract is infrastructure-level; cursor format remains service-defined.
 
 ---
 
@@ -221,8 +240,9 @@ Pseudo execution flow:
 create job record
 mark job RUNNING
 execute pipeline
-if success → mark COMPLETED
-if error → mark FAILED
+if success -> mark COMPLETED
+if error and retryable -> mark RETRYING
+if error and not retryable -> mark FAILED
 ```
 
 ---
