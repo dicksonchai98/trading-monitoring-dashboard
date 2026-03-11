@@ -21,3 +21,8 @@ def test_kbars_migration_file_exists() -> None:
 def test_batch_job_checkpoint_migration_file_exists() -> None:
     path = Path("alembic/versions/20260309_02_add_batch_job_checkpoint_columns.py")
     assert path.exists()
+
+
+def test_historical_backfill_migration_file_exists() -> None:
+    path = Path("alembic/versions/20260309_03_add_historical_backfill_jobs_and_kbar_constraints.py")
+    assert path.exists()
