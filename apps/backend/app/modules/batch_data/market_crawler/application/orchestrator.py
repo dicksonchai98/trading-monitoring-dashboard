@@ -12,6 +12,11 @@ try:  # Optional dependency used by fetchers.
 except Exception:  # pragma: no cover - optional import
     httpx = None
 
+try:  # Optional dependency used by source-row validation.
+    from pydantic import ValidationError
+except Exception:  # pragma: no cover - optional import
+    ValidationError = None
+
 from app.modules.batch_data.market_crawler.domain.contracts import (
     FetchedPayload,
     NormalizedRecord,
@@ -194,6 +199,10 @@ class CrawlerOrchestrator:
 def classify_failure(err: Exception) -> str:
     if isinstance(err, CrawlerFailure):
         return err.category
+    if ValidationError is not None and isinstance(err, ValidationError):
+        return "source_format_error"
+    if isinstance(err, KeyError):
+        return "source_format_error"
     if httpx is not None and isinstance(err, httpx.RequestError):
         return "network_error"
     if isinstance(err, OSError):
@@ -220,6 +229,10 @@ def classify_failure(err: Exception) -> str:
 def _infer_stage(err: Exception, category: str) -> str:
     if isinstance(err, CrawlerFailure):
         return err.stage
+    if ValidationError is not None and isinstance(err, ValidationError):
+        return "NORMALIZE"
+    if isinstance(err, KeyError):
+        return "NORMALIZE"
     if category == "validation_error":
         return "VALIDATE"
     if category in {"network_error", "publication_not_ready"}:
