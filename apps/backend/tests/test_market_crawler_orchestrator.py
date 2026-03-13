@@ -14,6 +14,7 @@ from app.modules.batch_data.market_crawler.domain.contracts import (
     ParsedRow,
 )
 from app.modules.batch_data.market_crawler.registry.dataset_registry import load_dataset_registry
+from pydantic import BaseModel, ValidationError
 
 
 def _build_registry(tmp_path: Path):
@@ -179,10 +180,56 @@ def test_orchestrator_marks_validation_failure(tmp_path: Path) -> None:
     assert any("fail:42:validation_error:VALIDATE" in event for event in recorder.events)
 
 
+def test_orchestrator_marks_missing_required_field_as_source_format_error(tmp_path: Path) -> None:
+    registry = _build_registry(tmp_path)
+    recorder = _Recorder()
+
+    orchestrator = CrawlerOrchestrator(
+        dataset_registry=registry,
+        job_repository=recorder,
+        fetch=lambda: FetchedPayload(
+            content="h1,h2\n",
+            content_type="text/csv",
+            fetched_at=datetime.now(timezone.utc),
+            source_url="https://example.com",
+        ),
+        parse=lambda _payload: [ParsedRow(raw_fields={})],
+        normalize=lambda _rows: (_ for _ in ()).throw(KeyError("data_date")),
+        validate=lambda _rows: _Validation(is_valid=True, errors=[], normalized_records=[]),
+        persist=lambda _rows: 0,
+    )
+
+    result = orchestrator.run(
+        dataset_code="taifex_institution_open_interest_daily",
+        target_date=date(2026, 3, 9),
+        trigger_type="manual",
+    )
+
+    assert result["status"] == "FAILED"
+    assert result["error_category"] == "source_format_error"
+    assert result["error_stage"] == "NORMALIZE"
+    assert any(
+        "fail:42:source_format_error:NORMALIZE:'data_date'" in event for event in recorder.events
+    )
+
+
+def test_classify_pydantic_validation_error_as_source_format_error() -> None:
+    class _RowModel(BaseModel):
+        data_date: str
+
+    try:
+        _RowModel.model_validate({})
+    except ValidationError as err:
+        assert classify_failure(err) == "source_format_error"
+    else:  # pragma: no cover
+        raise AssertionError("expected validation error")
+
+
 def test_classify_failure() -> None:
     assert classify_failure(RuntimeError("HTTP 503")) == "network_error"
     assert classify_failure(RuntimeError("publication not ready")) == "publication_not_ready"
     assert classify_failure(RuntimeError("schema mismatch")) == "source_format_error"
+    assert classify_failure(KeyError("data_date")) == "source_format_error"
     assert classify_failure(RuntimeError("validation failed")) == "validation_error"
     assert classify_failure(RuntimeError("db constraint")) == "persistence_error"
     assert classify_failure(RuntimeError("unknown")) == "persistence_error"

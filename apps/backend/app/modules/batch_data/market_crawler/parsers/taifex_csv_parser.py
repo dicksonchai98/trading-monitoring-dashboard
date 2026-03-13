@@ -14,6 +14,10 @@ class TaifexCsvParser:
         reader = csv.DictReader(StringIO(text))
         rows: list[ParsedRow] = []
         for row in reader:
-            cleaned = {k: (v or "").strip() for k, v in row.items()}
+            cleaned = {
+                key.strip().lstrip("\ufeff"): (value or "").strip()
+                for key, value in row.items()
+                if key is not None
+            }
             rows.append(ParsedRow(raw_fields=cleaned))
         return rows
