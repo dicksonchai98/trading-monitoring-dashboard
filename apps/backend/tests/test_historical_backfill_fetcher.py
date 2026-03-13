@@ -9,10 +9,19 @@ from app.modules.historical_backfill.fetcher import HistoricalFetcher
 class _FakeApi:
     def __init__(self) -> None:
         self.calls = 0
+        self.Contracts = type("Contracts", (), {"Futures": {"TXFR1": {"code": "TXFR1"}}})()
 
     def kbars(self, *, contract, start, end):  # type: ignore[no-untyped-def]
         self.calls += 1
-        return [{"contract": contract, "start": start, "end": end}]
+        return {
+            "ts": [1710000000000000000],
+            "Open": [100.0],
+            "High": [101.0],
+            "Low": [99.0],
+            "Close": [100.5],
+            "Volume": [10],
+            "Amount": [1000.0],
+        }
 
 
 class _FakeClient:
@@ -47,3 +56,10 @@ def test_fetcher_reuses_session_and_applies_rate_limit(monkeypatch: pytest.Monke
     assert fake.fetch_contract_calls == 1
     assert fake.api.calls == 2
     assert sleeps == [pytest.approx(0.8)]
+    assert first[0]["ts"] == "2024-03-09T16:00:00+00:00"
+    assert first[0]["open"] == 100.0
+    assert first[0]["high"] == 101.0
+    assert first[0]["low"] == 99.0
+    assert first[0]["close"] == 100.5
+    assert first[0]["volume"] == 10
+    assert second[0]["ts"] == "2024-03-09T16:00:00+00:00"

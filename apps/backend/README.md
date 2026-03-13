@@ -31,7 +31,7 @@ Runbook:
 ## Historical Backfill Worker
 
 - Trigger API: `POST /api/admin/backfill/historical-jobs`
-- Worker process entrypoint: `python -m app.historical_backfill_worker`
+- Worker process entrypoint: `python -m workers.backfill_worker`
 - Required env for provider login:
   - `SHIOAJI_API_KEY`
   - `SHIOAJI_SECRET_KEY`
