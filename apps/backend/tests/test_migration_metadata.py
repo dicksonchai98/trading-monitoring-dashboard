@@ -26,3 +26,13 @@ def test_batch_job_checkpoint_migration_file_exists() -> None:
 def test_historical_backfill_migration_file_exists() -> None:
     path = Path("alembic/versions/20260309_03_add_historical_backfill_jobs_and_kbar_constraints.py")
     assert path.exists()
+
+
+def test_batch_job_status_length_migration_file_exists() -> None:
+    path = Path("alembic/versions/20260312_01_expand_batch_job_status_length.py")
+    assert path.exists()
+
+
+def test_merge_head_migration_file_exists() -> None:
+    path = Path("alembic/versions/20260312_02_merge_market_crawler_and_batch_status_heads.py")
+    assert path.exists()
