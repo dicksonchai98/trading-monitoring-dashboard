@@ -64,6 +64,6 @@ Deferred to phase 2:
 - Multi-session sharding.
 
 Historical backfill is operated by dedicated worker runtime:
-- Start worker: `python -m app.historical_backfill_worker`
+- Start worker: `python -m workers.backfill_worker`
 - Trigger jobs via admin API: `POST /api/admin/backfill/historical-jobs`
 
