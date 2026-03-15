@@ -21,13 +21,26 @@ class TaifexInstitutionOpenInterestSourceRow(BaseModel):
     short_trade_oi: int = Field(validation_alias=AliasChoices("short_trade_oi", "空方交易口數"))
     net_trade_oi: int = Field(validation_alias=AliasChoices("net_trade_oi", "多空交易口數淨額"))
     long_trade_amount_k: Decimal = Field(
-        validation_alias=AliasChoices("long_trade_amount_k", "多方交易契約金額(百萬元)")
+        validation_alias=AliasChoices(
+            "long_trade_amount_k",
+            "多方交易契約金額(百萬元)",
+            "多方交易契約金額(千元)",
+        )
     )
     short_trade_amount_k: Decimal = Field(
-        validation_alias=AliasChoices("short_trade_amount_k", "空方交易契約金額(百萬元)")
+        validation_alias=AliasChoices(
+            "short_trade_amount_k",
+            "空方交易契約金額(百萬元)",
+            "空方交易契約金額(千元)",
+        )
     )
     net_trade_amount_k: Decimal = Field(
-        validation_alias=AliasChoices("net_trade_amount_k", "多空交易契約金額淨額(百萬元)")
+        validation_alias=AliasChoices(
+            "net_trade_amount_k",
+            "多空交易契約金額淨額(百萬元)",
+            "多空交易契約金額淨額(千元)",
+            " 多空交易契約金額淨額(千元)",
+        )
     )
     long_open_interest: int = Field(
         validation_alias=AliasChoices("long_open_interest", "多方未平倉口數")
@@ -42,28 +55,26 @@ class TaifexInstitutionOpenInterestSourceRow(BaseModel):
         validation_alias=AliasChoices(
             "long_open_interest_amount_k",
             "多方未平倉契約金額(百萬元)",
+            "多方未平倉契約金額(千元)",
         )
     )
     short_open_interest_amount_k: Decimal = Field(
         validation_alias=AliasChoices(
             "short_open_interest_amount_k",
             "空方未平倉契約金額(百萬元)",
+            "空方未平倉契約金額(千元)",
         )
     )
     net_open_interest_amount_k: Decimal = Field(
         validation_alias=AliasChoices(
             "net_open_interest_amount_k",
             "多空未平倉契約金額淨額(百萬元)",
+            "多空未平倉契約金額淨額(千元)",
+            "多空未平倉契約金額淨額( 千元)",
         )
     )
-    source: str = Field(
-        default="taifex_data_gov",
-        validation_alias=AliasChoices("source"),
-    )
-    parser_version: str = Field(
-        default="v1",
-        validation_alias=AliasChoices("parser_version"),
-    )
+    source: str = Field(default="taifex_data_gov", validation_alias=AliasChoices("source"))
+    parser_version: str = Field(default="v1", validation_alias=AliasChoices("parser_version"))
 
     @field_validator("data_date", mode="before")
     @classmethod
