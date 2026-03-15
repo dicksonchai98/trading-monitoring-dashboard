@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.modules.batch_data.market_crawler.domain.contracts import (
+from app.modules.market_crawler.domain.contracts import (
     NormalizedRecord,
     ParsedRow,
 )

@@ -6,7 +6,7 @@ from datetime import date, datetime, timezone
 
 import httpx
 
-from app.modules.batch_data.market_crawler.domain.contracts import FetchedPayload
+from app.modules.market_crawler.domain.contracts import FetchedPayload
 
 
 class HttpFetcher:

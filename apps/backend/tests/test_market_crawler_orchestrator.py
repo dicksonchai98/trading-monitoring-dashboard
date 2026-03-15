@@ -4,16 +4,16 @@ from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from pathlib import Path
 
-from app.modules.batch_data.market_crawler.application.orchestrator import (
+from app.modules.market_crawler.application.orchestrator import (
     CrawlerOrchestrator,
     classify_failure,
 )
-from app.modules.batch_data.market_crawler.domain.contracts import (
+from app.modules.market_crawler.domain.contracts import (
     FetchedPayload,
     NormalizedRecord,
     ParsedRow,
 )
-from app.modules.batch_data.market_crawler.registry.dataset_registry import load_dataset_registry
+from app.modules.market_crawler.registry.dataset_registry import load_dataset_registry
 from pydantic import BaseModel, ValidationError
 
 

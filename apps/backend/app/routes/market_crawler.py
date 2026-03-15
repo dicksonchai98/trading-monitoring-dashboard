@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
 from app.deps import Principal, require_admin
-from app.modules.batch_data.market_crawler.services.admin_jobs import MarketCrawlerAdminJobService
+from app.modules.market_crawler.services.admin_jobs import MarketCrawlerAdminJobService
 from app.modules.batch_shared.queue.redis_queue import RedisBatchQueue
 from app.modules.batch_shared.repositories.job_repository import JobRepository
 from app.modules.batch_shared.services.admin_jobs import BatchJobAdminService

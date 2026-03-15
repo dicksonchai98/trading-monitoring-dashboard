@@ -7,16 +7,16 @@ from types import SimpleNamespace
 from app.db.session import SessionLocal
 from app.models.batch_job import BatchJobModel
 from app.models.market_open_interest_daily import MarketOpenInterestDailyModel
-from app.modules.batch_data.market_crawler.application.orchestrator import CrawlerOrchestrator
-from app.modules.batch_data.market_crawler.domain.contracts import (
+from app.modules.market_crawler.application.orchestrator import CrawlerOrchestrator
+from app.modules.market_crawler.domain.contracts import (
     FetchedPayload,
     NormalizedRecord,
     ParsedRow,
 )
-from app.modules.batch_data.market_crawler.jobs.range_backfill_job import RangeBackfillCrawlerJob
-from app.modules.batch_data.market_crawler.jobs.single_date_job import SingleDateCrawlerJob
-from app.modules.batch_data.market_crawler.registry.dataset_registry import load_dataset_registry
-from app.modules.batch_data.market_crawler.repositories.market_open_interest_repository import (
+from app.modules.market_crawler.jobs.range_backfill_job import RangeBackfillCrawlerJob
+from app.modules.market_crawler.jobs.single_date_job import SingleDateCrawlerJob
+from app.modules.market_crawler.registry.dataset_registry import load_dataset_registry
+from app.modules.market_crawler.repositories.market_open_interest_repository import (
     MarketOpenInterestRepository,
 )
 from app.modules.batch_shared.jobs.interfaces import JobContext

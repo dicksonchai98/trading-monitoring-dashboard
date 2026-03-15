@@ -8,7 +8,7 @@ from typing import Callable
 from sqlalchemy.orm import Session
 
 from app.models.market_open_interest_daily import MarketOpenInterestDailyModel
-from app.modules.batch_data.market_crawler.domain.contracts import NormalizedRecord
+from app.modules.market_crawler.domain.contracts import NormalizedRecord
 from app.modules.batch_shared.database.helpers import upsert
 
 

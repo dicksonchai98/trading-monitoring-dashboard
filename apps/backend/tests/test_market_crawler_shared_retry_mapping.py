@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.modules.batch_data.market_crawler.jobs.single_date_job import SingleDateCrawlerJob
+from app.modules.market_crawler.jobs.single_date_job import SingleDateCrawlerJob
 
 
 class _Context:

@@ -5,7 +5,7 @@ from __future__ import annotations
 import csv
 from io import StringIO
 
-from app.modules.batch_data.market_crawler.domain.contracts import ParsedRow
+from app.modules.market_crawler.domain.contracts import ParsedRow
 
 
 class TaifexCsvParser:

@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Iterable
 
-from app.modules.batch_data.market_crawler.domain.contracts import (
+from app.modules.market_crawler.domain.contracts import (
     NormalizedRecord,
     ValidationResult,
 )
