@@ -30,7 +30,7 @@ Runbook:
 
 ## Historical Backfill Worker
 
-- Trigger API: `POST /api/admin/backfill/historical-jobs`
+- Trigger API: `POST /api/admin/batch/backfill/jobs`
 - Worker process entrypoint: `python -m workers.backfill_worker`
 - Required env for provider login:
   - `SHIOAJI_API_KEY`
@@ -43,6 +43,13 @@ Runbook:
   - `BACKFILL_WORKER_POLL_INTERVAL_SECONDS`
   - `BACKFILL_HEARTBEAT_INTERVAL_SECONDS`
   - `BACKFILL_FETCH_MIN_INTERVAL_SECONDS`
+
+## Shared Batch Admin APIs
+
+- `POST /api/admin/batch/backfill/jobs`
+- `POST /api/admin/batch/crawler/jobs`
+- `GET /api/admin/batch/jobs`
+- `GET /api/admin/batch/jobs/{job_id}`
 
 <!-- ## Run (example)
 

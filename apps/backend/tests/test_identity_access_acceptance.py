@@ -73,7 +73,7 @@ def test_admin_routes_return_403_for_non_admin_user() -> None:
     client = TestClient(app)
     auth = _register_and_login(client, username="user3", password="pass3")
     headers = {"Authorization": f"Bearer {auth['access_token']}"}
-    res = client.get("/admin/logs", headers=headers)
+    res = client.get("/api/admin/logs", headers=headers)
     assert res.status_code == 403
 
 
