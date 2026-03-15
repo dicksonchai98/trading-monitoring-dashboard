@@ -11,15 +11,17 @@ from app.config import (
     BACKFILL_RETRY_MAX_ATTEMPTS,
 )
 from app.db.session import SessionLocal
-from app.modules.batch_shared.runtime.worker import WorkerRuntime, build_worker_runtime
+from app.modules.batch_shared.queue.redis_queue import RedisBatchQueue
+from app.modules.batch_shared.runtime.worker import QueueWorkerRuntime, build_worker_runtime
 from app.modules.historical_backfill.fetcher import HistoricalFetcher
 from app.modules.historical_backfill.job import HistoricalBackfillJobImplementation
 
 BACKFILL_JOB = "historical-backfill"
+BACKFILL_WORKER_TYPE = "historical_backfill"
 
 
-def build_backfill_worker_runtime() -> WorkerRuntime:
-    runtime = build_worker_runtime()
+def build_backfill_worker_runtime(queue: RedisBatchQueue | None = None) -> QueueWorkerRuntime:
+    runtime = build_worker_runtime(worker_type=BACKFILL_WORKER_TYPE, queue=queue)
     runtime.register_job(
         BACKFILL_JOB,
         HistoricalBackfillJobImplementation(
@@ -36,20 +38,10 @@ def build_backfill_worker_runtime() -> WorkerRuntime:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="run historical backfill worker job")
-    parser.add_argument("--job-type", default=BACKFILL_JOB)
-    parser.add_argument("--params", nargs="*", default=[])
-    args = parser.parse_args()
-
-    params: dict[str, object] = {}
-    for raw in args.params:
-        if "=" not in raw:
-            continue
-        key, value = raw.split("=", 1)
-        params[key] = value
-
+    parser = argparse.ArgumentParser(description="run historical backfill worker queue consumer")
+    _ = parser.parse_args()
     runtime = build_backfill_worker_runtime()
-    runtime.run_job(job_type=args.job_type, params=params)
+    runtime.run_forever()
 
 
 if __name__ == "__main__":

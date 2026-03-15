@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from datetime import date, datetime, timezone
 from pathlib import Path
+from types import SimpleNamespace
 
 from app.db.session import SessionLocal
-from app.models.crawler_job import CrawlerJobModel
+from app.models.batch_job import BatchJobModel
 from app.models.market_open_interest_daily import MarketOpenInterestDailyModel
 from app.modules.batch_data.market_crawler.application.orchestrator import CrawlerOrchestrator
 from app.modules.batch_data.market_crawler.domain.contracts import (
@@ -13,13 +14,13 @@ from app.modules.batch_data.market_crawler.domain.contracts import (
     ParsedRow,
 )
 from app.modules.batch_data.market_crawler.jobs.range_backfill_job import RangeBackfillCrawlerJob
+from app.modules.batch_data.market_crawler.jobs.single_date_job import SingleDateCrawlerJob
 from app.modules.batch_data.market_crawler.registry.dataset_registry import load_dataset_registry
-from app.modules.batch_data.market_crawler.repositories.crawler_job_repository import (
-    CrawlerJobRepository,
-)
 from app.modules.batch_data.market_crawler.repositories.market_open_interest_repository import (
     MarketOpenInterestRepository,
 )
+from app.modules.batch_shared.jobs.interfaces import JobContext
+from app.modules.batch_shared.repositories.job_repository import JobRepository
 
 
 def _build_registry(tmp_path: Path):
@@ -68,7 +69,29 @@ storage:
 def test_single_date_orchestrator_persists_and_is_idempotent(tmp_path: Path) -> None:
     registry = _build_registry(tmp_path)
     repo = MarketOpenInterestRepository(session_factory=SessionLocal)
-    job_repo = CrawlerJobRepository(session_factory=SessionLocal)
+
+    class _NoopJobRepository:
+        def __init__(self) -> None:
+            self.job_id = 1
+
+        def start(self, dataset_code: str, target_date: date, trigger_type: str) -> int:
+            _ = (dataset_code, target_date, trigger_type)
+            return self.job_id
+
+        def stage(self, job_id: int, stage: str) -> None:
+            _ = (job_id, stage)
+
+        def complete(
+            self,
+            job_id: int,
+            rows_fetched: int,
+            rows_normalized: int,
+            rows_persisted: int,
+        ) -> None:
+            _ = (job_id, rows_fetched, rows_normalized, rows_persisted)
+
+        def fail(self, job_id: int, error_category: str, error_stage: str, message: str) -> None:
+            _ = (job_id, error_category, error_stage, message)
 
     normalized = [
         NormalizedRecord(
@@ -98,7 +121,7 @@ def test_single_date_orchestrator_persists_and_is_idempotent(tmp_path: Path) -> 
 
     orchestrator = CrawlerOrchestrator(
         dataset_registry=registry,
-        job_repository=job_repo,
+        job_repository=_NoopJobRepository(),
         fetch=lambda: FetchedPayload(
             content="ok",
             content_type="text/plain",
@@ -131,29 +154,72 @@ def test_single_date_orchestrator_persists_and_is_idempotent(tmp_path: Path) -> 
         assert len(rows) == 1
 
 
-def test_range_backfill_creates_parent_and_children() -> None:
-    job = RangeBackfillCrawlerJob()
+class _FakeQueue:
+    def __init__(self) -> None:
+        self.enqueued: list[tuple[str, int]] = []
+
+    def enqueue(self, *, worker_type: str, job_id: int) -> None:
+        self.enqueued.append((worker_type, job_id))
+
+
+def test_single_date_job_uses_context_progress_without_legacy_job_repository() -> None:
+    class _FakeOrchestrator:
+        def run(self, *args, **kwargs) -> dict[str, object]:
+            _ = (args, kwargs)
+            return {
+                "status": "COMPLETED",
+                "rows_fetched": 5,
+                "rows_normalized": 5,
+                "rows_persisted": 5,
+            }
+
+    context = JobContext(job_id=11, job_type="crawler-single-date")
+    progress: list[int] = []
+    context.update_progress = (  # type: ignore[assignment]
+        lambda rows_processed=None, **_: progress.append(rows_processed or 0)
+    )
+    job = SingleDateCrawlerJob(orchestrator_factory=lambda *_: _FakeOrchestrator())
+
+    result = job.execute(
+        params={
+            "dataset_code": "taifex_institution_open_interest_daily",
+            "target_date": "2026-03-09",
+            "trigger_type": "manual",
+        },
+        context=context,
+    )
+
+    assert result.rows_processed == 5
+    assert progress == [5]
+
+
+def test_range_backfill_enqueues_shared_child_jobs() -> None:
+    repository = JobRepository()
+    queue = _FakeQueue()
+    job = RangeBackfillCrawlerJob(repository=repository, queue=queue)
     params = {
         "dataset_code": "taifex_institution_open_interest_daily",
         "start_date": "2026-03-07",
         "end_date": "2026-03-09",
         "trigger_type": "manual",
     }
+    progress: list[int] = []
     job.execute(
         params=params,
-        context=type(
-            "C", (), {"job_id": 1, "job_type": "test", "update_progress": lambda *_: None}
-        )(),
+        context=SimpleNamespace(
+            job_id=1,
+            job_type="crawler-backfill",
+            update_progress=lambda rows_processed=None, **_: progress.append(rows_processed or 0),
+        ),
     )
 
     with SessionLocal() as session:
-        parent = (
-            session.query(CrawlerJobModel)
-            .filter(CrawlerJobModel.range_start == date(2026, 3, 7))
-            .one()
-        )
         children = (
-            session.query(CrawlerJobModel).filter(CrawlerJobModel.parent_job_id == parent.id).all()
+            session.query(BatchJobModel)
+            .filter(BatchJobModel.job_type == "crawler-single-date")
+            .all()
         )
-        assert parent.correlation_id is not None
         assert len(children) == 3
+        assert all(child.worker_type == "market_crawler" for child in children)
+    assert len(queue.enqueued) == 3
+    assert progress == [1, 2, 3]

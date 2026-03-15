@@ -25,10 +25,11 @@ class _FakeMetrics:
 class _FakeRepository:
     statuses: list[str]
     progress_calls: list[dict[str, object]]
+    job: object | None = None
 
-    def create_job(self, job_type: str, metadata: dict[str, object] | None = None):
-        _ = (job_type, metadata)
-        return SimpleNamespace(id=1)
+    def get_job(self, job_id: int):
+        _ = job_id
+        return self.job
 
     def mark_running(self, job_id: int) -> None:
         _ = job_id
@@ -71,7 +72,16 @@ class _FakeRepository:
 
 
 def test_job_runner_transitions_retry_to_running_to_completed() -> None:
-    repository = _FakeRepository(statuses=[], progress_calls=[])
+    repository = _FakeRepository(
+        statuses=[],
+        progress_calls=[],
+        job=SimpleNamespace(
+            id=1,
+            worker_type="market_crawler",
+            job_type="test-job",
+            metadata_json={},
+        ),
+    )
     metrics = _FakeMetrics(counters={}, gauges={})
     runner = JobRunner(
         repository=repository,
@@ -91,7 +101,7 @@ def test_job_runner_transitions_retry_to_running_to_completed() -> None:
                 raise TimeoutError("temporary timeout")
             return JobResult(rows_processed=3)
 
-    result = runner.run(job_type="test-job", params={}, job_impl=_FlakyJob())
+    result = runner.run_existing_job(job_id=1, job_impl=_FlakyJob())
 
     assert result.normalized_rows_processed == 3
     assert repository.statuses == [
@@ -103,7 +113,16 @@ def test_job_runner_transitions_retry_to_running_to_completed() -> None:
 
 
 def test_job_runner_progress_supports_rows_written_and_checkpoint_contract() -> None:
-    repository = _FakeRepository(statuses=[], progress_calls=[])
+    repository = _FakeRepository(
+        statuses=[],
+        progress_calls=[],
+        job=SimpleNamespace(
+            id=1,
+            worker_type="historical_backfill",
+            job_type="test-job",
+            metadata_json={},
+        ),
+    )
     metrics = _FakeMetrics(counters={}, gauges={})
     runner = JobRunner(
         repository=repository,
@@ -124,7 +143,7 @@ def test_job_runner_progress_supports_rows_written_and_checkpoint_contract() -> 
             )
             return JobResult(rows_written=5)
 
-    result = runner.run(job_type="test-job", params={}, job_impl=_CheckpointJob())
+    result = runner.run_existing_job(job_id=1, job_impl=_CheckpointJob())
 
     assert result.normalized_rows_processed == 5
     assert repository.progress_calls == [
@@ -138,3 +157,33 @@ def test_job_runner_progress_supports_rows_written_and_checkpoint_contract() -> 
             "last_heartbeat_at": heartbeat,
         }
     ]
+
+
+def test_run_existing_job_marks_lifecycle_using_existing_row() -> None:
+    repository = _FakeRepository(
+        statuses=[],
+        progress_calls=[],
+        job=SimpleNamespace(
+            id=7,
+            worker_type="market_crawler",
+            job_type="crawler-single-date",
+            metadata_json={"dataset_code": "oi", "target_date": "2026-03-15"},
+        ),
+    )
+    metrics = _FakeMetrics(counters={}, gauges={})
+    runner = JobRunner(
+        repository=repository,
+        retry_policy=RetryPolicy(max_attempts=1, backoff_seconds=0),
+        metrics=metrics,
+    )
+
+    class _FakeJob:
+        def execute(self, params: dict[str, object], context) -> JobResult:
+            assert params == {"dataset_code": "oi", "target_date": "2026-03-15"}
+            assert context.job_id == 7
+            return JobResult(rows_processed=3)
+
+    result = runner.run_existing_job(job_id=7, job_impl=_FakeJob())
+
+    assert result.rows_processed == 3
+    assert repository.statuses == [JobStatus.RUNNING.value, JobStatus.COMPLETED.value]

@@ -6,12 +6,11 @@ from typing import Any
 import pytest
 from app.db.session import SessionLocal
 from app.models.kbar_1m import Kbar1mModel
-from app.modules.batch_shared.jobs.interfaces import JobResult
+from app.modules.batch_shared.jobs.interfaces import JobContext, JobResult
 from app.modules.batch_shared.jobs.job_runner import JobRunner
 from app.modules.batch_shared.metrics.metrics import BatchMetrics
 from app.modules.batch_shared.repositories.job_repository import JobRepository
 from app.modules.batch_shared.retry.policy import RetryPolicy
-from app.modules.batch_shared.jobs.interfaces import JobContext
 from app.modules.historical_backfill.fetcher import HistoricalFetcher
 from app.modules.historical_backfill.job import HistoricalBackfillJobImplementation
 from app.modules.historical_backfill.writer import upsert_kbars as real_upsert_kbars
@@ -128,6 +127,11 @@ def test_job_runner_retry_handles_transient_errors() -> None:
     metrics = BatchMetrics()
     retry_policy = RetryPolicy(max_attempts=2, backoff_seconds=0)
     runner = JobRunner(repository=repository, retry_policy=retry_policy, metrics=metrics)
+    created = repository.create_job(
+        worker_type="historical_backfill",
+        job_type="backfill-retry",
+        metadata={},
+    )
 
     class _FlakyJob:
         def __init__(self) -> None:
@@ -140,7 +144,7 @@ def test_job_runner_retry_handles_transient_errors() -> None:
                 raise TimeoutError("transient")
             return JobResult(rows_processed=4)
 
-    result = runner.run(job_type="backfill-retry", params={}, job_impl=_FlakyJob())
+    result = runner.run_existing_job(job_id=created.id, job_impl=_FlakyJob())
 
     assert result.normalized_rows_processed == 4
     assert metrics.counters["batch_retry_count_total"] == 1

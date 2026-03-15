@@ -28,6 +28,7 @@ from app.config import (
 )
 from app.db.session import SessionLocal
 from app.market_ingestion.runner import MarketIngestionRunner
+from app.models.batch_job import BatchJobModel
 from app.models.billing_event import BillingEventModel
 from app.models.historical_backfill_job import HistoricalBackfillJobModel
 from app.models.kbar_1m import Kbar1mModel
@@ -145,6 +146,7 @@ def reset_state_for_tests() -> None:
     metrics.counters = {k: 0 for k in metrics.counters}
     audit_log.events.clear()
     with SessionLocal() as session:
+        session.execute(delete(BatchJobModel))
         session.execute(delete(BillingEventModel))
         session.execute(delete(HistoricalBackfillJobModel))
         session.execute(delete(Kbar1mModel))

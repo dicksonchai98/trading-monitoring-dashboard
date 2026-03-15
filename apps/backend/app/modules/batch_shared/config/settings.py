@@ -27,6 +27,8 @@ class BatchSettings:
     retry_max_attempts: int
     retry_backoff_seconds: int
     log_level: str
+    redis_url: str
+    queue_block_timeout_seconds: int
 
 
 def load_batch_settings() -> BatchSettings:
@@ -36,4 +38,6 @@ def load_batch_settings() -> BatchSettings:
         retry_max_attempts=_env_int("RETRY_MAX_ATTEMPTS", 3),
         retry_backoff_seconds=_env_int("RETRY_BACKOFF_SECONDS", 2),
         log_level=_env_str("LOG_LEVEL", "INFO"),
+        redis_url=_env_str("REDIS_URL", "redis://localhost:6379/0"),
+        queue_block_timeout_seconds=_env_int("QUEUE_BLOCK_TIMEOUT_SECONDS", 0),
     )

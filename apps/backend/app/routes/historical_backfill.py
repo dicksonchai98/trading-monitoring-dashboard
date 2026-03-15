@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from app.db.session import SessionLocal
 from app.deps import Principal, require_admin
-from app.modules.historical_backfill.repository import HistoricalBackfillJobRepository
+from app.modules.batch_shared.queue.redis_queue import RedisBatchQueue
+from app.modules.batch_shared.repositories.job_repository import JobRepository
+from app.modules.batch_shared.services.admin_jobs import BatchJobAdminService
 from app.modules.historical_backfill.schemas import (
     HistoricalBackfillDetailResponse,
     HistoricalBackfillListResponse,
@@ -16,17 +17,27 @@ from app.modules.historical_backfill.schemas import (
 from app.modules.historical_backfill.service import HistoricalBackfillService
 from app.state import audit_log
 
-router = APIRouter(prefix="/api/admin/backfill", tags=["historical-backfill"])
+router = APIRouter(prefix="/api/admin/batch/backfill", tags=["historical-backfill"])
+
+
+def _build_queue() -> RedisBatchQueue:
+    try:
+        import redis
+    except ImportError as err:  # pragma: no cover - depends on runtime dependency
+        raise RuntimeError("redis package is required for batch admin queue operations") from err
+    return RedisBatchQueue(client=redis.Redis(decode_responses=True))
 
 
 def _service() -> HistoricalBackfillService:
+    queue = _build_queue()
     return HistoricalBackfillService(
-        repository=HistoricalBackfillJobRepository(session_factory=SessionLocal),
+        repository=JobRepository(),
+        batch_admin_service=BatchJobAdminService(repository=JobRepository(), queue=queue),
         audit_log=audit_log,
     )
 
 
-@router.post("/historical-jobs", response_model=HistoricalBackfillTriggerResponse, status_code=202)
+@router.post("/jobs", response_model=HistoricalBackfillTriggerResponse, status_code=202)
 def trigger_historical_job(
     payload: HistoricalBackfillTriggerRequest,
     principal: Principal = Depends(require_admin),
@@ -38,7 +49,7 @@ def trigger_historical_job(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(err)) from err
 
 
-@router.get("/historical-jobs/{job_id}", response_model=HistoricalBackfillDetailResponse)
+@router.get("/jobs/{job_id}", response_model=HistoricalBackfillDetailResponse)
 def get_historical_job(
     job_id: int,
     _: Principal = Depends(require_admin),
@@ -50,7 +61,7 @@ def get_historical_job(
     return result
 
 
-@router.get("/historical-jobs", response_model=HistoricalBackfillListResponse)
+@router.get("/jobs", response_model=HistoricalBackfillListResponse)
 def list_historical_jobs(
     status_filter: str | None = Query(default=None, alias="status"),
     limit: int = Query(default=20, ge=1, le=200),

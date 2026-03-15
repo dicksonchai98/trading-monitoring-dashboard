@@ -16,6 +16,8 @@ class HistoricalBackfillTriggerRequest(BaseModel):
 
 class HistoricalBackfillTriggerResponse(BaseModel):
     job_id: int
+    worker_type: str
+    job_type: str
     status: str
 
 
