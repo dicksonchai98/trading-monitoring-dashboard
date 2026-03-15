@@ -18,20 +18,25 @@ PROTECTED_ROUTES = {
 }
 
 ADMIN_ROUTES = {
-    ("GET", "/admin/logs"),
-    ("GET", "/admin/logs/{id}"),
-    ("POST", "/api/admin/backfill/historical-jobs"),
-    ("GET", "/api/admin/backfill/historical-jobs"),
-    ("GET", "/api/admin/backfill/historical-jobs/{job_id}"),
+    ("GET", "/api/admin/logs"),
+    ("GET", "/api/admin/logs/{id}"),
+    ("POST", "/api/admin/batch/backfill/jobs"),
+    ("GET", "/api/admin/batch/backfill/jobs"),
+    ("GET", "/api/admin/batch/backfill/jobs/{job_id}"),
+    ("POST", "/api/admin/batch/crawler/jobs"),
+    ("GET", "/api/admin/batch/jobs"),
+    ("GET", "/api/admin/batch/jobs/{job_id}"),
 }
 
 
 def path_template(method: str, path: str) -> tuple[str, str]:
     # Keep one explicit template for the admin log detail route.
-    if method == "GET" and path.startswith("/admin/logs/"):
-        return method, "/admin/logs/{id}"
-    if method == "GET" and path.startswith("/api/admin/backfill/historical-jobs/"):
-        return method, "/api/admin/backfill/historical-jobs/{job_id}"
+    if method == "GET" and path.startswith("/api/admin/logs/"):
+        return method, "/api/admin/logs/{id}"
+    if method == "GET" and path.startswith("/api/admin/batch/backfill/jobs/"):
+        return method, "/api/admin/batch/backfill/jobs/{job_id}"
+    if method == "GET" and path.startswith("/api/admin/batch/jobs/"):
+        return method, "/api/admin/batch/jobs/{job_id}"
     return method, path
 
 

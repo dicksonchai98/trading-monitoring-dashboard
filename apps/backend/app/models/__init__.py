@@ -2,8 +2,6 @@
 
 from app.models.batch_job import BatchJobModel
 from app.models.billing_event import BillingEventModel
-from app.models.historical_backfill_job import HistoricalBackfillJobModel
-from app.models.crawler_job import CrawlerJobModel
 from app.models.crawler_raw_payload import CrawlerRawPayloadModel
 from app.models.kbar_1m import Kbar1mModel
 from app.models.market_open_interest_daily import MarketOpenInterestDailyModel
@@ -16,10 +14,8 @@ __all__ = [
     "RefreshTokenDenylistModel",
     "SubscriptionModel",
     "BillingEventModel",
-    "HistoricalBackfillJobModel",
     "Kbar1mModel",
     "BatchJobModel",
-    "CrawlerJobModel",
     "CrawlerRawPayloadModel",
     "MarketOpenInterestDailyModel",
 ]
