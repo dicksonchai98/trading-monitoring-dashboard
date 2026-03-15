@@ -8,17 +8,17 @@ from datetime import date
 from typing import Callable
 
 from app.db.session import SessionLocal
-from app.modules.batch_data.market_crawler.application.orchestrator import CrawlerOrchestrator
-from app.modules.batch_data.market_crawler.domain.contracts import CrawlerJobParams
-from app.modules.batch_data.market_crawler.infrastructure.metrics import CrawlerMetrics
-from app.modules.batch_data.market_crawler.registry import (
+from app.modules.market_crawler.application.orchestrator import CrawlerOrchestrator
+from app.modules.market_crawler.domain.contracts import CrawlerJobParams
+from app.modules.market_crawler.infrastructure.metrics import CrawlerMetrics
+from app.modules.market_crawler.registry import (
     get_fetcher_registry,
     get_normalizer_registry,
     get_parser_registry,
     get_validator_registry,
     load_default_dataset_registry,
 )
-from app.modules.batch_data.market_crawler.repositories.market_open_interest_repository import (
+from app.modules.market_crawler.repositories.market_open_interest_repository import (
     MarketOpenInterestRepository,
 )
 from app.modules.batch_shared.jobs.interfaces import JobContext, JobResult

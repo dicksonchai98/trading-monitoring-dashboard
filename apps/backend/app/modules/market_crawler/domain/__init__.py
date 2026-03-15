@@ -1,6 +1,6 @@
 """Domain contracts for market crawler."""
 
-from app.modules.batch_data.market_crawler.domain.contracts import (
+from app.modules.market_crawler.domain.contracts import (
     CrawlerJobParams,
     DatasetDefinition,
     FetchedPayload,

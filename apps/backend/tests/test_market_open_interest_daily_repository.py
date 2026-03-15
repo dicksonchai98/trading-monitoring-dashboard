@@ -4,8 +4,8 @@ from datetime import date
 
 from app.db.session import SessionLocal
 from app.models.market_open_interest_daily import MarketOpenInterestDailyModel
-from app.modules.batch_data.market_crawler.domain.contracts import NormalizedRecord
-from app.modules.batch_data.market_crawler.repositories.market_open_interest_repository import (
+from app.modules.market_crawler.domain.contracts import NormalizedRecord
+from app.modules.market_crawler.repositories.market_open_interest_repository import (
     MarketOpenInterestRepository,
 )
 

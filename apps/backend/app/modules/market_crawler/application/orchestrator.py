@@ -17,13 +17,13 @@ try:  # Optional dependency used by source-row validation.
 except Exception:  # pragma: no cover - optional import
     ValidationError = None
 
-from app.modules.batch_data.market_crawler.domain.contracts import (
+from app.modules.market_crawler.domain.contracts import (
     FetchedPayload,
     NormalizedRecord,
     ParsedRow,
     ValidationResult,
 )
-from app.modules.batch_data.market_crawler.registry.dataset_registry import DatasetRegistry
+from app.modules.market_crawler.registry.dataset_registry import DatasetRegistry
 
 logger = logging.getLogger(__name__)
 

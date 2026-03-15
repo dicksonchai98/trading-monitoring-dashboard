@@ -1,6 +1,6 @@
 """Repository implementations for market crawler."""
 
-from app.modules.batch_data.market_crawler.repositories.market_open_interest_repository import (
+from app.modules.market_crawler.repositories.market_open_interest_repository import (
     MarketOpenInterestRepository,
 )
 

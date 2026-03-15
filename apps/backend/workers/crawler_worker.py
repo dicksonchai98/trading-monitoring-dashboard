@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import argparse
 
-from app.modules.batch_data.market_crawler.jobs.range_backfill_job import RangeBackfillCrawlerJob
-from app.modules.batch_data.market_crawler.jobs.single_date_job import SingleDateCrawlerJob
+from app.modules.market_crawler.jobs.range_backfill_job import RangeBackfillCrawlerJob
+from app.modules.market_crawler.jobs.single_date_job import SingleDateCrawlerJob
 from app.modules.batch_shared.queue.redis_queue import RedisBatchQueue
 from app.modules.batch_shared.runtime.worker import QueueWorkerRuntime, build_worker_runtime
 

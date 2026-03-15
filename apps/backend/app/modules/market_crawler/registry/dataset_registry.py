@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
 
-from app.modules.batch_data.market_crawler.domain.contracts import (
+from app.modules.market_crawler.domain.contracts import (
     DatasetDefinition,
     PipelineSpec,
     RetryPolicySpec,

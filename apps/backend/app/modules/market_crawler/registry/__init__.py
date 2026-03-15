@@ -2,11 +2,11 @@
 
 from pathlib import Path
 
-from app.modules.batch_data.market_crawler.registry.dataset_registry import (
+from app.modules.market_crawler.registry.dataset_registry import (
     DatasetRegistry,
     load_dataset_registry,
 )
-from app.modules.batch_data.market_crawler.registry.pipeline_registry import (
+from app.modules.market_crawler.registry.pipeline_registry import (
     get_fetcher_registry,
     get_normalizer_registry,
     get_parser_registry,

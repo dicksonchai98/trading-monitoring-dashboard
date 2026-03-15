@@ -4,7 +4,7 @@ import textwrap
 from pathlib import Path
 
 import pytest
-from app.modules.batch_data.market_crawler.registry.dataset_registry import load_dataset_registry
+from app.modules.market_crawler.registry.dataset_registry import load_dataset_registry
 
 
 def _write_dataset(path: Path, content: str) -> None:

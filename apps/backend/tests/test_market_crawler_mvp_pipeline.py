@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from datetime import date
 
-from app.modules.batch_data.market_crawler.normalizers import (
+from app.modules.market_crawler.normalizers import (
     TaifexInstitutionOpenInterestNormalizer,
 )
-from app.modules.batch_data.market_crawler.parsers import TaifexCsvParser
-from app.modules.batch_data.market_crawler.validators import (
+from app.modules.market_crawler.parsers import TaifexCsvParser
+from app.modules.market_crawler.validators import (
     TaifexInstitutionOpenInterestValidator,
 )
 

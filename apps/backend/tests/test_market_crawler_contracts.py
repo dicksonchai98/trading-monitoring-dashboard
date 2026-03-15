@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, timezone
 
-from app.modules.batch_data.market_crawler.domain.contracts import (
+from app.modules.market_crawler.domain.contracts import (
     CrawlerJobParams,
     FetchedPayload,
     NormalizedRecord,
@@ -39,3 +39,7 @@ def test_contracts_hold_expected_data() -> None:
     assert parsed.raw_fields["entity"] == "foreign"
     assert validated.is_valid is True
     assert validated.normalized_records[0].payload["long_trade_oi"] == 123
+
+
+def test_market_crawler_contracts_import_from_top_level_module() -> None:
+    assert CrawlerJobParams is not None
