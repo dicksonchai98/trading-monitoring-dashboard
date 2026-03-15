@@ -15,7 +15,16 @@ from app.config import (
     SERVING_CORS_ALLOW_ORIGINS,
     validate_stripe_settings,
 )
-from app.routes import admin, analytics, auth, batch_jobs, billing, historical_backfill, realtime
+from app.routes import (
+    admin,
+    analytics,
+    auth,
+    batch_jobs,
+    billing,
+    historical_backfill,
+    market_crawler,
+    realtime,
+)
 from app.state import metrics
 
 logging.basicConfig(level=logging.INFO)
@@ -37,6 +46,7 @@ app.include_router(realtime.router)
 app.include_router(analytics.router)
 app.include_router(admin.router)
 app.include_router(historical_backfill.router)
+app.include_router(market_crawler.router)
 app.include_router(batch_jobs.router)
 
 

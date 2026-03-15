@@ -3,7 +3,7 @@ from __future__ import annotations
 from app.db.session import SessionLocal
 from app.main import app
 from app.repositories.user_repository import UserRepository
-from app.routes import admin
+from app.routes import market_crawler
 from app.security.passwords import hash_password
 from app.state import audit_log
 from fastapi.testclient import TestClient
@@ -35,14 +35,16 @@ def test_crawler_single_date_create_writes_shared_batch_job(monkeypatch) -> None
     fake_queue = FakeBatchQueue()
 
     def _service():
-        repository = admin.JobRepository()
-        batch_admin_service = admin.BatchJobAdminService(repository=repository, queue=fake_queue)
-        return admin.MarketCrawlerAdminJobService(
+        repository = market_crawler.JobRepository()
+        batch_admin_service = market_crawler.BatchJobAdminService(
+            repository=repository, queue=fake_queue
+        )
+        return market_crawler.MarketCrawlerAdminJobService(
             repository=repository,
             batch_admin_service=batch_admin_service,
         )
 
-    monkeypatch.setattr(admin, "_crawler_service", _service)
+    monkeypatch.setattr(market_crawler, "_crawler_service", _service)
 
     response = client.post(
         "/api/admin/batch/crawler/jobs",
