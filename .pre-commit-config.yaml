@@ -7,3 +7,11 @@ repos:
         files: ^apps/backend/.*\.py$
       - id: ruff-format
         files: ^apps/backend/.*\.py$
+
+  - repo: local
+    hooks:
+      - id: forbid-pen-files
+        name: Forbid .pen files
+        language: fail
+        entry: ".pen files must not be committed. Please unstage and remove them."
+        files: \.pen$
