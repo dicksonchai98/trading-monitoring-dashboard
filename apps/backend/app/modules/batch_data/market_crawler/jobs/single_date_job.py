@@ -27,7 +27,7 @@ from app.modules.batch_shared.logging.context import JobLogContext, get_job_logg
 logger = logging.getLogger(__name__)
 
 
-class _SharedLifecycleJobRepository:
+class _SharedLifecycleHooks:
     def __init__(self, context: JobContext) -> None:
         self._context = context
 
@@ -81,14 +81,14 @@ class SingleDateCrawlerJob:
         fetcher = fetcher_registry["http_fetcher"]()
 
         repository = MarketOpenInterestRepository(session_factory=SessionLocal)
-        job_repo = _SharedLifecycleJobRepository(context=context)
+        lifecycle_hooks = _SharedLifecycleHooks(context=context)
 
         orchestrator = (
             self.orchestrator_factory(job_params)
             if self.orchestrator_factory is not None
             else CrawlerOrchestrator(
                 dataset_registry=dataset_registry,
-                job_repository=job_repo,
+                lifecycle_hooks=lifecycle_hooks,
                 fetch=lambda: fetcher.fetch(
                     dataset.source.endpoint_template, job_params.target_date
                 ),

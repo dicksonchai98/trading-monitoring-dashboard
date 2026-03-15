@@ -70,7 +70,7 @@ def test_single_date_orchestrator_persists_and_is_idempotent(tmp_path: Path) -> 
     registry = _build_registry(tmp_path)
     repo = MarketOpenInterestRepository(session_factory=SessionLocal)
 
-    class _NoopJobRepository:
+    class _NoopLifecycleHooks:
         def __init__(self) -> None:
             self.job_id = 1
 
@@ -121,7 +121,7 @@ def test_single_date_orchestrator_persists_and_is_idempotent(tmp_path: Path) -> 
 
     orchestrator = CrawlerOrchestrator(
         dataset_registry=registry,
-        job_repository=_NoopJobRepository(),
+        lifecycle_hooks=_NoopLifecycleHooks(),
         fetch=lambda: FetchedPayload(
             content="ok",
             content_type="text/plain",
@@ -162,7 +162,7 @@ class _FakeQueue:
         self.enqueued.append((worker_type, job_id))
 
 
-def test_single_date_job_uses_context_progress_without_legacy_job_repository() -> None:
+def test_single_date_job_uses_context_progress_without_legacy_lifecycle_repository() -> None:
     class _FakeOrchestrator:
         def run(self, *args, **kwargs) -> dict[str, object]:
             _ = (args, kwargs)

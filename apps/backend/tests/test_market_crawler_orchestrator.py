@@ -127,7 +127,7 @@ def test_orchestrator_single_date_success(tmp_path: Path) -> None:
 
     orchestrator = CrawlerOrchestrator(
         dataset_registry=registry,
-        job_repository=recorder,
+        lifecycle_hooks=recorder,
         fetch=fetch,
         parse=parse,
         normalize=normalize,
@@ -153,7 +153,7 @@ def test_orchestrator_marks_validation_failure(tmp_path: Path) -> None:
 
     orchestrator = CrawlerOrchestrator(
         dataset_registry=registry,
-        job_repository=recorder,
+        lifecycle_hooks=recorder,
         fetch=lambda: FetchedPayload(
             content="h1,h2\n",
             content_type="text/csv",
@@ -186,7 +186,7 @@ def test_orchestrator_marks_missing_required_field_as_source_format_error(tmp_pa
 
     orchestrator = CrawlerOrchestrator(
         dataset_registry=registry,
-        job_repository=recorder,
+        lifecycle_hooks=recorder,
         fetch=lambda: FetchedPayload(
             content="h1,h2\n",
             content_type="text/csv",
