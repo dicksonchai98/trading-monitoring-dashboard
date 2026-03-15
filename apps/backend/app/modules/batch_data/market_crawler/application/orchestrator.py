@@ -28,7 +28,7 @@ from app.modules.batch_data.market_crawler.registry.dataset_registry import Data
 logger = logging.getLogger(__name__)
 
 
-class CrawlerJobRepositoryProtocol(Protocol):
+class CrawlerLifecycleHooks(Protocol):
     def start(self, dataset_code: str, target_date: date, trigger_type: str) -> int: ...
     def stage(self, job_id: int, stage: str) -> None: ...
     def complete(
@@ -54,7 +54,7 @@ class CrawlerFailure(RuntimeError):
 @dataclass
 class CrawlerOrchestrator:
     dataset_registry: DatasetRegistry
-    job_repository: CrawlerJobRepositoryProtocol
+    lifecycle_hooks: CrawlerLifecycleHooks
     fetch: Callable[[], FetchedPayload]
     parse: Callable[[FetchedPayload], list[ParsedRow]]
     normalize: Callable[[list[ParsedRow]], list[NormalizedRecord]]
@@ -63,7 +63,7 @@ class CrawlerOrchestrator:
 
     def run(self, dataset_code: str, target_date: date, trigger_type: str) -> dict[str, object]:
         dataset = self.dataset_registry.get(dataset_code)
-        job_id = self.job_repository.start(
+        job_id = self.lifecycle_hooks.start(
             dataset_code=dataset_code,
             target_date=target_date,
             trigger_type=trigger_type,
@@ -72,7 +72,7 @@ class CrawlerOrchestrator:
         rows_normalized = 0
         rows_persisted = 0
         try:
-            self.job_repository.stage(job_id, "FETCH")
+            self.lifecycle_hooks.stage(job_id, "FETCH")
             logger.info(
                 "crawler stage start",
                 extra={
@@ -85,7 +85,7 @@ class CrawlerOrchestrator:
             )
             payload = self.fetch()
 
-            self.job_repository.stage(job_id, "PARSE")
+            self.lifecycle_hooks.stage(job_id, "PARSE")
             logger.info(
                 "crawler stage start",
                 extra={
@@ -99,7 +99,7 @@ class CrawlerOrchestrator:
             parsed_rows = self.parse(payload)
             rows_fetched = len(parsed_rows)
 
-            self.job_repository.stage(job_id, "NORMALIZE")
+            self.lifecycle_hooks.stage(job_id, "NORMALIZE")
             logger.info(
                 "crawler stage start",
                 extra={
@@ -113,7 +113,7 @@ class CrawlerOrchestrator:
             normalized = self.normalize(parsed_rows)
             rows_normalized = len(normalized)
 
-            self.job_repository.stage(job_id, "VALIDATE")
+            self.lifecycle_hooks.stage(job_id, "VALIDATE")
             logger.info(
                 "crawler stage start",
                 extra={
@@ -135,7 +135,7 @@ class CrawlerOrchestrator:
                     )
                 raise CrawlerFailure(category="validation_error", stage="VALIDATE", message=message)
 
-            self.job_repository.stage(job_id, "PERSIST")
+            self.lifecycle_hooks.stage(job_id, "PERSIST")
             logger.info(
                 "crawler stage start",
                 extra={
@@ -147,7 +147,7 @@ class CrawlerOrchestrator:
                 },
             )
             rows_persisted = self.persist(validation.normalized_records)
-            self.job_repository.complete(
+            self.lifecycle_hooks.complete(
                 job_id=job_id,
                 rows_fetched=rows_fetched,
                 rows_normalized=rows_normalized,
@@ -176,7 +176,7 @@ class CrawlerOrchestrator:
         except Exception as err:
             category = classify_failure(err)
             stage = _infer_stage(err, category)
-            self.job_repository.fail(job_id, category, stage, str(err))
+            self.lifecycle_hooks.fail(job_id, category, stage, str(err))
             logger.warning(
                 "crawler job failed",
                 extra={
