@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import pytest
-
 from app.modules.market_crawler.jobs.single_date_job import SingleDateCrawlerJob
 
 
 class _Context:
     job_id = 1
     job_type = "crawler"
+
+    def update_progress(self, *args, **kwargs) -> None:  # type: ignore[no-untyped-def]
+        _ = (args, kwargs)
 
 
 def test_single_date_job_maps_network_failure_to_connection_error() -> None:
