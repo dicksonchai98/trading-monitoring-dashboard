@@ -36,3 +36,8 @@ def test_batch_job_status_length_migration_file_exists() -> None:
 def test_merge_head_migration_file_exists() -> None:
     path = Path("alembic/versions/20260312_02_merge_market_crawler_and_batch_status_heads.py")
     assert path.exists()
+
+
+def test_batch_job_admin_queue_migration_file_exists() -> None:
+    path = Path("alembic/versions/20260315_01_extend_batch_jobs_for_admin_queue.py")
+    assert path.exists()

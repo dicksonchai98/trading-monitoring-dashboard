@@ -470,3 +470,8 @@ After this redesign:
 - workers are triggered through Redis lists and `BRPOP`
 - lifecycle retry, logging, metrics, and progress are maintained only in `batch_shared`
 - historical backfill and market crawler keep only domain-specific validation and execution logic
+
+Implementation note:
+
+- Legacy `crawler_jobs` and `historical_backfill_jobs` tables remain present for compatibility during
+  transition, but the active runtime path has been redirected to shared `batch_jobs`.

@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.models.batch_job import BatchJobModel
 from app.modules.batch_shared.database.session import session_scope
@@ -16,19 +16,54 @@ def _utcnow() -> datetime:
     return datetime.now(tz=timezone.utc)
 
 
+ACTIVE_JOB_STATUSES = {
+    JobStatus.CREATED.value,
+    JobStatus.RUNNING.value,
+    JobStatus.RETRYING.value,
+    JobStatus.PARTIALLY_COMPLETED.value,
+}
+
+
 class JobRepository:
-    def create_job(self, job_type: str, metadata: dict[str, Any] | None = None) -> BatchJobModel:
+    def create_job(
+        self,
+        job_type: str,
+        metadata: dict[str, Any] | None = None,
+        *,
+        worker_type: str = "batch-worker",
+        dedupe_key: str | None = None,
+    ) -> BatchJobModel:
         with session_scope() as session:
             job = BatchJobModel(
+                worker_type=worker_type,
                 job_type=job_type,
                 status=JobStatus.CREATED.value,
                 created_at=_utcnow(),
+                dedupe_key=dedupe_key,
                 metadata_json=metadata or {},
             )
             session.add(job)
             session.flush()
             session.refresh(job)
             return job
+
+    def find_active_job(
+        self,
+        *,
+        worker_type: str,
+        job_type: str,
+        dedupe_key: str,
+    ) -> BatchJobModel | None:
+        with session_scope() as session:
+            stmt = (
+                select(BatchJobModel)
+                .where(BatchJobModel.worker_type == worker_type)
+                .where(BatchJobModel.job_type == job_type)
+                .where(BatchJobModel.dedupe_key == dedupe_key)
+                .where(BatchJobModel.status.in_(tuple(ACTIVE_JOB_STATUSES)))
+                .order_by(BatchJobModel.id.desc())
+            )
+            return session.execute(stmt).scalar_one_or_none()
 
     def mark_running(self, job_id: int) -> None:
         with session_scope() as session:
@@ -116,3 +151,48 @@ class JobRepository:
         with session_scope() as session:
             stmt = select(BatchJobModel).where(BatchJobModel.job_type == job_type)
             return list(session.execute(stmt).scalars())
+
+    def list_jobs_paginated(
+        self,
+        *,
+        worker_type: str,
+        status: str | None,
+        limit: int,
+        offset: int,
+    ) -> tuple[list[BatchJobModel], int]:
+        with session_scope() as session:
+            stmt = select(BatchJobModel).where(BatchJobModel.worker_type == worker_type)
+            count_stmt = select(BatchJobModel).where(BatchJobModel.worker_type == worker_type)
+            if status is not None:
+                stmt = stmt.where(BatchJobModel.status == status)
+                count_stmt = count_stmt.where(BatchJobModel.status == status)
+            stmt = stmt.order_by(BatchJobModel.id.desc()).offset(offset).limit(limit)
+            items = list(session.execute(stmt).scalars())
+            total = len(list(session.execute(count_stmt).scalars()))
+            return items, total
+
+    def list_jobs_filtered(
+        self,
+        *,
+        worker_type: str | None,
+        job_type: str | None,
+        status: str | None,
+        limit: int,
+        offset: int,
+    ) -> tuple[list[BatchJobModel], int]:
+        with session_scope() as session:
+            stmt = select(BatchJobModel)
+            count_stmt = select(func.count()).select_from(BatchJobModel)
+            if worker_type is not None:
+                stmt = stmt.where(BatchJobModel.worker_type == worker_type)
+                count_stmt = count_stmt.where(BatchJobModel.worker_type == worker_type)
+            if job_type is not None:
+                stmt = stmt.where(BatchJobModel.job_type == job_type)
+                count_stmt = count_stmt.where(BatchJobModel.job_type == job_type)
+            if status is not None:
+                stmt = stmt.where(BatchJobModel.status == status)
+                count_stmt = count_stmt.where(BatchJobModel.status == status)
+            stmt = stmt.order_by(BatchJobModel.id.desc()).offset(offset).limit(limit)
+            items = list(session.execute(stmt).scalars())
+            total = int(session.execute(count_stmt).scalar_one())
+            return items, total

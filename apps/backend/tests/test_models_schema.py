@@ -36,3 +36,9 @@ def test_historical_backfill_job_model_table_name() -> None:
 
 def test_batch_job_status_column_allows_longest_status_value() -> None:
     assert BatchJobModel.__table__.c.status.type.length >= len(JobStatus.PARTIALLY_COMPLETED.value)
+
+
+def test_batch_job_model_includes_worker_type_and_dedupe_key() -> None:
+    columns = BatchJobModel.__table__.columns.keys()
+    assert "worker_type" in columns
+    assert "dedupe_key" in columns

@@ -65,5 +65,15 @@ Deferred to phase 2:
 
 Historical backfill is operated by dedicated worker runtime:
 - Start worker: `python -m workers.backfill_worker`
-- Trigger jobs via admin API: `POST /api/admin/backfill/historical-jobs`
+- Trigger jobs via admin API: `POST /api/admin/batch/backfill/jobs`
+
+Batch workers now consume Redis list queues with blocking pop:
+- Historical backfill queue: `queue:batch:historical_backfill`
+- Market crawler queue: `queue:batch:market_crawler`
+
+Shared admin batch job operations:
+- Create backfill job: `POST /api/admin/batch/backfill/jobs`
+- Create crawler job: `POST /api/admin/batch/crawler/jobs`
+- List jobs: `GET /api/admin/batch/jobs`
+- Get job detail: `GET /api/admin/batch/jobs/{job_id}`
 

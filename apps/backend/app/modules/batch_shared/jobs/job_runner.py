@@ -21,14 +21,20 @@ class JobRunner:
     metrics: BatchMetrics
     logger_name: str = "batch_runtime"
 
-    def run(self, job_type: str, params: dict[str, Any], job_impl: JobImplementation) -> JobResult:
-        job = self.repository.create_job(job_type=job_type, metadata=params)
+    def run_existing_job(self, job_id: int, job_impl: JobImplementation) -> JobResult:
+        job = self.repository.get_job(job_id)
+        if job is None:
+            raise RuntimeError(f"job_not_found: {job_id}")
+
+        job_type = job.job_type
+        worker_type = job.worker_type
+        params = dict(job.metadata_json or {})
         start_time = time.perf_counter()
         logger = get_job_logger(
             self.logger_name,
             JobLogContext(job_id=job.id, job_type=job_type, execution_stage="start"),
         )
-        logger.info("job starting")
+        logger.info("job starting", extra={"worker_type": worker_type})
 
         context = JobContext(job_id=job.id, job_type=job_type)
 
@@ -64,7 +70,10 @@ class JobRunner:
                 self.logger_name,
                 JobLogContext(job_id=job.id, job_type=job_type, execution_stage="retry"),
             )
-            retry_logger.warning("job retry scheduled", extra={"attempt": attempt})
+            retry_logger.warning(
+                "job retry scheduled",
+                extra={"attempt": attempt, "worker_type": worker_type},
+            )
 
         try:
             result = self.retry_policy.run(operation, on_retry)
@@ -79,7 +88,7 @@ class JobRunner:
                 elapsed_time=elapsed,
                 error_message=err_ctx["error_message"],
             )
-            fail_logger.error("job failed", extra=err_ctx)
+            fail_logger.error("job failed", extra={**err_ctx, "worker_type": worker_type})
             raise
 
         elapsed = time.perf_counter() - start_time
@@ -92,5 +101,5 @@ class JobRunner:
             JobLogContext(job_id=job.id, job_type=job_type, execution_stage="complete"),
             elapsed_time=elapsed,
         )
-        complete_logger.info("job completed")
+        complete_logger.info("job completed", extra={"worker_type": worker_type})
         return result

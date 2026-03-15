@@ -18,6 +18,7 @@ class BatchJobModel(Base):
     __tablename__ = "batch_jobs"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    worker_type: Mapped[str] = mapped_column(String(64), nullable=False, default="batch-worker")
     job_type: Mapped[str] = mapped_column(String(64), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
@@ -34,4 +35,5 @@ class BatchJobModel(Base):
         DateTime(timezone=True), nullable=True
     )
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    dedupe_key: Mapped[str | None] = mapped_column(String(128), nullable=True)
     metadata_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)

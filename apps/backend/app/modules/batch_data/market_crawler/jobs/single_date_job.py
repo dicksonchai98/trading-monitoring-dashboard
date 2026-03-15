@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import time
-from dataclasses import dataclass
 from datetime import date
 from typing import Callable
 
@@ -19,9 +18,6 @@ from app.modules.batch_data.market_crawler.registry import (
     get_validator_registry,
     load_default_dataset_registry,
 )
-from app.modules.batch_data.market_crawler.repositories.crawler_job_repository import (
-    CrawlerJobRepository,
-)
 from app.modules.batch_data.market_crawler.repositories.market_open_interest_repository import (
     MarketOpenInterestRepository,
 )
@@ -29,6 +25,30 @@ from app.modules.batch_shared.jobs.interfaces import JobContext, JobResult
 from app.modules.batch_shared.logging.context import JobLogContext, get_job_logger
 
 logger = logging.getLogger(__name__)
+
+
+class _SharedLifecycleJobRepository:
+    def __init__(self, context: JobContext) -> None:
+        self._context = context
+
+    def start(self, dataset_code: str, target_date: date, trigger_type: str) -> int:
+        _ = (dataset_code, target_date, trigger_type)
+        return self._context.job_id
+
+    def stage(self, job_id: int, stage: str) -> None:
+        _ = (job_id, stage)
+
+    def complete(
+        self,
+        job_id: int,
+        rows_fetched: int,
+        rows_normalized: int,
+        rows_persisted: int,
+    ) -> None:
+        _ = (job_id, rows_fetched, rows_normalized, rows_persisted)
+
+    def fail(self, job_id: int, error_category: str, error_stage: str, message: str) -> None:
+        _ = (job_id, error_category, error_stage, message)
 
 
 class SingleDateCrawlerJob:
@@ -61,7 +81,7 @@ class SingleDateCrawlerJob:
         fetcher = fetcher_registry["http_fetcher"]()
 
         repository = MarketOpenInterestRepository(session_factory=SessionLocal)
-        job_repo = CrawlerJobRepository(session_factory=SessionLocal)
+        job_repo = _SharedLifecycleJobRepository(context=context)
 
         orchestrator = (
             self.orchestrator_factory(job_params)
@@ -98,6 +118,7 @@ class SingleDateCrawlerJob:
             rows_fetched = int(result.get("rows_fetched", 0))
             rows_normalized = int(result.get("rows_normalized", 0))
             rows_persisted = int(result.get("rows_persisted", 0))
+            context.update_progress(rows_processed=rows_persisted)
             self.metrics.inc("crawler_rows_fetched_total", rows_fetched)
             self.metrics.inc("crawler_rows_normalized_total", rows_normalized)
             self.metrics.inc("crawler_rows_persisted_total", rows_persisted)
@@ -128,5 +149,3 @@ def _parse_job_params(params: dict[str, object]) -> CrawlerJobParams:
     return CrawlerJobParams(
         dataset_code=dataset_code, target_date=target_date, trigger_type=trigger_type
     )
-
-
