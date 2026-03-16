@@ -36,7 +36,7 @@ const router = createBrowserRouter([
       {
         path: "/subscription",
         element: (
-          <GuardedRoute requiredRole="member">
+          <GuardedRoute requiredRole="visitor">
             <SubscriptionPage />
           </GuardedRoute>
         ),

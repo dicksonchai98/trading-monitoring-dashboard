@@ -8,6 +8,8 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
 } from "lucide-react";
+import { decodeAccessToken } from "@/features/auth/lib/token";
+import { useAuthStore } from "@/lib/store/auth-store";
 import { cn } from "@/lib/utils/cn";
 
 const nav = [
@@ -29,6 +31,18 @@ export function Sidebar({
   onToggle,
 }: SidebarProps): JSX.Element {
   const location = useLocation();
+  const { token, role } = useAuthStore();
+  const isAuthenticated = role !== "visitor";
+
+  let account = "";
+  if (token) {
+    try {
+      const payload = decodeAccessToken(token);
+      account = typeof payload.sub === "string" ? payload.sub : "";
+    } catch {
+      account = "";
+    }
+  }
 
   return (
     <aside
@@ -112,11 +126,29 @@ export function Sidebar({
           )}
           data-testid="sidebar-user-info"
         >
-          <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-subtle-foreground">
-            Workspace
-          </p>
-          <p className="font-semibold text-foreground">Member Workspace</p>
-          <p>member@desk.io</p>
+          {isAuthenticated ? (
+            <div className="space-y-2">
+              <div className="space-y-1">
+                <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-subtle-foreground">
+                  Account
+                </p>
+                <p className="font-semibold text-foreground">{account || "unknown"}</p>
+              </div>
+              <div className="space-y-1">
+                <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-subtle-foreground">
+                  Role
+                </p>
+                <p className="text-foreground">{role}</p>
+              </div>
+            </div>
+          ) : (
+            <Link
+              className="flex h-10 w-full items-center justify-center rounded-sm border border-primary bg-primary text-sm font-medium text-primary-foreground transition-colors hover:brightness-110"
+              to="/login"
+            >
+              登入 / 註冊
+            </Link>
+          )}
         </div>
       </div>
     </aside>

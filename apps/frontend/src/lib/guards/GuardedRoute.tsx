@@ -31,7 +31,7 @@ export function GuardedRoute({
   }
 
   if (requireActiveEntitlement && entitlement !== "active") {
-    return <Navigate to="/forbidden" replace />;
+    return <Navigate to="/subscription" replace />;
   }
 
   return <>{children}</>;
