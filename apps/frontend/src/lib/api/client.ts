@@ -19,19 +19,10 @@ async function parseError(response: Response): Promise<ApiError> {
   return new ApiError(payload?.detail ?? "api_request_failed", response.status);
 }
 
-export async function postJson<TResponse, TBody extends object>(
-  path: string,
-  body: TBody,
-  options?: ApiRequestOptions,
-): Promise<TResponse> {
+async function request<TResponse>(path: string, init: RequestInit): Promise<TResponse> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...options?.headers,
-    },
     credentials: "include",
-    body: JSON.stringify(body),
+    ...init,
   });
 
   if (!response.ok) {
@@ -39,4 +30,31 @@ export async function postJson<TResponse, TBody extends object>(
   }
 
   return (await response.json()) as TResponse;
+}
+
+export async function getJson<TResponse>(
+  path: string,
+  options?: ApiRequestOptions,
+): Promise<TResponse> {
+  return request<TResponse>(path, {
+    method: "GET",
+    headers: {
+      ...options?.headers,
+    },
+  });
+}
+
+export async function postJson<TResponse, TBody extends object>(
+  path: string,
+  body: TBody,
+  options?: ApiRequestOptions,
+): Promise<TResponse> {
+  return request<TResponse>(path, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...options?.headers,
+    },
+    body: JSON.stringify(body),
+  });
 }

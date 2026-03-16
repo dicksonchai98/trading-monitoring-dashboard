@@ -1,4 +1,4 @@
-import { ApiError, postJson } from "@/lib/api/client";
+import { ApiError, getJson, postJson } from "@/lib/api/client";
 
 describe("postJson", () => {
   const fetchMock = vi.fn<typeof fetch>();
@@ -38,5 +38,31 @@ describe("postJson", () => {
       code: "invalid_credentials",
       status: 401,
     } satisfies Partial<ApiError>);
+  });
+});
+
+describe("getJson", () => {
+  const fetchMock = vi.fn<typeof fetch>();
+
+  beforeEach(() => {
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  it("returns parsed data for successful get requests", async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ status: "active" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await expect(getJson("/billing/status")).resolves.toEqual({
+      status: "active",
+    });
   });
 });

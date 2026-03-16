@@ -1,31 +1,89 @@
 import type { JSX } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { BentoGridSection } from "@/components/ui/bento-grid";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { getBillingPlans, getBillingStatus, startCheckout } from "@/features/subscription/api/billing";
+import { useAuthStore } from "@/lib/store/auth-store";
 import { PageLayout } from "@/components/ui/page-layout";
 
+function mapEntitlement(status: string): "none" | "pending" | "active" {
+  if (status === "active") {
+    return "active";
+  }
+  if (status === "pending" || status === "checkout_started") {
+    return "pending";
+  }
+  return "none";
+}
+
+function statusVariant(status: string): "neutral" | "warning" | "success" {
+  if (status === "active") {
+    return "success";
+  }
+  if (status === "checkout_started" || status === "pending") {
+    return "warning";
+  }
+  return "neutral";
+}
+
 export function SubscriptionPage(): JSX.Element {
+  const { token, setSession, role, entitlement } = useAuthStore();
+  const plansQuery = useQuery({
+    queryKey: ["billing", "plans"],
+    queryFn: getBillingPlans,
+  });
+  const statusQuery = useQuery({
+    queryKey: ["billing", "status", token],
+    queryFn: () => getBillingStatus(token ?? ""),
+    enabled: Boolean(token),
+  });
+  const checkoutMutation = useMutation({
+    mutationFn: () => startCheckout(token ?? ""),
+    onSuccess: async (result) => {
+      const refreshed = token ? await statusQuery.refetch() : undefined;
+      const nextStatus = refreshed?.data?.status ?? result.status;
+      if (token) {
+        setSession(token, role, mapEntitlement(nextStatus));
+      }
+    },
+  });
+
+  const plans = plansQuery.data?.plans ?? [];
+  const currentStatus = statusQuery.data?.status ?? entitlement;
+  const checkoutStatus = checkoutMutation.data?.status ?? null;
+
   return (
     <PageLayout
       title="Subscription (Mock)"
-      bodyClassName="space-y-[var(--panel-gap)]"
+      className="flex min-h-[calc(100dvh-(var(--shell-padding)*2))] flex-col"
+      bodyClassName="flex flex-1 flex-col"
     >
-      <BentoGridSection title="PLAN OPTIONS">
-        <Card className="space-y-2 lg:col-span-6 min-h-[calc(var(--panel-row-h)*2)]">
-          <h2 className="text-lg font-semibold">Free</h2>
+      <BentoGridSection
+        title="PLAN OPTIONS"
+        className="flex flex-1 flex-col"
+        gridClassName="h-full flex-1 auto-rows-fr"
+      >
+        <Card className="flex h-full min-h-[calc(var(--panel-row-h)*2)] flex-col gap-3 lg:col-span-6">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold">{plans[0]?.name ?? "Loading..."}</h2>
+            <Badge variant={statusVariant(String(currentStatus))}>Entitlement: {currentStatus}</Badge>
+          </div>
           <p className="text-sm text-muted-foreground">
-            15s refresh, basic alerts
+            Mock billing currently exposes one plan and a coarse subscription status only.
           </p>
-          <Button variant="outline" className="w-full">
-            Current Plan
+          <p className="text-sm text-muted-foreground">Price: {plans[0]?.price ?? "..."}</p>
+          {checkoutStatus ? (
+            <p className="text-sm text-muted-foreground">Checkout: {checkoutStatus}</p>
+          ) : null}
+          <Button
+            className="mt-auto w-full"
+            disabled={!token || checkoutMutation.isPending}
+            onClick={() => checkoutMutation.mutate()}
+          >
+            {checkoutMutation.isPending ? "Starting checkout..." : "Start Checkout"}
           </Button>
-        </Card>
-        <Card className="space-y-2 lg:col-span-6">
-          <h2 className="text-lg font-semibold">Pro</h2>
-          <p className="text-sm text-muted-foreground">
-            1s refresh, webhook alerts, audit export
-          </p>
-          <Button className="w-full">Upgrade (Mock)</Button>
         </Card>
       </BentoGridSection>
     </PageLayout>
