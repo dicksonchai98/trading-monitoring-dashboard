@@ -6,3 +6,7 @@ args = ["shadcn@latest", "mcp"]
 args = ["-y", "@upstash/context7-mcp", "--api-key", "${CONTEXT_API_KEY}"]
 command = "npx"
 startup_timeout_ms = 20_000
+
+[mcp_servers.pencil]
+args=["--app","visual_studio_code"]
+startup_timeout_ms = 20_000
