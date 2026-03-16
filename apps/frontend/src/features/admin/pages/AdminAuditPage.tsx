@@ -1,9 +1,10 @@
+import type { JSX } from "react";
 import { Card } from "@/components/ui/card";
+import { PageLayout } from "@/components/ui/page-layout";
 
 export function AdminAuditPage(): JSX.Element {
   return (
-    <section className="space-y-3">
-      <h1 className="text-2xl font-semibold">Admin Audit Log</h1>
+    <PageLayout title="Admin Audit Log" bodyClassName="space-y-[var(--panel-gap)]">
       <p className="text-sm text-muted-foreground">
         Security-relevant actions for compliance review.
       </p>
@@ -21,6 +22,6 @@ export function AdminAuditPage(): JSX.Element {
           <li>10:35:41 | admin_01 | role.update | user_301 - admin | denied</li>
         </ul>
       </Card>
-    </section>
+    </PageLayout>
   );
 }

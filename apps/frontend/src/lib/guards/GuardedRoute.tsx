@@ -1,4 +1,4 @@
-import type { PropsWithChildren } from "react";
+import type { JSX, PropsWithChildren } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuthStore } from "@/lib/store/auth-store";
 import type { UserRole } from "@/lib/types/auth";

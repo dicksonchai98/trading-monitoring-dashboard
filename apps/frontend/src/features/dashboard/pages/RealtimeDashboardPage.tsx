@@ -1,28 +1,34 @@
+import type { JSX } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
+import { BentoGridSection } from "@/components/ui/bento-grid";
+import { PageLayout } from "@/components/ui/page-layout";
+import { PanelCard } from "@/components/ui/panel-card";
 
 export function RealtimeDashboardPage(): JSX.Element {
   return (
-    <section className="space-y-3">
-      <header className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Realtime Market Dashboard</h1>
-        <Badge className="bg-emerald-500/20 text-emerald-300">SSE Connected</Badge>
-      </header>
-      <p className="text-sm text-muted-foreground">Near-month Taiwan index futures (MVP scope).</p>
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-        <Card>
-          <p className="text-xs text-muted-foreground">Last Price</p>
-          <p className="text-2xl font-semibold">22,438</p>
-        </Card>
-        <Card>
-          <p className="text-xs text-muted-foreground">1s Change</p>
-          <p className="text-2xl font-semibold text-emerald-400">+18 (+0.08%)</p>
-        </Card>
-        <Card>
-          <p className="text-xs text-muted-foreground">Snapshot Age</p>
-          <p className="text-2xl font-semibold">0.9s</p>
-        </Card>
-      </div>
-    </section>
+    <PageLayout
+      title="Futures Dashboard"
+      actions={<Badge variant="success">SSE Connected</Badge>}
+      bodyClassName="space-y-[var(--section-gap)]"
+    >
+      <BentoGridSection title="MARKET OVERVIEW">
+        <PanelCard
+          title="Order Flow"
+          note="Tracks near-month transaction imbalance and directional participation shifts."
+          span={8}
+          units={2}
+        />
+        <PanelCard title="Volume Ladder" span={4} />
+        <PanelCard title="Bid / Ask Pressure" span={6} />
+        <PanelCard title="Program Activity" span={6} />
+      </BentoGridSection>
+
+      <BentoGridSection title="PARTICIPANT OVERVIEW">
+        <PanelCard title="Foreign" span={3} />
+        <PanelCard title="Dealer" span={3} />
+        <PanelCard title="Retail" span={3} />
+        <PanelCard title="Sentiment" span={3} />
+      </BentoGridSection>
+    </PageLayout>
   );
 }

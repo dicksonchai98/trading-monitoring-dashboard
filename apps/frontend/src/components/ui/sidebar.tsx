@@ -1,5 +1,13 @@
+import type { JSX } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { BarChart3, CreditCard, Shield, ClipboardList } from "lucide-react";
+import {
+  BarChart3,
+  CreditCard,
+  Shield,
+  ClipboardList,
+  PanelLeftClose,
+  PanelLeftOpen,
+} from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 
 const nav = [
@@ -11,37 +19,105 @@ const nav = [
 
 interface SidebarProps {
   className?: string;
+  collapsed?: boolean;
+  onToggle?: () => void;
 }
 
-export function Sidebar({ className }: SidebarProps): JSX.Element {
+export function Sidebar({
+  className,
+  collapsed = false,
+  onToggle,
+}: SidebarProps): JSX.Element {
   const location = useLocation();
 
   return (
-    <aside className={cn("rounded-lg border border-border bg-card p-3", className)}>
-      <div className="mb-4 rounded-md bg-muted px-3 py-2 text-sm font-semibold">Trading Monitor</div>
-      <nav className="space-y-2">
+    <aside
+      className={cn(
+        "relative flex h-full flex-col overflow-visible rounded-md border border-border bg-shell p-[var(--panel-padding)] transition-[width] duration-200",
+        className,
+      )}
+    >
+      <div
+        className={cn("mb-[var(--section-gap)] px-3 py-2", collapsed && "px-2")}
+      >
+        <button
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          className="absolute -right-3 top-[var(--shell-padding)] z-10 inline-flex h-[var(--sidebar-toggle-size)] w-[var(--sidebar-toggle-size)] items-center justify-center rounded-sm border border-border bg-shell text-muted-foreground shadow-sm transition-colors hover:bg-panel-hover hover:text-foreground"
+          onClick={onToggle}
+          type="button"
+        >
+          {collapsed ? (
+            <PanelLeftOpen className="h-4 w-4" />
+          ) : (
+            <PanelLeftClose className="h-4 w-4" />
+          )}
+        </button>
+        <div
+          className={cn(
+            "flex items-center gap-2",
+            collapsed && "justify-center",
+          )}
+        >
+          <span
+            aria-label="Trading Monitor brand"
+            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-sm border border-primary/40 bg-primary/15 text-primary"
+          >
+            <BarChart3 className="h-4 w-4" />
+          </span>
+          {collapsed ? null : (
+            <p className="text-sm font-semibold text-foreground">
+              Trading Monitor
+            </p>
+          )}
+        </div>
+      </div>
+      <nav className="flex-1 space-y-[var(--space-1)]">
         {nav.map((item) => {
           const active = location.pathname === item.to;
           const Icon = item.icon;
 
           return (
             <Link
+              aria-label={collapsed ? item.label : undefined}
               key={item.to}
               className={cn(
-                "flex items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors",
-                active ? "bg-primary text-primary-foreground" : "hover:bg-muted",
+                "flex items-center rounded-sm border py-2 text-sm transition-colors",
+                collapsed ? "justify-center px-2" : "gap-2 px-3",
+                active
+                  ? "border-border-strong bg-card text-foreground"
+                  : "border-transparent text-muted-foreground hover:border-border hover:bg-card hover:text-foreground",
               )}
               to={item.to}
             >
               <Icon className="h-4 w-4" />
-              <span className="truncate">{item.label}</span>
+              {collapsed ? null : (
+                <span className="truncate">{item.label}</span>
+              )}
             </Link>
           );
         })}
       </nav>
-      <div className="mt-6 rounded-md border border-border bg-muted p-2 text-xs text-muted-foreground">
-        <p className="font-semibold text-foreground">Member Workspace</p>
-        <p>member@desk.io</p>
+      <div
+        className={cn(
+          "relative mt-[var(--section-gap)]",
+        )}
+        data-testid="sidebar-footer"
+      >
+        <div
+          id="user-info"
+          data-name="user-info"
+          className={cn(
+            "border border-border bg-card p-2 text-xs text-muted-foreground",
+            collapsed && "hidden",
+          )}
+          data-testid="sidebar-user-info"
+        >
+          <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-subtle-foreground">
+            Workspace
+          </p>
+          <p className="font-semibold text-foreground">Member Workspace</p>
+          <p>member@desk.io</p>
+        </div>
       </div>
     </aside>
   );

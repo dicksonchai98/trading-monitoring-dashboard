@@ -1,10 +1,18 @@
-import type { PropsWithChildren } from "react";
+import type { ComponentPropsWithoutRef, JSX } from "react";
 import { cn } from "@/lib/utils/cn";
 
-interface CardProps extends PropsWithChildren {
-  className?: string;
-}
+type CardProps = ComponentPropsWithoutRef<"section">;
 
-export function Card({ className, children }: CardProps): JSX.Element {
-  return <section className={cn("rounded-lg border border-border bg-card p-3", className)}>{children}</section>;
+export function Card({ className, children, ...props }: CardProps): JSX.Element {
+  return (
+    <section
+      {...props}
+      className={cn(
+        "rounded-md border border-border bg-card p-[var(--panel-padding)] shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] transition-colors hover:bg-panel-hover",
+        className,
+      )}
+    >
+      {children}
+    </section>
+  );
 }

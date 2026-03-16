@@ -3,16 +3,48 @@
 @tailwind utilities;
 
 :root {
-  --background: 220 35% 8%;
+  --font-sans: "IBM Plex Sans", "Noto Sans TC", sans-serif;
+  --font-mono:
+    "IBM Plex Mono", "JetBrains Mono", "Noto Sans Mono CJK TC", monospace;
+  --background: 220 32% 7%;
   --foreground: 210 20% 96%;
-  --card: 220 28% 12%;
+  --shell: 220 30% 10%;
+  --card: 222 26% 12%;
   --card-foreground: 210 20% 96%;
-  --primary: 24 95% 53%;
+  --panel-hover: 222 24% 15%;
+  --primary: 24 96% 54%;
   --primary-foreground: 0 0% 100%;
-  --muted: 220 22% 16%;
+  --muted: 221 22% 16%;
   --muted-foreground: 220 10% 68%;
+  --subtle-foreground: 220 12% 54%;
   --border: 220 20% 20%;
-  --radius: 0.625rem;
+  --border-strong: 220 18% 28%;
+  --info: 204 89% 61%;
+  --success: 152 68% 47%;
+  --warning: 38 92% 58%;
+  --danger: 0 84% 64%;
+  --chart-1: 24 96% 54%;
+  --chart-2: 204 89% 61%;
+  --chart-3: 152 68% 47%;
+  --chart-4: 282 70% 69%;
+  --chart-5: 48 96% 62%;
+  --chart-6: 346 77% 62%;
+  --radius: 0.1rem;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --shell-padding: 1.25rem;
+  --panel-padding: 0.75rem;
+  --panel-gap: 0.5rem;
+  --section-gap: 1rem;
+  --grid-unit-h: 40px;
+  --panel-row-h: calc(var(--grid-unit-h) * 5);
+  --sidebar-w-expanded: 17rem;
+  --sidebar-w-collapsed: 4.5rem;
+  --sidebar-toggle-size: 1.75rem;
 }
 
 * {
@@ -20,6 +52,10 @@
 }
 
 body {
-  @apply bg-background text-foreground antialiased;
-  font-family: "IBM Plex Sans", "Noto Sans TC", sans-serif;
+  @apply bg-background font-mono text-foreground antialiased;
+  font-family: var(--font-mono);
+}
+
+#root {
+  min-height: 100vh;
 }

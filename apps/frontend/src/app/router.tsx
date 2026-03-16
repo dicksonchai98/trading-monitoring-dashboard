@@ -1,3 +1,4 @@
+import type { JSX } from "react";
 import { Navigate, RouterProvider, createBrowserRouter } from "react-router-dom";
 import { GuardedRoute } from "@/lib/guards/GuardedRoute";
 import { AppShell } from "@/app/layout/AppShell";
