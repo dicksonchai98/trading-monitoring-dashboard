@@ -9,8 +9,8 @@ interface AuthStore extends SessionState {
 
 export const useAuthStore = create<AuthStore>((set) => ({
   token: null,
-  role: "member",
-  entitlement: "active",
+  role: "visitor",
+  entitlement: "none",
   resolved: true,
   setResolved: (resolved) => set({ resolved }),
   setSession: (token, role, entitlement) => set({ token, role, entitlement, resolved: true }),
