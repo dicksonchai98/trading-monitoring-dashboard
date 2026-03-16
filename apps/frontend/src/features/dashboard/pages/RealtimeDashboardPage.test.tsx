@@ -17,6 +17,7 @@ describe("RealtimeDashboardPage", () => {
     expect(screen.getByText("PARTICIPANT OVERVIEW")).toBeInTheDocument();
     expect(screen.getByText("SSE Connected")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Show panel notes for Order Flow" })).toBeInTheDocument();
+    expect(screen.getByTestId("order-flow-chart")).toBeInTheDocument();
     expect(screen.getAllByTestId("bento-grid")).toHaveLength(2);
   });
 });

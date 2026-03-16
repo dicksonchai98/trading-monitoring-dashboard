@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { BentoGridSection } from "@/components/ui/bento-grid";
 import { PageLayout } from "@/components/ui/page-layout";
 import { PanelCard } from "@/components/ui/panel-card";
+import { OrderFlowChart } from "@/features/dashboard/components/OrderFlowChart";
 
 export function RealtimeDashboardPage(): JSX.Element {
   return (
@@ -17,7 +18,9 @@ export function RealtimeDashboardPage(): JSX.Element {
           note="Tracks near-month transaction imbalance and directional participation shifts."
           span={8}
           units={2}
-        />
+        >
+          <OrderFlowChart />
+        </PanelCard>
         <PanelCard title="Volume Ladder" span={4} />
         <PanelCard title="Bid / Ask Pressure" span={6} />
         <PanelCard title="Program Activity" span={6} />
