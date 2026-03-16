@@ -1,5 +1,9 @@
 import type { JSX } from "react";
-import { Navigate, RouterProvider, createBrowserRouter } from "react-router-dom";
+import {
+  Navigate,
+  RouterProvider,
+  createBrowserRouter,
+} from "react-router-dom";
 import { GuardedRoute } from "@/lib/guards/GuardedRoute";
 import { AppShell } from "@/app/layout/AppShell";
 import { LoginPage } from "@/features/auth/pages/LoginPage";
@@ -24,7 +28,7 @@ const router = createBrowserRouter([
       {
         path: "/dashboard",
         element: (
-          <GuardedRoute requiredRole="member" requireActiveEntitlement>
+          <GuardedRoute requiredRole="visitor">
             <RealtimeDashboardPage />
           </GuardedRoute>
         ),
