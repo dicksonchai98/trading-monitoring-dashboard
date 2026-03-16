@@ -8,6 +8,7 @@ import { GuardedRoute } from "@/lib/guards/GuardedRoute";
 import { AppShell } from "@/app/layout/AppShell";
 import { LoginPage } from "@/features/auth/pages/LoginPage";
 import { RealtimeDashboardPage } from "@/features/dashboard/pages/RealtimeDashboardPage";
+import { HistoricalDataAnalysisPage } from "@/features/dashboard/pages/HistoricalDataAnalysisPage";
 import { SubscriptionPage } from "@/features/subscription/pages/SubscriptionPage";
 import { AdminAuditPage } from "@/features/admin/pages/AdminAuditPage";
 import { ForbiddenPage } from "@/features/common/pages/ForbiddenPage";
@@ -30,6 +31,14 @@ const router = createBrowserRouter([
         element: (
           <GuardedRoute requiredRole="visitor">
             <RealtimeDashboardPage />
+          </GuardedRoute>
+        ),
+      },
+      {
+        path: "/historical-data-analysis",
+        element: (
+          <GuardedRoute requiredRole="visitor">
+            <HistoricalDataAnalysisPage />
           </GuardedRoute>
         ),
       },
