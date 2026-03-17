@@ -143,7 +143,7 @@ function HalfPie({
   );
 }
 
-function MetricNeedleChart({ index }: { index: number }): JSX.Element {
+export function MetricNeedleChart({ index }: { index: number }): JSX.Element {
   const value = gaugeValues[index] ?? 50;
   const geometry = getHalfGaugeGeometry();
   const chartData: GaugeSegment[] = [

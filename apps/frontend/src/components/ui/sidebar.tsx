@@ -4,6 +4,7 @@ import {
   BarChart3,
   CreditCard,
   Database,
+  Gauge,
   Shield,
   ClipboardList,
   PanelLeftClose,
@@ -16,6 +17,7 @@ import { cn } from "@/lib/utils/cn";
 const nav = [
   { to: "/dashboard", label: "Dashboard", icon: BarChart3 },
   { to: "/historical-data-analysis", label: "Historical Data Analysis", icon: Database },
+  { to: "/market-thermometer", label: "Market Thermometer", icon: Gauge },
   { to: "/subscription", label: "Subscription", icon: CreditCard },
   { to: "/admin/audit", label: "Admin Audit", icon: ClipboardList },
   { to: "/forbidden", label: "Access Control", icon: Shield },
