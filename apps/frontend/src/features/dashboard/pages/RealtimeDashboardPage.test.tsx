@@ -38,11 +38,8 @@ describe("RealtimeDashboardPage", () => {
     expect(screen.getByTestId("volume-ladder-chart")).toBeInTheDocument();
     expect(screen.getByTestId("bid-ask-pressure-chart")).toBeInTheDocument();
     expect(screen.getByTestId("program-activity-chart")).toBeInTheDocument();
-    expect(screen.getByTestId("foreign-chart")).toBeInTheDocument();
-    expect(screen.getByTestId("dealer-chart")).toBeInTheDocument();
-    expect(screen.getByTestId("retail-chart")).toBeInTheDocument();
-    expect(screen.getByTestId("sentiment-chart")).toBeInTheDocument();
-    expect(screen.getAllByTestId("panel-chart")).toHaveLength(14);
+    expect(screen.getByTestId("participant-amplitude-chart")).toBeInTheDocument();
+    expect(screen.getAllByTestId("panel-chart")).toHaveLength(11);
     expect(screen.getAllByTestId("bento-grid")).toHaveLength(3);
   });
 });
