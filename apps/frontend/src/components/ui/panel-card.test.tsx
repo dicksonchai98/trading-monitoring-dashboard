@@ -15,13 +15,14 @@ describe("PanelCard", () => {
       screen.getByRole("button", { name: "Show panel notes for Order Flow" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Body")).toBeInTheDocument();
+    expect(screen.getByTestId("panel-card-content")).toHaveClass("flex", "min-h-0", "flex-1", "flex-col");
   });
 
   it("supports a units prop to set height from the grid unit token", () => {
     render(<PanelCard title="Volume Ladder" span={4} units={7} />);
 
     expect(screen.getByTestId("panel-card")).toHaveStyle({
-      minHeight: "calc(var(--grid-unit-h) * 7)",
+      minHeight: "calc(var(--panel-row-h) * 7)",
     });
   });
 });

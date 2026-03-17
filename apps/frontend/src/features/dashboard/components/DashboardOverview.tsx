@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { BentoGridSection } from "@/components/ui/bento-grid";
 import { PageLayout } from "@/components/ui/page-layout";
 import { PanelCard } from "@/components/ui/panel-card";
+import { DashboardMetricPanels } from "@/features/dashboard/components/DashboardMetricPanels";
 import {
   BidAskPressureChart,
   DealerPositionChart,
@@ -25,6 +26,8 @@ export function DashboardOverview({ title }: DashboardOverviewProps): JSX.Elemen
       actions={<Badge variant="success">SSE Connected</Badge>}
       bodyClassName="space-y-[var(--section-gap)]"
     >
+      <DashboardMetricPanels />
+
       <BentoGridSection title="MARKET OVERVIEW">
         <PanelCard
           title="Order Flow"

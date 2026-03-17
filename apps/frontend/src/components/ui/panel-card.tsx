@@ -10,6 +10,8 @@ interface PanelCardProps extends PropsWithChildren {
   span?: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12;
   units?: number;
   className?: string;
+  contentClassName?: string;
+  "data-testid"?: string;
 }
 
 const spanClassNames = {
@@ -34,6 +36,8 @@ export function PanelCard({
   span = 12,
   units = 1,
   className,
+  contentClassName,
+  "data-testid": dataTestId = "panel-card",
   children,
 }: PanelCardProps): JSX.Element {
   return (
@@ -43,11 +47,13 @@ export function PanelCard({
         spanClassNames[span],
         className,
       )}
-      data-testid="panel-card"
+      data-testid={dataTestId}
       style={{ minHeight: `calc(var(--panel-row-h) * ${units})` }}
     >
       <PanelHeader title={title} meta={meta} note={note} />
-      {children}
+      <div className={cn("flex min-h-0 flex-1 flex-col", contentClassName)} data-testid={`${dataTestId}-content`}>
+        {children}
+      </div>
     </Card>
   );
 }
