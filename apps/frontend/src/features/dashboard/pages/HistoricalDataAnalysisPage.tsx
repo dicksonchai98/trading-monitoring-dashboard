@@ -1,6 +1,6 @@
 import type { JSX } from "react";
-import { DashboardOverview } from "@/features/dashboard/components/DashboardOverview";
+import { HistoricalDataAnalysisOverview } from "@/features/dashboard/components/HistoricalDataAnalysisOverview";
 
 export function HistoricalDataAnalysisPage(): JSX.Element {
-  return <DashboardOverview title="Historical Data Analysis" />;
+  return <HistoricalDataAnalysisOverview />;
 }

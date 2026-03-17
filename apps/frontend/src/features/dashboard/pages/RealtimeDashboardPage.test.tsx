@@ -29,6 +29,8 @@ describe("RealtimeDashboardPage", () => {
     expect(screen.getAllByTestId("metric-needle-track")).toHaveLength(5);
     expect(screen.getAllByTestId("metric-needle-active")).toHaveLength(5);
     expect(screen.getAllByTestId("metric-value-card")).toHaveLength(3);
+    expect(screen.getByTestId("live-metrics-gap-panel")).toBeInTheDocument();
+    expect(screen.getByTestId("live-metrics-gap-kline-chart")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Show panel notes for Order Flow" }),
     ).toBeInTheDocument();
@@ -40,7 +42,7 @@ describe("RealtimeDashboardPage", () => {
     expect(screen.getByTestId("dealer-chart")).toBeInTheDocument();
     expect(screen.getByTestId("retail-chart")).toBeInTheDocument();
     expect(screen.getByTestId("sentiment-chart")).toBeInTheDocument();
-    expect(screen.getAllByTestId("panel-chart")).toHaveLength(13);
+    expect(screen.getAllByTestId("panel-chart")).toHaveLength(14);
     expect(screen.getAllByTestId("bento-grid")).toHaveLength(3);
   });
 });

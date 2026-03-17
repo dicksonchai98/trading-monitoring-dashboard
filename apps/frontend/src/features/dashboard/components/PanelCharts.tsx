@@ -1,7 +1,6 @@
 import type { JSX } from "react";
 import {
   Area,
-  AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
@@ -40,116 +39,191 @@ function ChartShell({ children, testId, compact = false }: { children: JSX.Eleme
   );
 }
 
-const orderFlowData = [
-  { time: "09:00", flow: 18 },
-  { time: "09:05", flow: 34 },
-  { time: "09:10", flow: 26 },
-  { time: "09:15", flow: 48 },
-  { time: "09:20", flow: 41 },
-  { time: "09:25", flow: 57 },
-  { time: "09:30", flow: 52 },
-  { time: "09:35", flow: 64 },
-];
-
-export function OrderFlowChart(): JSX.Element {
-  return (
-    <ChartShell testId="order-flow-chart">
-      <ResponsiveContainer width="100%" height="100%" minHeight={180} minWidth={0}>
-        <LineChart data={orderFlowData} margin={{ top: 8, right: 8, bottom: 0, left: -24 }}>
-          <CartesianGrid horizontal stroke="hsl(var(--border-strong))" strokeDasharray="3 3" vertical />
-          <XAxis axisLine={false} dataKey="time" tick={axisTick} tickLine={false} />
-          <YAxis axisLine={false} domain={[10, 70]} tick={axisTick} tickLine={false} ticks={[10, 20, 30, 40, 50, 60, 70]} width={32} />
-          <Tooltip contentStyle={tooltipStyle} cursor={{ stroke: "hsl(var(--border-strong))", strokeDasharray: "4 4" }} labelStyle={{ color: "hsl(var(--foreground))" }} />
-          <Line dataKey="flow" dot={false} stroke="hsl(var(--primary))" strokeWidth={2} type="monotone" />
-        </LineChart>
-      </ResponsiveContainer>
-    </ChartShell>
-  );
+interface MarketOverviewPoint {
+  time: string;
+  indexPrice: number;
+  chipDelta: number;
 }
 
-const volumeLadderData = [
-  { bucket: "09:00", volume: 42 },
-  { bucket: "09:10", volume: 55 },
-  { bucket: "09:20", volume: 68 },
-  { bucket: "09:30", volume: 49 },
-  { bucket: "09:40", volume: 72 },
-];
-
-export function VolumeLadderChart(): JSX.Element {
-  return (
-    <ChartShell testId="volume-ladder-chart">
-      <ResponsiveContainer width="100%" height="100%" minHeight={180} minWidth={0}>
-        <BarChart data={volumeLadderData} margin={{ top: 10, right: 4, bottom: 0, left: -18 }}>
-          <CartesianGrid vertical={false} stroke="hsl(var(--border-strong))" strokeDasharray="3 3" />
-          <XAxis axisLine={false} dataKey="bucket" tick={axisTick} tickLine={false} />
-          <YAxis axisLine={false} tick={axisTick} tickLine={false} width={28} />
-          <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
-          <Bar dataKey="volume" radius={[3, 3, 0, 0]} fill="hsl(var(--chart-2))" />
-        </BarChart>
-      </ResponsiveContainer>
-    </ChartShell>
-  );
+interface MarketOverviewDatum extends MarketOverviewPoint {
+  buyVolume: number;
+  sellVolume: number;
 }
 
-const pressureData = [
-  { time: "09:00", bid: 38, ask: 21 },
-  { time: "09:08", bid: 42, ask: 26 },
-  { time: "09:16", bid: 35, ask: 31 },
-  { time: "09:24", bid: 49, ask: 29 },
-  { time: "09:32", bid: 44, ask: 24 },
-];
+function formatMinuteLabel(offsetMinutes: number): string {
+  const totalMinutes = 9 * 60 + offsetMinutes;
+  const hour = Math.floor(totalMinutes / 60);
+  const minute = totalMinutes % 60;
 
-export function BidAskPressureChart(): JSX.Element {
-  return (
-    <ChartShell testId="bid-ask-pressure-chart">
-      <ResponsiveContainer width="100%" height="100%" minHeight={180} minWidth={0}>
-        <AreaChart data={pressureData} margin={{ top: 8, right: 6, bottom: 0, left: -20 }}>
-          <defs>
-            <linearGradient id="bidFill" x1="0" x2="0" y1="0" y2="1">
-              <stop offset="0%" stopColor="hsl(var(--chart-3))" stopOpacity={0.45} />
-              <stop offset="100%" stopColor="hsl(var(--chart-3))" stopOpacity={0.04} />
-            </linearGradient>
-            <linearGradient id="askFill" x1="0" x2="0" y1="0" y2="1">
-              <stop offset="0%" stopColor="hsl(var(--danger))" stopOpacity={0.35} />
-              <stop offset="100%" stopColor="hsl(var(--danger))" stopOpacity={0.04} />
-            </linearGradient>
-          </defs>
-          <CartesianGrid vertical={false} stroke="hsl(var(--border-strong))" strokeDasharray="3 3" />
-          <XAxis axisLine={false} dataKey="time" tick={axisTick} tickLine={false} />
-          <YAxis axisLine={false} tick={axisTick} tickLine={false} width={28} />
-          <Tooltip contentStyle={tooltipStyle} />
-          <Area dataKey="bid" stroke="hsl(var(--chart-3))" fill="url(#bidFill)" strokeWidth={2} type="monotone" />
-          <Area dataKey="ask" stroke="hsl(var(--danger))" fill="url(#askFill)" strokeWidth={2} type="monotone" />
-        </AreaChart>
-      </ResponsiveContainer>
-    </ChartShell>
-  );
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 }
 
-const programActivityData = [
-  { time: "09:00", long: 12, short: -8, net: 4 },
-  { time: "09:10", long: 18, short: -10, net: 8 },
-  { time: "09:20", long: 11, short: -6, net: 5 },
-  { time: "09:30", long: 23, short: -14, net: 9 },
-  { time: "09:40", long: 19, short: -7, net: 12 },
-];
+function withSignedBars(data: MarketOverviewPoint[]): MarketOverviewDatum[] {
+  return data.map((point) => ({
+    ...point,
+    buyVolume: point.chipDelta > 0 ? point.chipDelta : 0,
+    sellVolume: point.chipDelta < 0 ? point.chipDelta : 0,
+  }));
+}
 
-export function ProgramActivityChart(): JSX.Element {
+const SESSION_MINUTES = 271;
+
+function generateMarketOverviewData(
+  basePrice: number,
+  volatilityScale: number,
+  pricePhase: number,
+  volumePhase: number,
+): MarketOverviewDatum[] {
+  const generated: MarketOverviewPoint[] = [];
+  let previousPrice = basePrice;
+
+  for (let i = 0; i < SESSION_MINUTES; i += 1) {
+    const progress = i / (SESSION_MINUTES - 1);
+    const drift =
+      progress < 0.22
+        ? volatilityScale * 0.22
+        : progress < 0.48
+          ? volatilityScale * -0.16
+          : progress < 0.74
+            ? volatilityScale * 0.12
+            : volatilityScale * -0.1;
+    const openCloseRegime =
+      progress < 0.16 || progress > 0.84 ? 1.45 : 1;
+    const noise =
+      (Math.sin((i + pricePhase) * 0.91) * 0.9 +
+        Math.cos((i + pricePhase) * 0.37) * 0.7 +
+        Math.sin((i + pricePhase) * 1.73) * 0.45) *
+      volatilityScale *
+      openCloseRegime;
+    const tickJitter =
+      (Math.sin((i + pricePhase) * 2.9) > 0 ? 1 : -1) *
+      volatilityScale *
+      0.22;
+    const shockPulse =
+      Math.exp(-((i - 45) ** 2) / 85) * volatilityScale * -3.2 +
+      Math.exp(-((i - 132) ** 2) / 110) * volatilityScale * 2.6 +
+      Math.exp(-((i - 218) ** 2) / 90) * volatilityScale * -2.9;
+    const minuteMove = drift + noise + tickJitter + shockPulse;
+    const indexPrice = Math.round(previousPrice + minuteMove);
+    const chipDelta = Math.round(
+      minuteMove * 38 +
+        Math.sin((i + volumePhase) * 0.48) * 520 +
+        Math.cos((i + volumePhase) * 0.21) * 310,
+    );
+
+    generated.push({
+      time: formatMinuteLabel(i),
+      indexPrice,
+      chipDelta,
+    });
+    previousPrice = indexPrice;
+  }
+
+  return withSignedBars(generated);
+}
+
+function MarketOverviewHybridChart({
+  data,
+  priceLabel,
+  testId,
+}: {
+  data: MarketOverviewDatum[];
+  priceLabel: string;
+  testId: string;
+}): JSX.Element {
   return (
-    <ChartShell testId="program-activity-chart">
+    <ChartShell testId={testId}>
       <ResponsiveContainer width="100%" height="100%" minHeight={180} minWidth={0}>
-        <ComposedChart data={programActivityData} margin={{ top: 8, right: 8, bottom: 0, left: -18 }}>
+        <ComposedChart
+          data={data}
+          margin={{ top: 8, right: 8, bottom: 0, left: -14 }}
+          barCategoryGap={0}
+          barGap={0}
+        >
           <CartesianGrid vertical={false} stroke="hsl(var(--border-strong))" strokeDasharray="3 3" />
-          <XAxis axisLine={false} dataKey="time" tick={axisTick} tickLine={false} />
-          <YAxis axisLine={false} tick={axisTick} tickLine={false} width={28} />
-          <Tooltip contentStyle={tooltipStyle} />
-          <Bar dataKey="long" fill="hsl(var(--chart-5))" radius={[3, 3, 0, 0]} />
-          <Bar dataKey="short" fill="hsl(var(--chart-6))" radius={[3, 3, 0, 0]} />
-          <Line dataKey="net" dot={false} stroke="hsl(var(--primary))" strokeWidth={2} type="monotone" />
+          <XAxis
+            axisLine={false}
+            dataKey="time"
+            height={52}
+            interval={14}
+            tick={{ ...axisTick, angle: -90, textAnchor: "end" }}
+            tickLine={false}
+            type="category"
+          />
+          <YAxis
+            yAxisId="price"
+            axisLine={false}
+            domain={[
+              (dataMin: number) => dataMin - Math.max(8, Math.round(Math.abs(dataMin) * 0.0005)),
+              (dataMax: number) => dataMax + Math.max(8, Math.round(Math.abs(dataMax) * 0.0005)),
+            ]}
+            tick={axisTick}
+            tickCount={10}
+            tickFormatter={(value) => `${value}`}
+            tickLine={false}
+            type="number"
+            width={58}
+          />
+          <YAxis yAxisId="chip" axisLine={false} orientation="right" tick={axisTick} tickFormatter={(value) => `${value}`} tickLine={false} type="number" width={56} />
+          <Tooltip
+            contentStyle={tooltipStyle}
+            labelStyle={{ color: "hsl(var(--foreground))" }}
+            formatter={(value, name) => {
+              const normalizedValue =
+                typeof value === "number" ? value : Number(value ?? 0);
+
+              if (name === "indexPrice") {
+                return [normalizedValue, priceLabel];
+              }
+
+              return [normalizedValue, "Large Trader Delta (Bid-Ask)"];
+            }}
+          />
+          <Area
+            yAxisId="chip"
+            dataKey="buyVolume"
+            fill="#ef4444"
+            fillOpacity={0.3}
+            stroke="none"
+            type="step"
+          />
+          <Area
+            yAxisId="chip"
+            dataKey="sellVolume"
+            fill="#22c55e"
+            fillOpacity={0.3}
+            stroke="none"
+            type="step"
+          />
+          <Line yAxisId="price" dataKey="indexPrice" dot={false} stroke="hsl(var(--primary))" strokeWidth={2} type="linear" />
         </ComposedChart>
       </ResponsiveContainer>
     </ChartShell>
   );
+}
+
+const orderFlowData = generateMarketOverviewData(22380, 7.2, 0, 1);
+
+export function OrderFlowChart(): JSX.Element {
+  return <MarketOverviewHybridChart data={orderFlowData} priceLabel="TAIEX Spot" testId="order-flow-chart" />;
+}
+
+const volumeLadderData = generateMarketOverviewData(22420, 6.8, 3, 6);
+
+export function VolumeLadderChart(): JSX.Element {
+  return <MarketOverviewHybridChart data={volumeLadderData} priceLabel="TXF Near Month" testId="volume-ladder-chart" />;
+}
+
+const pressureData = generateMarketOverviewData(1210, 1.8, 7, 2);
+
+export function BidAskPressureChart(): JSX.Element {
+  return <MarketOverviewHybridChart data={pressureData} priceLabel="TAIEX Electronics" testId="bid-ask-pressure-chart" />;
+}
+
+const programActivityData = generateMarketOverviewData(2085, 2.4, 11, 9);
+
+export function ProgramActivityChart(): JSX.Element {
+  return <MarketOverviewHybridChart data={programActivityData} priceLabel="TAIEX Finance" testId="program-activity-chart" />;
 }
 
 const foreignData = [{ value: 76, fill: "hsl(var(--chart-2))" }];
@@ -170,10 +244,58 @@ export function ForeignParticipationChart(): JSX.Element {
 }
 
 const dealerData = [
-  { name: "Long", value: 41, fill: "hsl(var(--chart-3))" },
-  { name: "Flat", value: 23, fill: "hsl(var(--chart-2))" },
-  { name: "Short", value: 36, fill: "hsl(var(--warning))" },
+  { name: "Long", value: 41, fill: "#ef4444" },
+  { name: "Flat", value: 23, fill: "#9ca3af" },
+  { name: "Short", value: 36, fill: "#22c55e" },
 ];
+
+function renderDealerLabel({
+  cx,
+  cy,
+  midAngle,
+  innerRadius,
+  outerRadius,
+  name,
+  value,
+}: {
+  cx?: number;
+  cy?: number;
+  midAngle?: number;
+  innerRadius?: number;
+  outerRadius?: number;
+  name?: string;
+  value?: number;
+}): JSX.Element | null {
+  if (
+    typeof cx !== "number" ||
+    typeof cy !== "number" ||
+    typeof midAngle !== "number" ||
+    typeof innerRadius !== "number" ||
+    typeof outerRadius !== "number" ||
+    typeof name !== "string" ||
+    typeof value !== "number"
+  ) {
+    return null;
+  }
+
+  const radius = innerRadius + (outerRadius - innerRadius) * 0.62;
+  const x = cx + radius * Math.cos((-midAngle * Math.PI) / 180);
+  const y = cy + radius * Math.sin((-midAngle * Math.PI) / 180);
+
+  return (
+    <text
+      x={x}
+      y={y}
+      fill="#ffffff"
+      fontSize={10}
+      fontWeight={600}
+      textAnchor="middle"
+      dominantBaseline="central"
+    >
+      {`${name} ${value}%`}
+    </text>
+  );
+}
 
 export function DealerPositionChart(): JSX.Element {
   return (
@@ -181,7 +303,16 @@ export function DealerPositionChart(): JSX.Element {
       <ResponsiveContainer width="100%" height="100%" minHeight={120} minWidth={0}>
         <PieChart>
           <Tooltip contentStyle={tooltipStyle} />
-          <Pie data={dealerData} dataKey="value" innerRadius={28} outerRadius={46} paddingAngle={3} stroke="none">
+          <Pie
+            data={dealerData}
+            dataKey="value"
+            innerRadius={28}
+            outerRadius={46}
+            paddingAngle={3}
+            stroke="none"
+            label={renderDealerLabel}
+            labelLine={false}
+          >
             {dealerData.map((entry) => (
               <Cell key={entry.name} fill={entry.fill} />
             ))}

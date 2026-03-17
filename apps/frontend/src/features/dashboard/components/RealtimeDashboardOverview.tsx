@@ -15,14 +15,10 @@ import {
   VolumeLadderChart,
 } from "@/features/dashboard/components/PanelCharts";
 
-interface DashboardOverviewProps {
-  title: string;
-}
-
-export function DashboardOverview({ title }: DashboardOverviewProps): JSX.Element {
+export function RealtimeDashboardOverview(): JSX.Element {
   return (
     <PageLayout
-      title={title}
+      title="Futures Dashboard"
       actions={<Badge variant="success">SSE Connected</Badge>}
       bodyClassName="space-y-[var(--section-gap)]"
     >
@@ -32,12 +28,12 @@ export function DashboardOverview({ title }: DashboardOverviewProps): JSX.Elemen
         <PanelCard
           title="Order Flow"
           note="Tracks near-month transaction imbalance and directional participation shifts."
-          span={8}
+          span={6}
           units={2}
         >
           <OrderFlowChart />
         </PanelCard>
-        <PanelCard title="Volume Ladder" span={4} meta="5m buckets">
+        <PanelCard title="Volume Ladder" span={6} meta="5m buckets">
           <VolumeLadderChart />
         </PanelCard>
         <PanelCard title="Bid / Ask Pressure" span={6} meta="Depth skew">

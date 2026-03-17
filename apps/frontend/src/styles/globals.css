@@ -40,7 +40,7 @@
   --panel-padding: 0.75rem;
   --panel-gap: 0.5rem;
   --section-gap: 1rem;
-  --grid-unit-h: 40px;
+  --grid-unit-h: 20px;
   --panel-row-h: calc(var(--grid-unit-h) * 5);
   --sidebar-w-expanded: 17rem;
   --sidebar-w-collapsed: 4.5rem;

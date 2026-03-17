@@ -3,7 +3,7 @@ import { MemoryRouter } from "react-router-dom";
 import { HistoricalDataAnalysisPage } from "@/features/dashboard/pages/HistoricalDataAnalysisPage";
 
 describe("HistoricalDataAnalysisPage", () => {
-  it("renders the historical analysis title while reusing the dashboard content layout", () => {
+  it("renders the historical analysis title and historical signals grid", () => {
     render(
       <MemoryRouter initialEntries={["/historical-data-analysis"]}>
         <HistoricalDataAnalysisPage />
@@ -12,9 +12,8 @@ describe("HistoricalDataAnalysisPage", () => {
 
     expect(screen.getByRole("heading", { name: "Historical Data Analysis" })).toBeInTheDocument();
     expect(screen.getByText("/historical-data-analysis")).toBeInTheDocument();
-    expect(screen.getByText("MARKET OVERVIEW")).toBeInTheDocument();
-    expect(screen.getByText("PARTICIPANT OVERVIEW")).toBeInTheDocument();
+    expect(screen.getByText("HISTORICAL SIGNALS")).toBeInTheDocument();
     expect(screen.getByText("SSE Connected")).toBeInTheDocument();
-    expect(screen.getByTestId("order-flow-chart")).toBeInTheDocument();
+    expect(screen.getAllByTestId("historical-signal-panel")).toHaveLength(14);
   });
 });

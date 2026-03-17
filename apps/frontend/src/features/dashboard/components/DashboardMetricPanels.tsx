@@ -25,9 +25,30 @@ interface HalfGaugeGeometry {
   outerRadius: number;
 }
 
+interface GapKlineDatum {
+  symbol: string;
+  prevClose: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  current: number;
+}
+
+const KLINE_UP_COLOR = "#ef4444";
+const KLINE_DOWN_COLOR = "#22c55e";
+
 const NEEDLE_BASE_RADIUS_PX = 4;
 const gaugeValues = [74, 66, 58, 82, 63];
 const numericValues = ["1.82%", "24.6K", "12"];
+const gapKlineData: GapKlineDatum[] = [
+  { symbol: "臺積電", prevClose: 966, open: 978, high: 990, low: 962, close: 985, current: 988 },
+  { symbol: "臺達電", prevClose: 352, open: 347, high: 356, low: 342, close: 345, current: 344 },
+  { symbol: "鴻海", prevClose: 204, open: 209, high: 214, low: 201, close: 212, current: 211 },
+  { symbol: "聯發科", prevClose: 1260, open: 1238, high: 1276, low: 1228, close: 1268, current: 1272 },
+  { symbol: "櫃買指數", prevClose: 262.1, open: 263.4, high: 265.2, low: 261.3, close: 264.6, current: 264.2 },
+  { symbol: "日經指數", prevClose: 39280, open: 39540, high: 39810, low: 39180, close: 39720, current: 39660 },
+];
 
 export function getHalfGaugeGeometry(): HalfGaugeGeometry {
   return {
@@ -193,6 +214,111 @@ function MetricValueCard({ index }: { index: number }): JSX.Element {
   );
 }
 
+function GapKlinePanelChart(): JSX.Element {
+  const width = 620;
+  const height = 190;
+  const margin = { top: 16, right: 10, bottom: 50, left: 44 };
+  const plotWidth = width - margin.left - margin.right;
+  const plotHeight = height - margin.top - margin.bottom;
+  const normalizedData = gapKlineData.map((item) => {
+    const toPct = (value: number): number =>
+      ((value - item.prevClose) / item.prevClose) * 100;
+
+    return {
+      ...item,
+      openPct: toPct(item.open),
+      highPct: toPct(item.high),
+      lowPct: toPct(item.low),
+      closePct: toPct(item.close),
+      currentPct: toPct(item.current),
+    };
+  });
+  const pctMin = Math.min(...normalizedData.map((item) => item.lowPct));
+  const pctMax = Math.max(...normalizedData.map((item) => item.highPct));
+  const paddedMin = pctMin - (pctMax - pctMin) * 0.08;
+  const paddedMax = pctMax + (pctMax - pctMin) * 0.08;
+  const tickCount = 5;
+  const step = plotWidth / normalizedData.length;
+  const bodyWidth = Math.min(34, step * 0.56);
+
+  const yScale = (valuePct: number): number =>
+    margin.top + ((paddedMax - valuePct) / (paddedMax - paddedMin)) * plotHeight;
+
+  return (
+    <div className="mt-[var(--panel-gap)] flex min-h-0 flex-1 flex-col" data-testid="live-metrics-gap-kline-chart">
+      <div data-testid="panel-chart" className="h-full w-full">
+        <svg className="h-full w-full" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Six symbols gap candlestick overview">
+          <rect x={0} y={0} width={width} height={height} fill="transparent" />
+          {Array.from({ length: tickCount }).map((_, index) => {
+            const ratio = index / (tickCount - 1);
+            const pct = paddedMax - (paddedMax - paddedMin) * ratio;
+            const y = margin.top + plotHeight * ratio;
+
+            return (
+              <g key={`grid-${index}`}>
+                <line x1={margin.left} x2={width - margin.right} y1={y} y2={y} stroke="hsl(var(--border-strong))" strokeDasharray="3 3" />
+                <text
+                  x={margin.left - 8}
+                  y={y + 4}
+                  fill="hsl(var(--subtle-foreground))"
+                  fontSize={10}
+                  textAnchor="end"
+                >
+                  {`${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%`}
+                </text>
+              </g>
+            );
+          })}
+          {normalizedData.map((item, index) => {
+            const centerX = margin.left + step * index + step / 2;
+            const openY = yScale(item.openPct);
+            const closeY = yScale(item.closePct);
+            const highY = yScale(item.highPct);
+            const lowY = yScale(item.lowPct);
+            const isUp = item.close >= item.open;
+            const bodyY = Math.min(openY, closeY);
+            const bodyHeight = Math.max(2, Math.abs(closeY - openY));
+            const fill = isUp ? KLINE_UP_COLOR : KLINE_DOWN_COLOR;
+            const gapPct = ((item.open - item.prevClose) / item.prevClose) * 100;
+
+            return (
+              <g key={item.symbol}>
+                <line x1={centerX} x2={centerX} y1={highY} y2={lowY} stroke={fill} strokeWidth={1.6} />
+                <rect
+                  x={centerX - bodyWidth / 2}
+                  y={bodyY}
+                  width={bodyWidth}
+                  height={bodyHeight}
+                  fill={fill}
+                  stroke="none"
+                />
+                <text
+                  x={centerX}
+                  y={height - 24}
+                  fill="hsl(var(--subtle-foreground))"
+                  fontSize={10}
+                  textAnchor="middle"
+                >
+                  {item.symbol}
+                </text>
+                <text
+                  x={centerX}
+                  y={height - 10}
+                  fill={gapPct >= 0 ? KLINE_UP_COLOR : KLINE_DOWN_COLOR}
+                  fontSize={9}
+                  textAnchor="middle"
+                >
+                  {`${gapPct >= 0 ? "+" : ""}${gapPct.toFixed(1)}%`}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+    </div>
+  );
+}
+
 export function DashboardMetricPanels(): JSX.Element {
   let gaugeIndex = 0;
   let valueIndex = 0;
@@ -200,7 +326,7 @@ export function DashboardMetricPanels(): JSX.Element {
   return (
     <BentoGridSection
       title="LIVE METRICS"
-      gridClassName="h-full auto-rows-fr lg:grid-cols-8"
+      gridClassName="h-full auto-rows-fr lg:grid-cols-12"
     >
       {getMetricConfigs().map((panel) => {
         const content =
@@ -224,6 +350,17 @@ export function DashboardMetricPanels(): JSX.Element {
           </PanelCard>
         );
       })}
+      <PanelCard
+        title="6 Symbols Gap K"
+        meta="Daily open/close + current"
+        span={4}
+        units={1}
+        className="h-full"
+        contentClassName="pt-[var(--panel-gap)]"
+        data-testid="live-metrics-gap-panel"
+      >
+        <GapKlinePanelChart />
+      </PanelCard>
     </BentoGridSection>
   );
 }
