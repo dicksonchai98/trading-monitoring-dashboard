@@ -41,9 +41,9 @@ export function SubscriptionPage(): JSX.Element {
   });
   const checkoutMutation = useMutation({
     mutationFn: () => startCheckout(token ?? ""),
-    onSuccess: async (result) => {
+    onSuccess: async () => {
       const refreshed = token ? await statusQuery.refetch() : undefined;
-      const nextStatus = refreshed?.data?.status ?? result.status;
+      const nextStatus = refreshed?.data?.status ?? currentStatus;
       if (token) {
         setSession(token, role, mapEntitlement(nextStatus));
       }
@@ -52,7 +52,8 @@ export function SubscriptionPage(): JSX.Element {
 
   const plans = plansQuery.data?.plans ?? [];
   const currentStatus = statusQuery.data?.status ?? entitlement;
-  const checkoutStatus = checkoutMutation.data?.status ?? null;
+  const checkoutSessionId = checkoutMutation.data?.session_id ?? null;
+  const checkoutUrl = checkoutMutation.data?.checkout_url ?? null;
 
   return (
     <PageLayout
@@ -74,8 +75,13 @@ export function SubscriptionPage(): JSX.Element {
             Mock billing currently exposes one plan and a coarse subscription status only.
           </p>
           <p className="text-sm text-muted-foreground">Price: {plans[0]?.price ?? "..."}</p>
-          {checkoutStatus ? (
-            <p className="text-sm text-muted-foreground">Checkout: {checkoutStatus}</p>
+          {checkoutSessionId ? (
+            <p className="text-sm text-muted-foreground">Checkout session: {checkoutSessionId}</p>
+          ) : null}
+          {checkoutUrl ? (
+            <a className="text-sm text-primary underline-offset-4 hover:underline" href={checkoutUrl} target="_blank" rel="noreferrer">
+              Open checkout page
+            </a>
           ) : null}
           <Button
             className="mt-auto w-full"

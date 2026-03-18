@@ -13,5 +13,6 @@ export interface BillingStatusResponse {
 }
 
 export interface BillingCheckoutResponse {
-  status: string;
+  checkout_url: string;
+  session_id: string;
 }

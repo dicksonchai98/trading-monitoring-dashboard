@@ -127,3 +127,10 @@ def test_protected_routes_expose_http_bearer_security_in_openapi() -> None:
     schema = client.get("/openapi.json").json()
     operation = schema["paths"]["/billing/status"]["get"]
     assert operation.get("security") == [{"HTTPBearer": []}]
+
+
+def test_serving_health_route_is_available() -> None:
+    client = TestClient(app)
+    response = client.get("/v1/health")
+    assert response.status_code == 200
+    assert response.json()["status"] == "ok"

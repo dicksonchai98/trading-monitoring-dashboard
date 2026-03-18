@@ -79,10 +79,16 @@ describe("SubscriptionPage", () => {
         }),
       )
       .mockResolvedValueOnce(
-        new Response(JSON.stringify({ status: "checkout_started" }), {
+        new Response(
+          JSON.stringify({
+            checkout_url: "https://example.com/checkout/session-123",
+            session_id: "session-123",
+          }),
+          {
           status: 200,
           headers: { "Content-Type": "application/json" },
-        }),
+          },
+        ),
       )
       .mockResolvedValueOnce(
         new Response(JSON.stringify({ status: "active" }), {
@@ -98,7 +104,7 @@ describe("SubscriptionPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Start Checkout" }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
-    expect(await screen.findByText("Checkout: checkout_started")).toBeInTheDocument();
+    expect(await screen.findByText("Checkout session: session-123")).toBeInTheDocument();
     expect(useAuthStore.getState().entitlement).toBe("active");
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
