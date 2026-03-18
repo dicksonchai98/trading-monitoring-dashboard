@@ -1,8 +1,20 @@
 import type { CSSProperties, JSX } from "react";
 import type { PieProps, PieSectorDataItem } from "recharts";
-import { Cell, Pie, PieChart, Tooltip } from "recharts";
+import {
+  Area,
+  AreaChart,
+  Cell,
+  Pie,
+  PieChart,
+  ReferenceLine,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import metricsConfig from "../../../../test.json";
 import { BentoGridSection } from "@/components/ui/bento-grid";
+import { Card } from "@/components/ui/card";
 import { PanelCard } from "@/components/ui/panel-card";
 
 interface MetricPanelConfig {
@@ -40,7 +52,63 @@ const KLINE_DOWN_COLOR = "#22c55e";
 
 const NEEDLE_BASE_RADIUS_PX = 4;
 const gaugeValues = [74, 66, 58, 82, 63];
-const numericValues = ["1.82%", "24.6K", "12"];
+const coreMetrics = [
+  { label: "振幅", value: "1.82%" },
+  { label: "預估量", value: "24.6K" },
+  { label: "價差", value: "12" },
+];
+const contributionMetrics = [
+  { label: "臺積電貢獻點數", value: "+84" },
+  { label: "權值前20貢獻點數", value: "+176" },
+  { label: "上市漲跌家數", value: "612 / 356" },
+];
+function buildOtcIntradaySeries(): Array<{
+  time: string;
+  value: number;
+  change: number;
+  upChange: number | null;
+  downChange: number | null;
+}> {
+  const points: Array<{
+    time: string;
+    value: number;
+    change: number;
+    upChange: number | null;
+    downChange: number | null;
+  }> = [];
+
+  const prevClose = 286.2;
+  let value = prevClose + 0.35;
+  const startHour = 9;
+  const totalMinutes = 271;
+
+  for (let i = 0; i < totalMinutes; i += 1) {
+    const hour = startHour + Math.floor(i / 60);
+    const minute = i % 60;
+    const time = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+
+    const waveA = Math.sin((i + 1) * 0.085) * 0.24;
+    const waveB = Math.cos((i + 1) * 0.032) * 0.17;
+    const shock = i % 47 === 0 ? 0.32 : i % 53 === 0 ? -0.28 : 0;
+    const drift = i < 120 ? 0.004 : i > 210 ? -0.003 : 0.001;
+    value += waveA + waveB + shock + drift;
+    value = Math.max(281.5, Math.min(294.8, value));
+
+    const rounded = Number(value.toFixed(2));
+    const change = Number((rounded - prevClose).toFixed(2));
+    points.push({
+      time,
+      value: rounded,
+      change,
+      upChange: change >= 0 ? change : null,
+      downChange: change < 0 ? change : null,
+    });
+  }
+
+  return points;
+}
+
+const otcIndexSeries = buildOtcIntradaySeries();
 const gapKlineData: GapKlineDatum[] = [
   { symbol: "臺積電", prevClose: 966, open: 978, high: 990, low: 962, close: 985, current: 988 },
   { symbol: "臺達電", prevClose: 352, open: 347, high: 356, low: 342, close: 345, current: 344 },
@@ -199,18 +267,82 @@ export function MetricNeedleChart({ index }: { index: number }): JSX.Element {
   );
 }
 
-function MetricValueCard({ index }: { index: number }): JSX.Element {
-  const value = numericValues[index] ?? "--";
-
+function MetricMiniPanel({
+  title,
+  value,
+  testId,
+}: {
+  title: string;
+  value: string;
+  testId: string;
+}): JSX.Element {
   return (
-    <div
-      className="flex min-h-0 flex-1 flex-col items-center justify-center py-2 text-center"
-      data-testid="metric-value-card"
+    <Card
+      className="flex h-full min-h-0 flex-col justify-center px-2 py-1.5"
+      data-testid={testId}
     >
-      <div className="text-2xl font-semibold tracking-tight text-foreground">
-        {value}
+      <div className="space-y-0.5 text-center">
+        <p className="truncate text-[10px] text-muted-foreground">{title}</p>
+        <p className="text-sm font-semibold tracking-tight text-foreground">{value}</p>
       </div>
-    </div>
+    </Card>
+  );
+}
+
+function OtcIndexLinePanel(): JSX.Element {
+  return (
+    <PanelCard
+      title="OTC 櫃買指數"
+      span={1}
+      units={1}
+      className="h-full"
+      contentClassName="pt-[var(--panel-gap)]"
+      data-testid="live-metrics-otc-line-panel"
+    >
+      <div className="h-full min-h-[120px] w-full" data-testid="panel-chart">
+        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+          <AreaChart
+            data={otcIndexSeries}
+            margin={{ top: 8, right: 8, bottom: 2, left: -20 }}
+          >
+            <XAxis
+              dataKey="time"
+              axisLine={false}
+              tickLine={false}
+              tick={{ fill: "hsl(var(--subtle-foreground))", fontSize: 10 }}
+              ticks={["09:00", "10:00", "11:00", "12:00", "13:00"]}
+            />
+            <YAxis
+              axisLine={false}
+              tickLine={false}
+              tick={{ fill: "hsl(var(--subtle-foreground))", fontSize: 10 }}
+              domain={["dataMin - 0.3", "dataMax + 0.3"]}
+              ticks={[0]}
+              width={26}
+            />
+            <ReferenceLine y={0} stroke="hsl(var(--border-strong))" strokeDasharray="3 3" />
+            <Area
+              dataKey="upChange"
+              dot={false}
+              fill="rgba(239, 68, 68, 0.18)"
+              isAnimationActive={false}
+              stroke="#ef4444"
+              strokeWidth={1.8}
+              type="linear"
+            />
+            <Area
+              dataKey="downChange"
+              dot={false}
+              fill="rgba(34, 197, 94, 0.18)"
+              isAnimationActive={false}
+              stroke="#22c55e"
+              strokeWidth={1.8}
+              type="linear"
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+    </PanelCard>
   );
 }
 
@@ -320,22 +452,17 @@ function GapKlinePanelChart(): JSX.Element {
 }
 
 export function DashboardMetricPanels(): JSX.Element {
+  const needlePanels = getMetricConfigs().filter(
+    (panel) => panel.key === "piechart with needle",
+  );
   let gaugeIndex = 0;
-  let valueIndex = 0;
 
   return (
     <BentoGridSection
       title="LIVE METRICS"
       gridClassName="h-full auto-rows-fr lg:grid-cols-12"
     >
-      {getMetricConfigs().map((panel) => {
-        const content =
-          panel.key === "piechart with needle" ? (
-            <MetricNeedleChart index={gaugeIndex++} />
-          ) : (
-            <MetricValueCard index={valueIndex++} />
-          );
-
+      {needlePanels.map((panel) => {
         return (
           <PanelCard
             key={panel.label}
@@ -346,10 +473,37 @@ export function DashboardMetricPanels(): JSX.Element {
             contentClassName="pt-[var(--panel-gap)]"
             data-testid="dashboard-metric-panel"
           >
-            {content}
+            <MetricNeedleChart index={gaugeIndex++} />
           </PanelCard>
         );
       })}
+      <div
+        className="grid h-full min-h-[var(--panel-row-h)] grid-rows-3 gap-2 lg:col-span-1"
+        data-testid="live-metrics-core-column"
+      >
+        {coreMetrics.map((item) => (
+          <MetricMiniPanel
+            key={item.label}
+            title={item.label}
+            value={item.value}
+            testId="live-metrics-core-card"
+          />
+        ))}
+      </div>
+      <div
+        className="grid h-full min-h-[var(--panel-row-h)] grid-rows-3 gap-2 lg:col-span-1"
+        data-testid="live-metrics-contribution-column"
+      >
+        {contributionMetrics.map((item) => (
+          <MetricMiniPanel
+            key={item.label}
+            title={item.label}
+            value={item.value}
+            testId="live-metrics-contribution-card"
+          />
+        ))}
+      </div>
+      <OtcIndexLinePanel />
       <PanelCard
         title="6 Symbols Gap K"
         meta="Daily open/close + current"

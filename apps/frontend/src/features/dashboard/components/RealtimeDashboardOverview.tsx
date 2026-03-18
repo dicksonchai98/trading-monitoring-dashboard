@@ -15,7 +15,9 @@ import { PageLayout } from "@/components/ui/page-layout";
 import { PanelCard } from "@/components/ui/panel-card";
 import { DashboardMetricPanels } from "@/features/dashboard/components/DashboardMetricPanels";
 import {
+  BreadthDistributionChart,
   BidAskPressureChart,
+  EstimatedVolumeCompareChart,
   OrderFlowChart,
   ProgramActivityChart,
   VolumeLadderChart,
@@ -126,19 +128,25 @@ export function RealtimeDashboardOverview(): JSX.Element {
         <PanelCard
           title="Order Flow"
           note="Tracks near-month transaction imbalance and directional participation shifts."
-          span={6}
+          span={4}
           units={2}
         >
           <OrderFlowChart />
         </PanelCard>
-        <PanelCard title="Volume Ladder" span={6} meta="5m buckets">
+        <PanelCard title="Volume Ladder" span={4} meta="5m buckets">
           <VolumeLadderChart />
         </PanelCard>
-        <PanelCard title="Bid / Ask Pressure" span={6} meta="Depth skew">
+        <PanelCard title="Bid / Ask Pressure" span={4} meta="Depth skew">
           <BidAskPressureChart />
         </PanelCard>
-        <PanelCard title="Program Activity" span={6} meta="Auto flow">
+        <PanelCard title="Program Activity" span={4} meta="Auto flow">
           <ProgramActivityChart />
+        </PanelCard>
+        <PanelCard title="漲跌家數" span={4} meta="Breadth distribution + swing">
+          <BreadthDistributionChart />
+        </PanelCard>
+        <PanelCard title="成交量量比" span={4} meta="昨日 vs 今日預估成交量">
+          <EstimatedVolumeCompareChart />
         </PanelCard>
       </BentoGridSection>
 

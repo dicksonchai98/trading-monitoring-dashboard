@@ -5,6 +5,7 @@ import {
   CreditCard,
   Database,
   Gauge,
+  History,
   Shield,
   ClipboardList,
   PanelLeftClose,
@@ -17,6 +18,8 @@ import { cn } from "@/lib/utils/cn";
 const nav = [
   { to: "/dashboard", label: "Dashboard", icon: BarChart3 },
   { to: "/historical-data-analysis", label: "Historical Data Analysis", icon: Database },
+  { to: "/historical-data-loader", label: "Historical Data Loader", icon: History },
+  { to: "/historical-amplitude-distribution", label: "歷史振幅分佈圖", icon: BarChart3 },
   { to: "/market-thermometer", label: "Market Thermometer", icon: Gauge },
   { to: "/subscription", label: "Subscription", icon: CreditCard },
   { to: "/admin/audit", label: "Admin Audit", icon: ClipboardList },

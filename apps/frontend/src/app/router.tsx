@@ -10,6 +10,8 @@ import { LoginPage } from "@/features/auth/pages/LoginPage";
 import { RealtimeDashboardPage } from "@/features/dashboard/pages/RealtimeDashboardPage";
 import { HistoricalDataAnalysisPage } from "@/features/dashboard/pages/HistoricalDataAnalysisPage";
 import { MarketThermometerPage } from "@/features/dashboard/pages/MarketThermometerPage";
+import { HistoricalDataLoaderPage } from "@/features/dashboard/pages/HistoricalDataLoaderPage";
+import { HistoricalAmplitudeDistributionPage } from "@/features/dashboard/pages/HistoricalAmplitudeDistributionPage";
 import { SubscriptionPage } from "@/features/subscription/pages/SubscriptionPage";
 import { AdminAuditPage } from "@/features/admin/pages/AdminAuditPage";
 import { ForbiddenPage } from "@/features/common/pages/ForbiddenPage";
@@ -48,6 +50,22 @@ const router = createBrowserRouter([
         element: (
           <GuardedRoute requiredRole="visitor">
             <MarketThermometerPage />
+          </GuardedRoute>
+        ),
+      },
+      {
+        path: "/historical-data-loader",
+        element: (
+          <GuardedRoute requiredRole="visitor">
+            <HistoricalDataLoaderPage />
+          </GuardedRoute>
+        ),
+      },
+      {
+        path: "/historical-amplitude-distribution",
+        element: (
+          <GuardedRoute requiredRole="visitor">
+            <HistoricalAmplitudeDistributionPage />
           </GuardedRoute>
         ),
       },

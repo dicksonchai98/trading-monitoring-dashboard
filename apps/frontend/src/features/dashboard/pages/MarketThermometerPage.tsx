@@ -72,6 +72,7 @@ function buildStockPanels(count: number): StockPanelData[] {
 }
 
 const marketHeatPanels = buildStockPanels(50);
+const marketContributionPoints = 173;
 
 export function MarketThermometerPage(): JSX.Element {
   return (
@@ -170,6 +171,19 @@ export function MarketThermometerPage(): JSX.Element {
             units={1}
           >
             <MetricNeedleChart index={2} />
+          </PanelCard>
+          <PanelCard
+            title="大盤貢獻點數"
+            note="振幅即為大盤貢獻點數。"
+            span={12}
+            units={2}
+          >
+            <div className="mt-[var(--panel-gap)] flex h-full min-h-[130px] flex-col items-center justify-center text-center">
+              <p className="text-xs text-muted-foreground">振幅 = 大盤貢獻點數（points）</p>
+              <p className="mt-2 text-4xl font-semibold tracking-tight text-[#ef4444]">
+                +{marketContributionPoints}
+              </p>
+            </div>
           </PanelCard>
         </div>
       </BentoGridSection>
