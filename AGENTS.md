@@ -7,6 +7,9 @@ This document defines the project flow and technical baseline for all human and 
 Primary design reference:
 - `docs/plans/2026-02-16-futures-dashboard-design.md`
 
+Frontend reference:
+- For frontend tasks that touch architecture, dependencies, shared components, layout, styling, or testing patterns, review `apps/frontend/TECH_STACK.md` before implementation together with the active design/spec documents.
+
 If new changes conflict with this baseline, update design docs and OpenSpec artifacts in the same change.
 
 ## 2) Project Workflow

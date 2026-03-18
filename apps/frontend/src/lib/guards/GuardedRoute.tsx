@@ -1,0 +1,38 @@
+import type { JSX, PropsWithChildren } from "react";
+import { Navigate, useLocation } from "react-router-dom";
+import { useAuthStore } from "@/lib/store/auth-store";
+import type { UserRole } from "@/lib/types/auth";
+
+interface GuardedRouteProps extends PropsWithChildren {
+  requiredRole: UserRole;
+  requireActiveEntitlement?: boolean;
+}
+
+const roleRank: Record<UserRole, number> = {
+  visitor: 0,
+  member: 1,
+  admin: 2,
+};
+
+export function GuardedRoute({
+  requiredRole,
+  requireActiveEntitlement = false,
+  children,
+}: GuardedRouteProps): JSX.Element {
+  const location = useLocation();
+  const { resolved, role, entitlement } = useAuthStore();
+
+  if (!resolved) {
+    return <div className="p-4 text-sm text-muted-foreground">Resolving session...</div>;
+  }
+
+  if (roleRank[role] < roleRank[requiredRole]) {
+    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+  }
+
+  if (requireActiveEntitlement && entitlement !== "active") {
+    return <Navigate to="/subscription" replace />;
+  }
+
+  return <>{children}</>;
+}
