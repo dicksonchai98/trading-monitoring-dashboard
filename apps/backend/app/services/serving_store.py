@@ -6,10 +6,10 @@ import json
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
-from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from zoneinfo import ZoneInfo
 
 from app.config import (
     INGESTOR_CODE,

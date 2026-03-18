@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 from datetime import datetime
-from zoneinfo import ZoneInfo
 
 from app.modules.historical_backfill.transformer import (
     HistoricalBarRecord,
     transform_historical_rows,
 )
+from zoneinfo import ZoneInfo
 
 TZ = ZoneInfo("Asia/Taipei")
 

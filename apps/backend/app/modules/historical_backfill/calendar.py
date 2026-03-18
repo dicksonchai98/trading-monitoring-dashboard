@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta
+
 from zoneinfo import ZoneInfo
 
 TZ_TAIPEI = ZoneInfo("Asia/Taipei")
