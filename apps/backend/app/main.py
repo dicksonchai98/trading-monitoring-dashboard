@@ -24,6 +24,7 @@ from app.routes import (
     historical_backfill,
     market_crawler,
     realtime,
+    serving,
 )
 from app.state import metrics
 
@@ -49,6 +50,7 @@ app.include_router(admin.router)
 app.include_router(historical_backfill.router)
 app.include_router(market_crawler.router)
 app.include_router(batch_jobs.router)
+app.include_router(serving.router)
 
 
 @app.on_event("startup")
