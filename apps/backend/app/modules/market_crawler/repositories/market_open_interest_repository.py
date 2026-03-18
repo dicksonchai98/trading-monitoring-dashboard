@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime, timezone
-from typing import Callable
 
 from sqlalchemy.orm import Session
 
 from app.models.market_open_interest_daily import MarketOpenInterestDailyModel
-from app.modules.market_crawler.domain.contracts import NormalizedRecord
 from app.modules.batch_shared.database.helpers import upsert
+from app.modules.market_crawler.domain.contracts import NormalizedRecord
 
 
 def _utcnow() -> datetime:

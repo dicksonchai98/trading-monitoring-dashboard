@@ -142,7 +142,7 @@ def get_serving_redis_client():
 
 
 def reset_state_for_tests() -> None:
-    metrics.counters = {k: 0 for k in metrics.counters}
+    metrics.counters = dict.fromkeys(metrics.counters, 0)
     audit_log.events.clear()
     with SessionLocal() as session:
         session.execute(delete(BatchJobModel))

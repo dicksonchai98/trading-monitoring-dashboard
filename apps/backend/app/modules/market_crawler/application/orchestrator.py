@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
-from typing import Callable, Protocol
+from typing import Protocol
 
 try:  # Optional dependency used by fetchers.
     import httpx

@@ -6,11 +6,11 @@ import json
 from dataclasses import dataclass
 from datetime import date, timedelta
 
-from app.modules.market_crawler.domain.contracts import CrawlerJobParams
-from app.modules.market_crawler.registry import load_default_dataset_registry
 from app.modules.batch_shared.jobs.interfaces import JobContext, JobResult
 from app.modules.batch_shared.queue.redis_queue import RedisBatchQueue
 from app.modules.batch_shared.repositories.job_repository import JobRepository
+from app.modules.market_crawler.domain.contracts import CrawlerJobParams
+from app.modules.market_crawler.registry import load_default_dataset_registry
 
 
 @dataclass

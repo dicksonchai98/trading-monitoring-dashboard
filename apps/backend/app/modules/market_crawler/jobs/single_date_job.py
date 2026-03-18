@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Callable
 from datetime import date
-from typing import Callable
 
 from app.db.session import SessionLocal
+from app.modules.batch_shared.jobs.interfaces import JobContext, JobResult
+from app.modules.batch_shared.logging.context import JobLogContext, get_job_logger
 from app.modules.market_crawler.application.orchestrator import CrawlerOrchestrator
 from app.modules.market_crawler.domain.contracts import CrawlerJobParams
 from app.modules.market_crawler.infrastructure.metrics import CrawlerMetrics
@@ -21,8 +23,6 @@ from app.modules.market_crawler.registry import (
 from app.modules.market_crawler.repositories.market_open_interest_repository import (
     MarketOpenInterestRepository,
 )
-from app.modules.batch_shared.jobs.interfaces import JobContext, JobResult
-from app.modules.batch_shared.logging.context import JobLogContext, get_job_logger
 
 logger = logging.getLogger(__name__)
 

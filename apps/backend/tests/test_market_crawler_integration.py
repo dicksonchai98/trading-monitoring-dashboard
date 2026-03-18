@@ -7,6 +7,8 @@ from types import SimpleNamespace
 from app.db.session import SessionLocal
 from app.models.batch_job import BatchJobModel
 from app.models.market_open_interest_daily import MarketOpenInterestDailyModel
+from app.modules.batch_shared.jobs.interfaces import JobContext
+from app.modules.batch_shared.repositories.job_repository import JobRepository
 from app.modules.market_crawler.application.orchestrator import CrawlerOrchestrator
 from app.modules.market_crawler.domain.contracts import (
     FetchedPayload,
@@ -19,8 +21,6 @@ from app.modules.market_crawler.registry.dataset_registry import load_dataset_re
 from app.modules.market_crawler.repositories.market_open_interest_repository import (
     MarketOpenInterestRepository,
 )
-from app.modules.batch_shared.jobs.interfaces import JobContext
-from app.modules.batch_shared.repositories.job_repository import JobRepository
 
 
 def _build_registry(tmp_path: Path):
