@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Callable
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session

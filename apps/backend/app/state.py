@@ -24,11 +24,11 @@ from app.config import (
     INGESTOR_REDIS_RETRY_BACKOFF_MS,
     INGESTOR_STREAM_MAXLEN,
     REDIS_URL,
-    SHIOAJI_SIMULATION,
     get_stripe_settings,
 )
 from app.db.session import SessionLocal
 from app.market_ingestion.runner import MarketIngestionRunner
+from app.models.batch_job import BatchJobModel
 from app.models.billing_event import BillingEventModel
 from app.models.kbar_1m import Kbar1mModel
 from app.models.refresh_denylist import RefreshTokenDenylistModel
@@ -44,6 +44,7 @@ from app.services.billing_service import BillingService
 from app.services.denylist import RefreshDenylist
 from app.services.metrics import Metrics
 from app.services.rate_limiter import SimpleRateLimiter
+from app.services.shioaji_session import build_shioaji_client
 from app.services.stripe_provider import StripeProvider
 from app.stream_processing.runner import StreamProcessingRunner
 
@@ -77,12 +78,16 @@ def build_ingestor_runner() -> MarketIngestionRunner:
         return ingestor_runner
     try:
         import redis
-        import shioaji as sj  # type: ignore
+    except Exception as err:  # pragma: no cover - depends on runtime dependency
+        raise RuntimeError("ingestor dependencies unavailable: install redis and shioaji") from err
+
+    try:
+        shioaji_client = build_shioaji_client()
     except Exception as err:  # pragma: no cover - depends on runtime dependency
         raise RuntimeError("ingestor dependencies unavailable: install redis and shioaji") from err
 
     ingestor_runner = MarketIngestionRunner(
-        shioaji_api=sj.Shioaji(simulation=SHIOAJI_SIMULATION),
+        shioaji_client=shioaji_client,
         redis_client=redis.from_url(REDIS_URL),
         metrics=metrics,
         queue_maxsize=INGESTOR_QUEUE_MAXSIZE,
@@ -137,9 +142,10 @@ def get_serving_redis_client():
 
 
 def reset_state_for_tests() -> None:
-    metrics.counters = {k: 0 for k in metrics.counters}
+    metrics.counters = dict.fromkeys(metrics.counters, 0)
     audit_log.events.clear()
     with SessionLocal() as session:
+        session.execute(delete(BatchJobModel))
         session.execute(delete(BillingEventModel))
         session.execute(delete(Kbar1mModel))
         session.execute(delete(SubscriptionModel))

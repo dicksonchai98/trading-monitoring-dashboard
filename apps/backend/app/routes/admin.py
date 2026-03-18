@@ -7,11 +7,13 @@ from fastapi import APIRouter, Depends
 from app.deps import Principal, require_admin
 from app.state import audit_log
 
-router = APIRouter(prefix="/admin", tags=["admin"])
+router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 
 @router.get("/logs")
-def logs(_: Principal = Depends(require_admin)) -> dict[str, list[dict[str, str | None]]]:
+def logs(
+    _: Principal = Depends(require_admin),
+) -> dict[str, list[dict[str, str | int | float | bool | None | dict[str, object]]]]:
     return {
         "events": [
             {
@@ -20,6 +22,7 @@ def logs(_: Principal = Depends(require_admin)) -> dict[str, list[dict[str, str 
                 "actor": event.actor,
                 "role": event.role,
                 "timestamp": event.timestamp,
+                "metadata": event.metadata,
             }
             for event in audit_log.events
         ]

@@ -14,9 +14,6 @@ from app.config import (
     INGESTOR_ENV,
     INGESTOR_QUOTE_TYPES,
     INGESTOR_RECONNECT_MAX_SECONDS,
-    SHIOAJI_API_KEY,
-    SHIOAJI_SECRET_KEY,
-    SHIOAJI_SIMULATION,
 )
 from app.market_ingestion.pipeline import IngestionPipeline
 from app.market_ingestion.shioaji_client import ShioajiClient
@@ -40,7 +37,7 @@ def reconnect_delays(attempts: int, cap: int = 30) -> list[int]:
 class MarketIngestionRunner:
     def __init__(
         self,
-        shioaji_api: Any,
+        shioaji_client: ShioajiClient,
         redis_client: Any,
         metrics: Metrics,
         queue_maxsize: int,
@@ -49,12 +46,7 @@ class MarketIngestionRunner:
         retry_backoff_ms: int,
     ) -> None:
         self._metrics = metrics
-        self._client = ShioajiClient(
-            api=shioaji_api,
-            api_key=SHIOAJI_API_KEY,
-            secret_key=SHIOAJI_SECRET_KEY,
-            simulation=SHIOAJI_SIMULATION,
-        )
+        self._client = shioaji_client
         self._pipeline = IngestionPipeline(queue_maxsize=queue_maxsize, metrics=metrics)
         self._writer = RedisWriter(
             redis_client=redis_client,
