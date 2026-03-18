@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+from zoneinfo import ZoneInfo
 
 from app.db.session import SessionLocal
 from app.models.kbar_1m import Kbar1mModel
 from app.modules.historical_backfill.transformer import HistoricalBarRecord
 from app.modules.historical_backfill.writer import upsert_kbars
 from sqlalchemy import select
-from zoneinfo import ZoneInfo
 
 TZ = ZoneInfo("Asia/Taipei")
 

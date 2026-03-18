@@ -3,15 +3,16 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
-from typing import Any, Callable
+from typing import Any
 
 from sqlalchemy.orm import Session
 
 from app.modules.batch_shared.jobs.interfaces import JobContext, JobResult
 from app.modules.historical_backfill.chunker import chunk_date_range
-from app.modules.historical_backfill.errors import ErrorClass, classify_error
+from app.modules.historical_backfill.errors import classify_error
 from app.modules.historical_backfill.fetcher import HistoricalFetcher
 from app.modules.historical_backfill.logging import BackfillLogContext, get_backfill_logger
 from app.modules.historical_backfill.transformer import transform_historical_rows
