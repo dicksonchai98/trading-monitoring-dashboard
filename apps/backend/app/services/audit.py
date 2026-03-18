@@ -13,13 +13,21 @@ class SecurityEvent:
     actor: str | None
     role: str | None
     timestamp: str
+    metadata: dict[str, str | int | float | bool | None] | None = None
 
 
 class AuditLog:
     def __init__(self) -> None:
         self.events: list[SecurityEvent] = []
 
-    def record(self, event_type: str, path: str, actor: str | None, role: str | None) -> None:
+    def record(
+        self,
+        event_type: str,
+        path: str,
+        actor: str | None,
+        role: str | None,
+        metadata: dict[str, str | int | float | bool | None] | None = None,
+    ) -> None:
         self.events.append(
             SecurityEvent(
                 event_type=event_type,
@@ -27,6 +35,6 @@ class AuditLog:
                 actor=actor,
                 role=role,
                 timestamp=datetime.now(tz=timezone.utc).isoformat(),
+                metadata=metadata,
             )
         )
-

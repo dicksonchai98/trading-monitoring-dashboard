@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime, timezone
-from typing import Callable
 
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
@@ -35,7 +35,8 @@ class RefreshDenylistRepository:
     def cleanup(self) -> None:
         with self._session_factory() as session:
             now = datetime.now(tz=timezone.utc)
-            stmt = delete(RefreshTokenDenylistModel).where(RefreshTokenDenylistModel.expires_at <= now)
+            stmt = delete(RefreshTokenDenylistModel).where(
+                RefreshTokenDenylistModel.expires_at <= now
+            )
             session.execute(stmt)
             session.commit()
-

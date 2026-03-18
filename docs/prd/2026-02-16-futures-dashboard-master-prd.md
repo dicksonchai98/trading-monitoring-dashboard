@@ -13,7 +13,7 @@
 
 1. 提供近即時期貨快照給儀表板使用者。
 2. 對所有保護 API 強制 JWT + RBAC。
-3. 透過 mock webhook 支援單一方案訂閱流程。
+3. 透過 Stripe Checkout + Webhook 支援單一方案訂閱流程。
 4. 以 Docker Compose 本地部署並維持未來雲端遷移邊界。
 
 ## 3. 系統約束
@@ -39,9 +39,9 @@
 
 - 負責: 認證、JWT 驗證、RBAC 權限檢查。
 
-4. Subscription & Billing (Mock)
+4. Subscription & Billing (Stripe)
 
-- 負責: 訂閱意圖、mock webhook、訂閱狀態。
+- 負責: 訂閱意圖、Stripe Checkout、Webhook、訂閱狀態。
 
 5. Admin & Audit
 
@@ -65,7 +65,7 @@
 
 - 其他 domain 的保護 API 依賴權限層。
 
-2. Subscription & Billing (Mock)
+2. Subscription & Billing (Stripe)
 
 - 依賴 Identity & Access 進行身分與權限控制。
 
@@ -119,7 +119,7 @@
 
 1. 正常狀態下每秒推送快照。
 2. 未授權請求正確回應 401/403。
-3. Mock webhook 可啟用訂閱權限。
+3. Stripe webhook 可啟用訂閱權限。
 4. 200 連線基準測試不出現關鍵故障。
 
 ## 11. 文件結構

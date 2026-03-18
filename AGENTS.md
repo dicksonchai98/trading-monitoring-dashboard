@@ -106,3 +106,8 @@ Out of scope:
 - Integration: stream -> compute -> snapshot path
 - API: auth, role-protected routes, mock webhook flow
 - Non-functional: SSE connection/concurrency and ingestion reconnect behavior
+
+## 7) Pre-Commit Rules
+
+All contributors must follow the pre-commit checklist:
+- `docs/pre-commit-checklist.md`

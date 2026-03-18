@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+from app.main import app
 from fastapi.testclient import TestClient
 
-from app.main import app
 
-
-def _register_and_login(client: TestClient, username: str = "alice", password: str = "alice-pass") -> dict[str, str]:
+def _register_and_login(
+    client: TestClient, username: str = "alice", password: str = "alice-pass"
+) -> dict[str, str]:
     register_res = client.post("/auth/register", json={"username": username, "password": password})
     assert register_res.status_code == 200
     login_res = client.post("/auth/login", json={"username": username, "password": password})
@@ -38,15 +39,23 @@ def test_refresh_rotation_reuse_old_token_fails_with_401() -> None:
     headers = {"Authorization": f"Bearer {auth['access_token']}"}
     current_refresh = auth["set_cookie"].split(";", 1)[0].split("=", 1)[1]
 
-    first_refresh = client.post("/auth/refresh", headers=headers, cookies={"refresh_token": current_refresh})
+    first_refresh = client.post(
+        "/auth/refresh", headers=headers, cookies={"refresh_token": current_refresh}
+    )
     assert first_refresh.status_code == 200
     old_cookie = auth["set_cookie"].split(";", 1)[0]
     rotated_cookie = first_refresh.headers.get("set-cookie", "").split(";", 1)[0].split("=", 1)[1]
-    second_refresh = client.post("/auth/refresh", headers=headers, cookies={"refresh_token": rotated_cookie})
+    second_refresh = client.post(
+        "/auth/refresh", headers=headers, cookies={"refresh_token": rotated_cookie}
+    )
     assert second_refresh.status_code == 200
 
     # Reuse the old refresh cookie should fail due to denylist jti.
-    replay = client.post("/auth/refresh", headers=headers, cookies={"refresh_token": old_cookie.split("=", 1)[1]})
+    replay = client.post(
+        "/auth/refresh",
+        headers=headers,
+        cookies={"refresh_token": old_cookie.split("=", 1)[1]},
+    )
     assert replay.status_code == 401
 
 
@@ -64,7 +73,7 @@ def test_admin_routes_return_403_for_non_admin_user() -> None:
     client = TestClient(app)
     auth = _register_and_login(client, username="user3", password="pass3")
     headers = {"Authorization": f"Bearer {auth['access_token']}"}
-    res = client.get("/admin/logs", headers=headers)
+    res = client.get("/api/admin/logs", headers=headers)
     assert res.status_code == 403
 
 

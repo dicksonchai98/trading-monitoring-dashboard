@@ -2,14 +2,14 @@
 
 ## Goal
 
-Build an MVP for a futures monitoring dashboard with a React frontend and FastAPI backend. Data comes from Shioaji, is processed in backend, and pushed to the frontend in near real-time. The system includes JWT-based admin, RBAC, mock subscription flow, and page-level access control. MVP scope focuses on near-month Taiwan index futures only.
+Build an MVP for a futures monitoring dashboard with a React frontend and FastAPI backend. Data comes from Shioaji, is processed in backend, and pushed to the frontend in near real-time. The system includes JWT-based admin, RBAC, Stripe subscription flow, and page-level access control. MVP scope focuses on near-month Taiwan index futures only.
 
 ## MVP Scope
 
 - Real-time near-month Taiwan index futures display
 - SSE updates every 1 second
 - JWT auth + RBAC (admin/member/visitor)
-- Mock payment webhook for single subscription plan
+- Stripe Checkout + Webhook for single subscription plan
 - Page access control on frontend + enforced RBAC on backend
 - PostgreSQL + Redis
 - Redis Streams as MQ
@@ -18,7 +18,6 @@ Out of scope (MVP):
 
 - Full options/spot/foreign data types
 - Historical backfill and scraping pipeline
-- Real payment provider integration
 - Full multi-plan subscription model
 
 ## Key Decisions
@@ -45,7 +44,7 @@ Out of scope (MVP):
 - `users`: user profiles and roles
 - `rbac_policy`: permissions for CRUD
 - `subscription`: single-plan subscription state machine
-- `mock_payment`: internal webhook simulation
+- `billing_provider`: Stripe integration (Checkout/Webhook/Portal)
 - `market_ingestion`: Shioaji adapter and normalization
 - `indicator_engine`: compute near-month snapshot
 - `realtime`: SSE hub and stream readers
@@ -65,12 +64,13 @@ Out of scope (MVP):
    - Redis key `latest:snapshot:near_month_txf`
 6. `realtime` SSE reads latest snapshot and pushes every 1 second
 
-### Subscription Flow (Mock Webhook)
+### Subscription Flow (Stripe)
 
 1. Member creates subscription intent
 2. Store intent in Postgres
-3. Trigger `mock_webhook`
-4. Activate subscription, update RBAC entitlements
+3. Create Stripe Checkout Session
+4. Receive Stripe webhook event
+5. Activate subscription, update RBAC entitlements
 
 ### Access Control
 
@@ -90,12 +90,12 @@ Out of scope (MVP):
 
 - Unit: indicator computations, RBAC policies
 - Integration: Redis Streams -> compute -> Redis snapshot
-- API: auth, role-protected CRUD, mock webhook flow
+- API: auth, role-protected CRUD, Stripe checkout/webhook flow
 - Non-functional: SSE 200 connections, ingestion reconnection
 
 ## Open Questions (Post-MVP)
 
 - Historical data storage and analysis (TimescaleDB/ClickHouse?)
-- Multi-plan subscription and real payment provider
+- Multi-plan subscription
 - Extended instruments (options, spot, institutional data)
 - WebSocket migration if needed
