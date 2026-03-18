@@ -1,0 +1,32 @@
+dataset_code: taifex_institution_open_interest_daily
+dataset_name: TAIFEX institutional open interest
+source_name: taifex_data_gov
+enabled: true
+
+source:
+  endpoint_template: https://www.taifex.com.tw/data_gov/taifex_open_data.asp?data_name=MarketDataOfMajorInstitutionalTradersDetailsOfFuturesContractsBytheDate
+  method: GET
+  response_format: csv
+  encoding: utf-8
+
+schedule:
+  expected_publication_time: 13:45-16:15 Asia/Taipei
+  retry_policy:
+    max_attempts: 3
+    retry_interval_minutes: 15
+
+pipeline:
+  parser: taifex_csv_parser
+  parser_version: v1
+  normalizer: taifex_institution_open_interest_normalizer
+  validator: taifex_institution_open_interest_validator
+
+storage:
+  table: market_open_interest_daily
+  write_mode: upsert
+  primary_key:
+    - data_date
+    - market_code
+    - instrument_code
+    - entity_code
+    - source

@@ -28,6 +28,29 @@ FastAPI modular monolith for ingestion, processing, auth, subscription, and real
 Runbook:
 - `apps/backend/docs/market-ingestor-ops.md`
 
+## Historical Backfill Worker
+
+- Trigger API: `POST /api/admin/batch/backfill/jobs`
+- Worker process entrypoint: `python -m workers.backfill_worker`
+- Required env for provider login:
+  - `SHIOAJI_API_KEY`
+  - `SHIOAJI_SECRET_KEY`
+  - `SHIOAJI_SIMULATION`
+- Runtime knobs:
+  - `BACKFILL_MAX_CONCURRENCY`
+  - `BACKFILL_RETRY_MAX_ATTEMPTS`
+  - `BACKFILL_RETRY_BACKOFF_SECONDS`
+  - `BACKFILL_WORKER_POLL_INTERVAL_SECONDS`
+  - `BACKFILL_HEARTBEAT_INTERVAL_SECONDS`
+  - `BACKFILL_FETCH_MIN_INTERVAL_SECONDS`
+
+## Shared Batch Admin APIs
+
+- `POST /api/admin/batch/backfill/jobs`
+- `POST /api/admin/batch/crawler/jobs`
+- `GET /api/admin/batch/jobs`
+- `GET /api/admin/batch/jobs/{job_id}`
+
 <!-- ## Run (example)
 
 ```bash
