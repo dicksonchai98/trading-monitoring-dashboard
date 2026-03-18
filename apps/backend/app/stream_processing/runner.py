@@ -10,6 +10,7 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Any
+
 from zoneinfo import ZoneInfo
 
 from app.market_ingestion.stream_keys import build_stream_key
