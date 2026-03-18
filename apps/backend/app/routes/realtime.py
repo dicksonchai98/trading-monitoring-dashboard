@@ -11,7 +11,7 @@ router = APIRouter(prefix="/realtime", tags=["realtime"])
 
 
 def _sse_message(event: str, data: str) -> bytes:
-    return f"event: {event}\ndata: {data}\n\n".encode("utf-8")
+    return f"event: {event}\ndata: {data}\n\n".encode()
 
 
 @router.get("/strength")
@@ -28,4 +28,3 @@ def weighted(_: Principal = Depends(require_user_or_admin)) -> StreamingResponse
         yield _sse_message("weighted", '{"value":"protected"}')
 
     return StreamingResponse(stream(), media_type="text/event-stream")
-

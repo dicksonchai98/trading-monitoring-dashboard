@@ -2,7 +2,7 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Build the MVP for a futures monitoring dashboard with FastAPI + React, Redis Streams ingestion, SSE updates, JWT + RBAC, and mock subscription flow.
+**Goal:** Build the MVP for a futures monitoring dashboard with FastAPI + React, Redis Streams ingestion, SSE updates, JWT + RBAC, and Stripe subscription flow.
 
 **Architecture:** Modular monolith backend with domain modules, Redis Streams for ingestion, Redis cache for latest snapshots, Postgres for transactional data, and SSE for frontend updates. Monorepo layout with `frontend/`, `backend/`, and `infra/`.
 
@@ -233,7 +233,7 @@ git add backend/app/auth backend/app/rbac backend/tests/test_rbac.py backend/app
 git commit -m "feat: add jwt auth and rbac policy"
 ```
 
-### Task 6: Subscription intent + mock webhook flow
+### Task 6: Stripe checkout + webhook flow
 
 **Files:**
 - Create: `backend/app/subscriptions/router.py`
@@ -250,7 +250,7 @@ from app.main import app
 
 def test_subscription_intent():
     client = TestClient(app)
-    resp = client.post("/subscriptions/intent", json={"plan": "basic"})
+    resp = client.post("/billing/checkout", json={"price_id": "price_basic"})
     assert resp.status_code == 201
 ```
 
@@ -261,7 +261,7 @@ Expected: FAIL (route not found)
 
 **Step 3: Write minimal implementation**
 
-Add intent endpoint + mock webhook endpoint to activate subscription.
+Add checkout endpoint + Stripe webhook endpoint to activate subscription.
 
 **Step 4: Run test to verify it passes**
 
@@ -272,7 +272,7 @@ Expected: PASS
 
 ```bash
 git add backend/app/subscriptions backend/tests/test_subscription_flow.py backend/app/main.py
-git commit -m "feat: add subscription intent and mock webhook"
+git commit -m "feat: add stripe checkout and webhook flow"
 ```
 
 ### Task 7: Redis Streams ingestion + indicator engine

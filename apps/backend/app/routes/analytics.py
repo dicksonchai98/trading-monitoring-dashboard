@@ -12,4 +12,3 @@ router = APIRouter(prefix="/analytics", tags=["analytics"])
 @router.get("/history")
 def history(_: Principal = Depends(require_user_or_admin)) -> dict[str, list[dict[str, str]]]:
     return {"items": [{"timestamp": "now", "value": "mock"}]}
-
