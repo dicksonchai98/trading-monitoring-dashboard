@@ -1,1 +1,1 @@
-"""Batch worker entrypoints."""
+"""Worker entrypoints."""
