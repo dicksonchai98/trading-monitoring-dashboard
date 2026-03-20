@@ -51,6 +51,20 @@ Runbook:
 - `GET /api/admin/batch/jobs`
 - `GET /api/admin/batch/jobs/{job_id}`
 
+## Stream Processing Worker
+
+- Dedicated process entrypoint: `python -m workers.stream_processing_worker`
+- API process should not run aggregator loops; set `AGGREGATOR_ENABLED=false` for API service.
+- In docker-compose:
+  - `backend-api` serves HTTP only.
+  - `backend-stream-worker` runs stream consumption and state writes.
+
+Quick runbook:
+- Start: `docker compose up -d redis backend-api backend-stream-worker`
+- Check status: `docker compose ps`
+- Restart worker only: `docker compose restart backend-stream-worker`
+- Stop worker without API impact: `docker compose stop backend-stream-worker`
+
 <!-- ## Run (example)
 
 ```bash
