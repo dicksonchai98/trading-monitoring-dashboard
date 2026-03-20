@@ -1,0 +1,14 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+
+def test_compose_defines_split_api_and_stream_worker_services() -> None:
+    compose_path = Path(__file__).resolve().parents[3] / "docker-compose.yml"
+    content = compose_path.read_text(encoding="utf-8")
+
+    assert "backend-api:" in content
+    assert "backend-stream-worker:" in content
+    assert "command: uvicorn app.main:app --host 0.0.0.0 --port 8000" in content
+    assert "command: python -m workers.stream_processing_worker" in content
+    assert 'AGGREGATOR_ENABLED: "false"' in content
