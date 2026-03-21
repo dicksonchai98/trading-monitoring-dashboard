@@ -39,6 +39,18 @@ def _resolve_from_futures(futures: Any, code: str) -> Any:
     return None
 
 
+def _resolve_from_stocks(stocks: Any, code: str) -> Any:
+    if hasattr(stocks, "__getitem__"):
+        with suppress(Exception):
+            contract = stocks[code]
+            if contract is not None:
+                return contract
+    contract = getattr(stocks, code, None)
+    if contract is not None:
+        return contract
+    return None
+
+
 def _available_futures_codes(futures: Any, limit: int = 20) -> list[str]:
     if hasattr(futures, "keys"):
         try:
@@ -46,6 +58,16 @@ def _available_futures_codes(futures: Any, limit: int = 20) -> list[str]:
         except Exception:
             return []
     names = [name for name in dir(futures) if not name.startswith("_")]
+    return names[:limit]
+
+
+def _available_stock_codes(stocks: Any, limit: int = 20) -> list[str]:
+    if hasattr(stocks, "keys"):
+        try:
+            return [str(key) for key in list(stocks.keys())[:limit]]
+        except Exception:
+            return []
+    names = [name for name in dir(stocks) if not name.startswith("_")]
     return names[:limit]
 
 
@@ -83,3 +105,24 @@ def subscribe_topics(api: Any, contract: Any, quote_types: Iterable[str] | None 
                 # Fall back to SDK default version.
                 quote.subscribe(contract, quote_type=_quote_type(normalized))
             seen.add(normalized)
+
+
+def resolve_stock_contract(api: Any, symbol: str) -> Any:
+    stocks = api.Contracts.Stocks
+    contract = _resolve_from_stocks(stocks, symbol)
+    if contract is not None:
+        return contract
+    raise RuntimeError(
+        "unable to resolve stock contract "
+        f"symbol={symbol} available={_available_stock_codes(stocks)}"
+    )
+
+
+def subscribe_spot_ticks(api: Any, symbols: Iterable[str]) -> int:
+    quote = api.quote
+    subscribed = 0
+    for symbol in symbols:
+        contract = resolve_stock_contract(api, symbol)
+        quote.subscribe(contract, quote_type=_quote_type("tick"), version=_quote_version_v1())
+        subscribed += 1
+    return subscribed

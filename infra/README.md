@@ -49,7 +49,17 @@ Configure these backend environment variables before enabling ingestor:
 - `INGESTOR_STREAM_MAXLEN`
 - `INGESTOR_REDIS_RETRY_ATTEMPTS`
 - `INGESTOR_REDIS_RETRY_BACKOFF_MS`
+- `INGESTOR_SPOT_SYMBOLS_FILE` (default `infra/config/stock150.txt`)
+- `INGESTOR_SPOT_SYMBOLS_EXPECTED_COUNT` (default `150`; set to current list size during staged rollout)
+- `INGESTOR_SPOT_REQUIRED` (`false` by default; set `true` to fail fast when spot config is invalid)
 - `REDIS_URL`
 - `SHIOAJI_API_KEY`
 - `SHIOAJI_SECRET_KEY`
 - `SHIOAJI_SIMULATION`
+
+Static symbol registry file for Phase 1:
+
+- `infra/config/stock150.txt`
+- one 4-digit TW stock symbol per line
+- supports blank lines and `#` comment lines
+- current project list is temporarily `156` symbols; set `INGESTOR_SPOT_SYMBOLS_EXPECTED_COUNT=156` until Phase 2 cleanup
