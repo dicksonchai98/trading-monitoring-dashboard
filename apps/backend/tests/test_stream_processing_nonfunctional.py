@@ -112,3 +112,138 @@ def test_stream_processing_consumer_smoke() -> None:
         processed_total += processed
     assert processed_total == 200
     assert len(redis.acks) == 200
+
+
+def test_stream_processing_mixed_tick_bidask_load_progresses_both_pipelines() -> None:
+    redis = FakeRedis()
+    metrics = Metrics()
+    runner = StreamProcessingRunner(
+        redis_client=redis,
+        session_factory=lambda: None,
+        metrics=metrics,
+        env="dev",
+        code="MTX",
+        tick_group="agg:tick",
+        bidask_group="agg:bidask",
+        tick_consumer="agg-tick-1",
+        bidask_consumer="agg-bidask-1",
+        read_count=100,
+        block_ms=0,
+        claim_idle_ms=1000,
+        claim_count=100,
+        ttl_seconds=60 * 60 * 24,
+        series_fields=["bid", "ask", "mid", "spread", "delta_1s"],
+    )
+    runner.ensure_consumer_groups()
+
+    tick_stream = "dev:stream:tick:MTX"
+    bidask_stream = "dev:stream:bidask:MTX"
+    for i in range(100):
+        redis.xadd(
+            tick_stream,
+            RedisWriter.to_redis_fields(
+                {
+                    "source": "shioaji",
+                    "code": "MTX",
+                    "quote_type": "tick",
+                    "event_ts": "2026-03-05T09:00:00+08:00",
+                    "recv_ts": "2026-03-05T01:00:00+00:00",
+                    "payload": {"price": 100 + i, "volume": 1},
+                }
+            ),
+        )
+        redis.xadd(
+            bidask_stream,
+            RedisWriter.to_redis_fields(
+                {
+                    "source": "shioaji",
+                    "code": "MTX",
+                    "quote_type": "bidask",
+                    "event_ts": "2026-03-05T09:00:00+08:00",
+                    "recv_ts": "2026-03-05T01:00:00+00:00",
+                    "payload": {"bid": 100 + i, "ask": 101 + i},
+                }
+            ),
+        )
+
+    tick_total = 0
+    bidask_total = 0
+    while True:
+        t = runner.consume_tick_once()
+        b = runner.consume_bidask_once()
+        if t == 0 and b == 0:
+            break
+        tick_total += t
+        bidask_total += b
+
+    assert tick_total == 100
+    assert bidask_total == 100
+
+
+def test_tick_sink_backpressure_keeps_entry_pending_for_retry() -> None:
+    redis = FakeRedis()
+    metrics = Metrics()
+    runner = StreamProcessingRunner(
+        redis_client=redis,
+        session_factory=lambda: None,
+        metrics=metrics,
+        env="dev",
+        code="MTX",
+        tick_group="agg:tick",
+        bidask_group="agg:bidask",
+        tick_consumer="agg-tick-1",
+        bidask_consumer="agg-bidask-1",
+        read_count=100,
+        block_ms=0,
+        claim_idle_ms=1000,
+        claim_count=100,
+        ttl_seconds=60 * 60 * 24,
+        series_fields=["bid", "ask", "mid", "spread", "delta_1s"],
+        tick_db_queue_maxsize=1,
+    )
+    runner.ensure_consumer_groups()
+
+    tick_stream = "dev:stream:tick:MTX"
+    redis.xadd(
+        tick_stream,
+        RedisWriter.to_redis_fields(
+            {
+                "source": "shioaji",
+                "code": "MTX",
+                "quote_type": "tick",
+                "event_ts": "2026-03-05T09:30:01+08:00",
+                "recv_ts": "2026-03-05T01:30:01+00:00",
+                "payload": {"price": 100, "volume": 1},
+            }
+        ),
+    )
+    redis.xadd(
+        tick_stream,
+        RedisWriter.to_redis_fields(
+            {
+                "source": "shioaji",
+                "code": "MTX",
+                "quote_type": "tick",
+                "event_ts": "2026-03-05T09:31:01+08:00",
+                "recv_ts": "2026-03-05T01:31:01+00:00",
+                "payload": {"price": 101, "volume": 1},
+            }
+        ),
+    )
+    redis.xadd(
+        tick_stream,
+        RedisWriter.to_redis_fields(
+            {
+                "source": "shioaji",
+                "code": "MTX",
+                "quote_type": "tick",
+                "event_ts": "2026-03-05T09:32:01+08:00",
+                "recv_ts": "2026-03-05T01:32:01+00:00",
+                "payload": {"price": 102, "volume": 1},
+            }
+        ),
+    )
+
+    processed = runner.consume_tick_once()
+    assert processed == 2
+    assert len(redis.acks) == 2
