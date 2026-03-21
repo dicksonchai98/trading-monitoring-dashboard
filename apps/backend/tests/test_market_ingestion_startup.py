@@ -10,3 +10,7 @@ def test_metrics_include_ingestor_gap_signals() -> None:
     assert "events_dropped_total" in counters
     assert "ingest_lag_ms" in counters
     assert "ws_reconnect_count" in counters
+    assert "ingestion_spot_events_total" in counters
+    assert "ingestion_spot_queue_depth" in counters
+    assert "ingestion_spot_publish_errors_total" in counters
+    assert "ingestion_spot_lag_ms" in counters

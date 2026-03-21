@@ -1,7 +1,12 @@
 from __future__ import annotations
 
 import pytest
-from app.market_ingestion.shioaji_subscription import resolve_contract, subscribe_topics
+from app.market_ingestion.shioaji_subscription import (
+    resolve_contract,
+    resolve_stock_contract,
+    subscribe_spot_ticks,
+    subscribe_topics,
+)
 
 
 class FakeQuote:
@@ -20,13 +25,14 @@ class FakeFutures(dict):
 
 
 class FakeContracts:
-    def __init__(self, futures: FakeFutures) -> None:
+    def __init__(self, futures: FakeFutures, stocks: dict[str, object] | None = None) -> None:
         self.Futures = futures
+        self.Stocks = stocks or {}
 
 
 class FakeAPI:
-    def __init__(self, futures: FakeFutures) -> None:
-        self.Contracts = FakeContracts(futures=futures)
+    def __init__(self, futures: FakeFutures, stocks: dict[str, object] | None = None) -> None:
+        self.Contracts = FakeContracts(futures=futures, stocks=stocks)
         self.quote = FakeQuote()
 
 
@@ -79,3 +85,22 @@ def test_subscribe_topics_raises_when_contract_is_none() -> None:
     api = FakeAPI(FakeFutures({}))
     with pytest.raises(RuntimeError, match="resolved futures contract is empty"):
         subscribe_topics(api, None, ["tick"])
+
+
+def test_resolve_stock_contract_from_stocks() -> None:
+    stock_contract = object()
+    api = FakeAPI(FakeFutures({}), stocks={"2330": stock_contract})
+    assert resolve_stock_contract(api, "2330") is stock_contract
+
+
+def test_subscribe_spot_ticks_for_symbols() -> None:
+    contract_2330 = object()
+    contract_2317 = object()
+    api = FakeAPI(
+        FakeFutures({}),
+        stocks={"2330": contract_2330, "2317": contract_2317},
+    )
+    subscribed = subscribe_spot_ticks(api, ["2330", "2317"])
+    assert subscribed == 2
+    assert any(target is contract_2330 for _, target, _ in api.quote.subscriptions)
+    assert any(target is contract_2317 for _, target, _ in api.quote.subscriptions)
