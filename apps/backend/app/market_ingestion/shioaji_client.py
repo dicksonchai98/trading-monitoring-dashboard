@@ -38,5 +38,10 @@ class ShioajiClient:
     def set_on_bidask_fop_v1_callback(self, callback: Callable[..., Any]) -> None:
         self._api.quote.set_on_bidask_fop_v1_callback(callback)
 
+    def set_on_tick_stk_v1_callback(self, callback: Callable[..., Any]) -> None:
+        handler = getattr(self._api.quote, "set_on_tick_stk_v1_callback", None)
+        if callable(handler):
+            handler(callback)
+
     def set_on_event_callback(self, callback: Callable[..., Any]) -> None:
         self._api.quote.on_event(callback)
