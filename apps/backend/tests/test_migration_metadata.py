@@ -41,3 +41,8 @@ def test_merge_head_migration_file_exists() -> None:
 def test_batch_job_admin_queue_migration_file_exists() -> None:
     path = Path("alembic/versions/20260315_01_extend_batch_jobs_for_admin_queue.py")
     assert path.exists()
+
+
+def test_bidask_metrics_migration_file_exists() -> None:
+    path = Path("alembic/versions/20260321_01_add_bidask_metrics_1s.py")
+    assert path.exists()

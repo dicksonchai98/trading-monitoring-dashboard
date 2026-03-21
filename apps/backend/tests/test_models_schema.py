@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from app.models.batch_job import BatchJobModel
+from app.models.bidask_metric_1s import BidAskMetric1sModel
 from app.models.billing_event import BillingEventModel
 from app.models.kbar_1m import Kbar1mModel
 from app.models.refresh_denylist import RefreshTokenDenylistModel
@@ -27,6 +28,10 @@ def test_billing_event_model_table_name() -> None:
 
 def test_kbar_1m_model_table_name() -> None:
     assert Kbar1mModel.__tablename__ == "kbars_1m"
+
+
+def test_bidask_metric_1s_model_table_name() -> None:
+    assert BidAskMetric1sModel.__tablename__ == "bidask_metrics_1s"
 
 
 def test_batch_job_status_column_allows_longest_status_value() -> None:
