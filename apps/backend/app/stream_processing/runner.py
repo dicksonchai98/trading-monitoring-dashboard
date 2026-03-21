@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Any
 
+from sqlalchemy.exc import IntegrityError
 from zoneinfo import ZoneInfo
 
 from app.market_ingestion.stream_keys import build_stream_key
@@ -235,7 +236,18 @@ class StreamProcessingRunner:
         claim_count: int,
         ttl_seconds: int,
         series_fields: list[str],
+        tick_db_queue_maxsize: int = 4096,
+        bidask_db_queue_maxsize: int = 4096,
+        db_sink_batch_size: int = 100,
+        db_sink_retry_backoff_seconds: float = 0.5,
+        db_sink_max_retries: int = 5,
+        db_sink_dead_letter_maxlen: int = 10000,
+        blocking_warn_ms: int = 200,
+        enable_tick_pipeline: bool = True,
+        enable_bidask_pipeline: bool = True,
     ) -> None:
+        if not enable_tick_pipeline and not enable_bidask_pipeline:
+            raise ValueError("at least one stream pipeline must be enabled")
         self._redis = redis_client
         self._session_factory = session_factory
         self._metrics = metrics
@@ -251,11 +263,28 @@ class StreamProcessingRunner:
         self._claim_count = claim_count
         self._ttl_seconds = ttl_seconds
         self._series_fields = set(series_fields)
+        self._db_sink_batch_size = max(1, db_sink_batch_size)
+        self._db_sink_retry_backoff_seconds = max(0.0, db_sink_retry_backoff_seconds)
+        self._db_sink_max_retries = max(1, db_sink_max_retries)
+        self._db_sink_dead_letter_maxlen = max(100, db_sink_dead_letter_maxlen)
+        self._blocking_warn_ms = max(1, blocking_warn_ms)
+        self._enable_tick_pipeline = enable_tick_pipeline
+        self._enable_bidask_pipeline = enable_bidask_pipeline
         self._tick_states: dict[str, TickStateMachine] = {}
         self._bidask_states: dict[str, BidAskStateMachine] = {}
+        self._tick_db_queue: asyncio.Queue[KBar] = asyncio.Queue(maxsize=tick_db_queue_maxsize)
+        self._bidask_db_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(
+            maxsize=bidask_db_queue_maxsize
+        )
+        self._tick_db_pending_batch: list[KBar] = []
+        self._bidask_db_pending_batch: list[dict[str, Any]] = []
+        self._tick_db_pending_retries = 0
+        self._bidask_db_pending_retries = 0
         self._stop = False
         self._tick_task: asyncio.Task[None] | None = None
         self._bidask_task: asyncio.Task[None] | None = None
+        self._tick_db_sink_task: asyncio.Task[None] | None = None
+        self._bidask_db_sink_task: asyncio.Task[None] | None = None
         self._tick_streams: list[str] = []
         self._bidask_streams: list[str] = []
         self._last_stream_refresh = 0.0
@@ -267,38 +296,84 @@ class StreamProcessingRunner:
     async def start(self) -> None:
         self._refresh_streams(force=True)
         self._stop = False
-        self._tick_task = asyncio.create_task(self._run_tick_loop())
-        self._bidask_task = asyncio.create_task(self._run_bidask_loop())
+        if self._enable_tick_pipeline:
+            self._tick_task = asyncio.create_task(self._run_tick_loop())
+            self._tick_db_sink_task = asyncio.create_task(self._run_tick_db_sink_loop())
+        if self._enable_bidask_pipeline:
+            self._bidask_task = asyncio.create_task(self._run_bidask_loop())
+            self._bidask_db_sink_task = asyncio.create_task(self._run_bidask_db_sink_loop())
 
     async def stop_async(self) -> None:
         self._stop = True
-        for task in (self._tick_task, self._bidask_task):
+        for task in (
+            self._tick_task,
+            self._bidask_task,
+            self._tick_db_sink_task,
+            self._bidask_db_sink_task,
+        ):
             if task is not None and not task.done():
                 task.cancel()
                 try:
                     await task
                 except asyncio.CancelledError:
                     continue
+        self.flush_db_sinks_once()
 
     async def _run_tick_loop(self) -> None:
         while not self._stop:
+            iter_start = time.perf_counter()
             processed = self.consume_tick_once()
             if processed == 0:
                 await asyncio.sleep(0.1)
+            self._record_loop_latency("tick_loop_iteration_ms", iter_start)
+            await asyncio.sleep(0)
 
     async def _run_bidask_loop(self) -> None:
         while not self._stop:
+            iter_start = time.perf_counter()
             processed = self.consume_bidask_once()
             if processed == 0:
                 self._sample_carry_forward()
             if processed == 0:
                 await asyncio.sleep(0.1)
+            self._record_loop_latency("bidask_loop_iteration_ms", iter_start)
+            await asyncio.sleep(0)
+
+    async def _run_tick_db_sink_loop(self) -> None:
+        while not self._stop:
+            iter_start = time.perf_counter()
+            try:
+                flushed = await self._flush_tick_db_sink_once_async()
+                if flushed:
+                    continue
+                await asyncio.sleep(0.1)
+            except Exception:
+                logger.exception("tick db sink batch persistence failed")
+                await asyncio.sleep(self._db_sink_retry_backoff_seconds)
+            finally:
+                self._record_loop_latency("tick_db_sink_loop_iteration_ms", iter_start)
+
+    async def _run_bidask_db_sink_loop(self) -> None:
+        while not self._stop:
+            iter_start = time.perf_counter()
+            try:
+                flushed = await self._flush_bidask_db_sink_once_async()
+                if flushed:
+                    continue
+                await asyncio.sleep(0.1)
+            except Exception:
+                logger.exception("bidask db sink batch persistence failed")
+                await asyncio.sleep(self._db_sink_retry_backoff_seconds)
+            finally:
+                self._record_loop_latency("bidask_db_sink_loop_iteration_ms", iter_start)
 
     def ensure_consumer_groups(self) -> None:
-        for stream_key, group in (
-            *[(key, self._tick_group) for key in self._tick_streams],
-            *[(key, self._bidask_group) for key in self._bidask_streams],
-        ):
+        stream_groups: list[tuple[str, str]] = []
+        if self._enable_tick_pipeline:
+            stream_groups.extend((key, self._tick_group) for key in self._tick_streams)
+        if self._enable_bidask_pipeline:
+            stream_groups.extend((key, self._bidask_group) for key in self._bidask_streams)
+        for stream_key, group in stream_groups:
             try:
                 self._redis.xgroup_create(stream_key, group, id="0-0", mkstream=True)
             except Exception as err:  # pragma: no cover - depends on redis behavior
@@ -315,6 +390,8 @@ class StreamProcessingRunner:
         return build_stream_key(self._env, "bidask", self._stream_code)
 
     def consume_tick_once(self) -> int:
+        if not self._enable_tick_pipeline:
+            return 0
         self._refresh_streams()
         return self._consume_once(
             stream_keys=self._tick_streams,
@@ -324,6 +401,8 @@ class StreamProcessingRunner:
         )
 
     def consume_bidask_once(self) -> int:
+        if not self._enable_bidask_pipeline:
+            return 0
         self._refresh_streams()
         return self._consume_once(
             stream_keys=self._bidask_streams,
@@ -393,12 +472,18 @@ class StreamProcessingRunner:
         if not force and (now - self._last_stream_refresh) < self._stream_refresh_seconds:
             return
         self._last_stream_refresh = now
-        tick_streams = self._discover_streams("tick")
-        bidask_streams = self._discover_streams("bidask")
-        if tick_streams:
-            self._tick_streams = tick_streams
-        if bidask_streams:
-            self._bidask_streams = bidask_streams
+        if self._enable_tick_pipeline:
+            tick_streams = self._discover_streams("tick")
+            if tick_streams:
+                self._tick_streams = tick_streams
+        else:
+            self._tick_streams = []
+        if self._enable_bidask_pipeline:
+            bidask_streams = self._discover_streams("bidask")
+            if bidask_streams:
+                self._bidask_streams = bidask_streams
+        else:
+            self._bidask_streams = []
         self.ensure_consumer_groups()
 
     def _discover_streams(self, quote_type: str) -> list[str]:
@@ -451,7 +536,7 @@ class StreamProcessingRunner:
                 self._write_current_k(tick_state.current)
             if archived is not None:
                 self._write_k_archive(archived)
-                self._persist_kbar(archived)
+                self._enqueue_tick_persistence(archived)
                 self._metrics.inc("archive_rate")
             self._metrics.inc("consume_rate")
             self._metrics.set_gauge("stream_lag", self._stream_lag_ms(event_ts))
@@ -481,6 +566,7 @@ class StreamProcessingRunner:
             )
             latest = bidask_state.update_latest(event_ts, payload)
             self._write_latest_metrics(latest, event_ts, code)
+            self._enqueue_bidask_persistence(code=code, event_ts=event_ts, metrics=latest)
             samples = bidask_state.sample_series(
                 event_ts=event_ts,
                 series_fields=self._series_fields,
@@ -554,22 +640,272 @@ class StreamProcessingRunner:
         self._redis.zadd(key, {member: second})
         self._redis.expire(key, self._ttl_seconds)
 
-    def _persist_kbar(self, bar: KBar) -> None:
+    def _enqueue_tick_persistence(self, bar: KBar) -> None:
+        self._tick_db_queue.put_nowait(bar)
+
+    def _enqueue_bidask_persistence(
+        self, code: str, event_ts: datetime, metrics: dict[str, Any]
+    ) -> None:
+        trade_date = trade_date_for(event_ts)
+        payload = {
+            "code": code,
+            "trade_date": trade_date,
+            "event_ts": event_ts,
+            "bid": metrics.get("bid"),
+            "ask": metrics.get("ask"),
+            "spread": metrics.get("spread"),
+            "mid": metrics.get("mid"),
+            "bid_size": metrics.get("bid_size"),
+            "ask_size": metrics.get("ask_size"),
+            "metric_payload": dict(metrics),
+        }
+        self._bidask_db_queue.put_nowait(payload)
+
+    def flush_db_sinks_once(self) -> int:
+        total = 0
+        while True:
+            flushed = self._flush_tick_db_sink_once() + self._flush_bidask_db_sink_once()
+            total += flushed
+            if flushed == 0:
+                return total
+
+    def _flush_tick_db_sink_once(self) -> int:
+        batch = self._acquire_tick_batch()
+        if not batch:
+            self._tick_db_pending_retries = 0
+            return 0
+        try:
+            self._persist_kbar_batch(batch)
+            self._tick_db_pending_batch = []
+            self._tick_db_pending_retries = 0
+            self._metrics.inc("tick_db_sink_batches")
+            return len(batch)
+        except Exception as err:
+            self._metrics.inc("tick_db_sink_errors")
+            self._metrics.inc("tick_db_sink_retry_count")
+            self._tick_db_pending_retries += 1
+            if self._tick_db_pending_retries > self._db_sink_max_retries:
+                self._quarantine_tick_batch(batch, err)
+                self._tick_db_pending_batch = []
+                self._tick_db_pending_retries = 0
+                return 0
+            raise
+
+    async def _flush_tick_db_sink_once_async(self) -> int:
+        batch = self._acquire_tick_batch()
+        if not batch:
+            self._tick_db_pending_retries = 0
+            return 0
+        try:
+            await asyncio.to_thread(self._persist_kbar_batch, batch)
+            self._tick_db_pending_batch = []
+            self._tick_db_pending_retries = 0
+            self._metrics.inc("tick_db_sink_batches")
+            return len(batch)
+        except Exception as err:
+            self._metrics.inc("tick_db_sink_errors")
+            self._metrics.inc("tick_db_sink_retry_count")
+            self._tick_db_pending_retries += 1
+            if self._tick_db_pending_retries > self._db_sink_max_retries:
+                self._quarantine_tick_batch(batch, err)
+                self._tick_db_pending_batch = []
+                self._tick_db_pending_retries = 0
+                return 0
+            raise
+
+    def _flush_bidask_db_sink_once(self) -> int:
+        batch = self._acquire_bidask_batch()
+        if not batch:
+            self._bidask_db_pending_retries = 0
+            return 0
+        try:
+            self._persist_bidask_batch(batch)
+            self._bidask_db_pending_batch = []
+            self._bidask_db_pending_retries = 0
+            self._metrics.inc("bidask_db_sink_batches")
+            return len(batch)
+        except Exception as err:
+            self._metrics.inc("bidask_db_sink_errors")
+            self._metrics.inc("bidask_db_sink_retry_count")
+            self._bidask_db_pending_retries += 1
+            if self._bidask_db_pending_retries > self._db_sink_max_retries:
+                self._quarantine_bidask_batch(batch, err)
+                self._bidask_db_pending_batch = []
+                self._bidask_db_pending_retries = 0
+                return 0
+            raise
+
+    async def _flush_bidask_db_sink_once_async(self) -> int:
+        batch = self._acquire_bidask_batch()
+        if not batch:
+            self._bidask_db_pending_retries = 0
+            return 0
+        try:
+            await asyncio.to_thread(self._persist_bidask_batch, batch)
+            self._bidask_db_pending_batch = []
+            self._bidask_db_pending_retries = 0
+            self._metrics.inc("bidask_db_sink_batches")
+            return len(batch)
+        except Exception as err:
+            self._metrics.inc("bidask_db_sink_errors")
+            self._metrics.inc("bidask_db_sink_retry_count")
+            self._bidask_db_pending_retries += 1
+            if self._bidask_db_pending_retries > self._db_sink_max_retries:
+                self._quarantine_bidask_batch(batch, err)
+                self._bidask_db_pending_batch = []
+                self._bidask_db_pending_retries = 0
+                return 0
+            raise
+
+    def _drain_queue_batch(self, queue: asyncio.Queue[Any]) -> list[Any]:
+        batch: list[Any] = []
+        while len(batch) < self._db_sink_batch_size:
+            try:
+                batch.append(queue.get_nowait())
+            except asyncio.QueueEmpty:
+                break
+        return batch
+
+    def _acquire_tick_batch(self) -> list[KBar]:
+        if self._tick_db_pending_batch:
+            return self._tick_db_pending_batch
+        batch = self._drain_queue_batch(self._tick_db_queue)
+        self._tick_db_pending_batch = batch
+        return batch
+
+    def _acquire_bidask_batch(self) -> list[dict[str, Any]]:
+        if self._bidask_db_pending_batch:
+            return self._bidask_db_pending_batch
+        batch = self._drain_queue_batch(self._bidask_db_queue)
+        self._bidask_db_pending_batch = batch
+        return batch
+
+    def _persist_kbar_batch(self, bars: list[KBar]) -> None:
         from app.models.kbar_1m import Kbar1mModel
 
         with self._session_factory() as session:
-            record = Kbar1mModel(
-                code=bar.code,
-                trade_date=bar.trade_date,
-                minute_ts=bar.minute_ts,
-                open=bar.open,
-                high=bar.high,
-                low=bar.low,
-                close=bar.close,
-                volume=bar.volume,
+            records = [
+                Kbar1mModel(
+                    code=bar.code,
+                    trade_date=bar.trade_date,
+                    minute_ts=bar.minute_ts,
+                    open=bar.open,
+                    high=bar.high,
+                    low=bar.low,
+                    close=bar.close,
+                    volume=bar.volume,
+                )
+                for bar in bars
+            ]
+            self._persist_records_with_duplicate_tolerance(session, records)
+
+    def _persist_bidask_batch(self, rows: list[dict[str, Any]]) -> None:
+        from app.models.bidask_metric_1s import BidAskMetric1sModel
+
+        with self._session_factory() as session:
+            records = [
+                BidAskMetric1sModel(
+                    code=row["code"],
+                    trade_date=row["trade_date"],
+                    event_ts=row["event_ts"],
+                    bid=row["bid"],
+                    ask=row["ask"],
+                    spread=row["spread"],
+                    mid=row["mid"],
+                    bid_size=row["bid_size"],
+                    ask_size=row["ask_size"],
+                    metric_payload=json.dumps(row["metric_payload"], ensure_ascii=True),
+                )
+                for row in rows
+            ]
+            self._persist_records_with_duplicate_tolerance(session, records)
+
+    def _quarantine_tick_batch(self, batch: list[KBar], err: Exception) -> None:
+        logger.error(
+            "tick db sink retries exhausted, moving batch to dead-letter size=%s error=%s",
+            len(batch),
+            type(err).__name__,
+        )
+        for bar in batch:
+            payload = {
+                "code": bar.code,
+                "trade_date": bar.trade_date.isoformat(),
+                "minute_ts": bar.minute_ts.isoformat(),
+                "open": bar.open,
+                "high": bar.high,
+                "low": bar.low,
+                "close": bar.close,
+                "volume": bar.volume,
+            }
+            self._publish_dead_letter("tick", payload, err)
+        self._metrics.inc("tick_db_sink_dead_letter_count")
+
+    def _quarantine_bidask_batch(self, batch: list[dict[str, Any]], err: Exception) -> None:
+        logger.error(
+            "bidask db sink retries exhausted, moving batch to dead-letter size=%s error=%s",
+            len(batch),
+            type(err).__name__,
+        )
+        for row in batch:
+            payload = {
+                "code": row.get("code"),
+                "trade_date": row.get("trade_date").isoformat()
+                if hasattr(row.get("trade_date"), "isoformat")
+                else row.get("trade_date"),
+                "event_ts": row.get("event_ts").isoformat()
+                if hasattr(row.get("event_ts"), "isoformat")
+                else row.get("event_ts"),
+                "bid": row.get("bid"),
+                "ask": row.get("ask"),
+                "spread": row.get("spread"),
+                "mid": row.get("mid"),
+                "bid_size": row.get("bid_size"),
+                "ask_size": row.get("ask_size"),
+                "metric_payload": row.get("metric_payload"),
+            }
+            self._publish_dead_letter("bidask", payload, err)
+        self._metrics.inc("bidask_db_sink_dead_letter_count")
+
+    def _publish_dead_letter(self, sink: str, payload: dict[str, Any], err: Exception) -> None:
+        stream_key = f"{self._env}:stream:dead-letter:{sink}"
+        fields = {
+            "sink": sink,
+            "error_type": type(err).__name__,
+            "error": str(err),
+            "payload": json.dumps(payload, ensure_ascii=True, default=str),
+        }
+        try:
+            self._redis.xadd(
+                stream_key,
+                fields,
+                maxlen=self._db_sink_dead_letter_maxlen,
+                approximate=True,
             )
-            session.add(record)
+        except Exception:
+            logger.exception("failed to publish dead-letter entry sink=%s", sink)
+
+    def _record_loop_latency(self, metric: str, started_at: float) -> None:
+        elapsed_ms = int((time.perf_counter() - started_at) * 1000)
+        self._metrics.set_gauge(metric, elapsed_ms)
+        if elapsed_ms > self._blocking_warn_ms:
+            self._metrics.inc("loop_blocking_warnings_total")
+
+    @staticmethod
+    def _persist_records_with_duplicate_tolerance(session: Any, records: list[Any]) -> None:
+        if not records:
+            return
+        try:
+            session.add_all(records)
             session.commit()
+            return
+        except IntegrityError:
+            session.rollback()
+        for record in records:
+            try:
+                session.add(record)
+                session.commit()
+            except IntegrityError:
+                session.rollback()
 
     @staticmethod
     def _stream_lag_ms(event_ts: datetime) -> int:
