@@ -1,6 +1,7 @@
 """ORM models."""
 
 from app.models.batch_job import BatchJobModel
+from app.models.bidask_metric_1s import BidAskMetric1sModel
 from app.models.billing_event import BillingEventModel
 from app.models.crawler_raw_payload import CrawlerRawPayloadModel
 from app.models.email_delivery_log import EmailDeliveryLogModel
@@ -18,6 +19,7 @@ __all__ = [
     "RefreshTokenDenylistModel",
     "SubscriptionModel",
     "BillingEventModel",
+    "BidAskMetric1sModel",
     "Kbar1mModel",
     "BatchJobModel",
     "CrawlerRawPayloadModel",
