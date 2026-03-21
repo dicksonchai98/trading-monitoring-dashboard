@@ -48,6 +48,11 @@ Based on Context7 source `/llmstxt/sinotrade_github_io_llms-full_txt`, the start
 - `ws_reconnect_count`: reconnect attempts observed.
 - `queue_depth`: current in-memory queue depth.
 - `ingest_lag_ms`: `now_utc - event_ts`.
+- Spot ingestion metrics:
+  - `ingestion_spot_events_total`
+  - `ingestion_spot_queue_depth`
+  - `ingestion_spot_publish_errors_total`
+  - `ingestion_spot_lag_ms`
 
 ## Reconnect policy
 
@@ -56,6 +61,22 @@ Based on Context7 source `/llmstxt/sinotrade_github_io_llms-full_txt`, the start
   - login
   - refresh contract context
   - re-subscribe configured quote types
+
+## Spot ingestion alert thresholds (cutover baseline)
+
+- `ingestion_spot_queue_depth` sustained > 500 for 5 minutes: warn
+- `ingestion_spot_queue_depth` sustained > 1000 for 5 minutes: critical
+- `ingestion_spot_publish_errors_total` increase > 50 within 5 minutes: critical
+- `ingestion_spot_lag_ms` sustained > 5000 for 5 minutes: warn
+- `ingestion_spot_lag_ms` sustained > 10000 for 5 minutes: critical
+
+## First-hour dashboard panels
+
+- Futures queue depth (`queue_depth`)
+- Spot queue depth (`ingestion_spot_queue_depth`)
+- Spot publish error rate (`ingestion_spot_publish_errors_total`)
+- Spot ingest lag (`ingestion_spot_lag_ms`)
+- WS reconnect attempts (`ws_reconnect_count`)
 
 ## MVP boundaries
 
