@@ -54,16 +54,23 @@ Runbook:
 ## Stream Processing Worker
 
 - Dedicated process entrypoint: `python -m workers.stream_processing_worker`
+- Split process entrypoints:
+  - `python -m workers.stream_processing_tick_worker`
+  - `python -m workers.stream_processing_bidask_worker`
+  - `python -m workers.latest_state_worker`
 - API process should not run aggregator loops; set `AGGREGATOR_ENABLED=false` for API service.
 - In docker-compose:
   - `backend-api` serves HTTP only.
-  - `backend-stream-worker` runs stream consumption and state writes.
+  - `backend-stream-worker` keeps compatibility for combined stream processing.
+  - `backend-tick-worker` runs Tick processing.
+  - `backend-bidask-worker` runs BidAsk processing.
+  - `backend-latest-state-worker` runs spot latest-state processing.
 
 Quick runbook:
-- Start: `docker compose up -d redis backend-api backend-stream-worker`
+- Start (split workers): `docker compose up -d redis backend-api backend-tick-worker backend-bidask-worker backend-latest-state-worker`
 - Check status: `docker compose ps`
-- Restart worker only: `docker compose restart backend-stream-worker`
-- Stop worker without API impact: `docker compose stop backend-stream-worker`
+- Restart one worker: `docker compose restart backend-tick-worker`
+- Stop one worker without API impact: `docker compose stop backend-bidask-worker`
 
 <!-- ## Run (example)
 
