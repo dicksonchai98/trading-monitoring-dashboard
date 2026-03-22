@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactElement } from "react";
-import { createMemoryRouter, RouterProvider } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { LoginPage } from "@/features/auth/pages/LoginPage";
 import { useAuthStore } from "@/lib/store/auth-store";
 
@@ -25,22 +25,23 @@ function renderLoginPage(initialState?: unknown): void {
     },
   });
 
-  const router = createMemoryRouter(
-    [
-      { path: "/login", element: <LoginPage /> },
-      { path: "/dashboard", element: <div>Dashboard</div> },
-      { path: "/subscription", element: <div>Subscription</div> },
-    ],
-    {
-      initialEntries: [{ pathname: "/login", state: initialState }],
-    },
-  );
-
   render(
     <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
+      <MemoryRouter initialEntries={[{ pathname: "/login", state: initialState }]}>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/dashboard" element={<div>Dashboard</div>} />
+          <Route path="/subscription" element={<div>Subscription</div>} />
+        </Routes>
+      </MemoryRouter>
     </QueryClientProvider>,
   );
+}
+
+function submitButton(label: RegExp): HTMLElement {
+  const matches = screen.getAllByRole("button", { name: label });
+  const submit = matches.find((button) => button.getAttribute("type") === "submit");
+  return (submit ?? matches[0]) as HTMLElement;
 }
 
 describe("LoginPage", () => {
@@ -60,7 +61,7 @@ describe("LoginPage", () => {
     renderLoginPage();
 
     expect(screen.getByRole("heading", { name: /sign in/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /sign in/i })).toHaveAttribute("type", "submit");
+    expect(submitButton(/sign in/i)).toHaveAttribute("type", "submit");
 
     fireEvent.click(screen.getByRole("button", { name: /create account/i }));
 
@@ -68,27 +69,34 @@ describe("LoginPage", () => {
     expect(screen.getByRole("button", { name: /register/i })).toHaveAttribute("type", "submit");
   });
 
-  it("submits login, stores session, and returns to the requested page", async () => {
-    fetchMock.mockResolvedValueOnce(
-      new Response(JSON.stringify({ access_token: makeToken("user"), token_type: "bearer" }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      }),
-    );
+  it("submits login, stores session, and redirects to dashboard", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ access_token: makeToken("user"), token_type: "bearer" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ status: "none" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
 
     renderLoginPage({ from: "/subscription" });
 
     fireEvent.change(screen.getByLabelText(/username/i), { target: { value: "alice" } });
     fireEvent.change(screen.getByLabelText(/password/i), { target: { value: "alice-pass" } });
-    fireEvent.click(screen.getByRole("button", { name: /sign in/i }));
+    fireEvent.click(submitButton(/sign in/i));
 
-    expect(await screen.findByText("Subscription")).toBeInTheDocument();
+    expect(await screen.findByText("Dashboard")).toBeInTheDocument();
 
     await waitFor(() =>
       expect(useAuthStore.getState()).toMatchObject({
         token: expect.any(String),
         role: "member",
-        entitlement: "active",
+        entitlement: "none",
       }),
     );
     expect(fetchMock).toHaveBeenCalledWith(
@@ -101,12 +109,19 @@ describe("LoginPage", () => {
   });
 
   it("submits register and redirects to dashboard by default", async () => {
-    fetchMock.mockResolvedValueOnce(
-      new Response(JSON.stringify({ access_token: makeToken("admin"), token_type: "bearer" }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      }),
-    );
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ access_token: makeToken("admin"), token_type: "bearer" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ status: "active" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
 
     renderLoginPage();
 
@@ -114,10 +129,11 @@ describe("LoginPage", () => {
     fireEvent.change(screen.getByLabelText(/username/i), { target: { value: "admin1" } });
     fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: "admin-pass" } });
     fireEvent.change(screen.getByLabelText(/confirm password/i), { target: { value: "admin-pass" } });
-    fireEvent.click(screen.getByRole("button", { name: /register/i }));
+    fireEvent.click(submitButton(/register/i));
 
     expect(await screen.findByText("Dashboard")).toBeInTheDocument();
     expect(useAuthStore.getState().role).toBe("admin");
+    expect(useAuthStore.getState().entitlement).toBe("active");
   });
 
   it("shows backend error messages when auth fails", async () => {
@@ -132,7 +148,7 @@ describe("LoginPage", () => {
 
     fireEvent.change(screen.getByLabelText(/username/i), { target: { value: "alice" } });
     fireEvent.change(screen.getByLabelText(/password/i), { target: { value: "wrong" } });
-    fireEvent.click(screen.getByRole("button", { name: /sign in/i }));
+    fireEvent.click(submitButton(/sign in/i));
 
     expect(await screen.findByText(/invalid credentials/i)).toBeInTheDocument();
   });
