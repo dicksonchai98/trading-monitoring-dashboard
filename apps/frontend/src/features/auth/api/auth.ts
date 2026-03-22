@@ -8,3 +8,7 @@ export function login(payload: AuthRequest): Promise<AuthResponse> {
 export function register(payload: AuthRequest): Promise<AuthResponse> {
   return postJson<AuthResponse, AuthRequest>("/auth/register", payload);
 }
+
+export function refresh(): Promise<AuthResponse> {
+  return postJson<AuthResponse, Record<string, never>>("/auth/refresh", {});
+}

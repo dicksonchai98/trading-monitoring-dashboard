@@ -1,0 +1,213 @@
+openapi: 3.0.3
+info:
+  title: Trading Dashboard Billing API (New Additions)
+  version: "2026-03-19"
+  description: |
+    新增功能：
+    1) 以 Stripe Checkout Session 驗證付款狀態
+    2) webhook 支援 checkout.session.expired 清理 pending 訂單
+servers:
+  - url: http://localhost:8000
+
+tags:
+  - name: billing
+    description: Billing / Stripe integration
+
+paths:
+  /billing/checkout-session/{session_id}:
+    get:
+      tags: [billing]
+      summary: 查詢 Checkout Session 付款狀態
+      description: |
+        後端會呼叫 Stripe `checkout.Session.retrieve(session_id)`，
+        並驗證該 session 是否屬於目前登入使用者。
+        只有 `payment_status=paid` 時，`is_paid` 才會是 `true`。
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: POST /billing/checkout 回傳的 session_id（例如 cs_...）
+      responses:
+        "200":
+          description: 查詢成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CheckoutSessionStatusResponse"
+              examples:
+                paid:
+                  value:
+                    session_id: cs_test_a1b2c3
+                    payment_status: paid
+                    is_paid: true
+                unpaid:
+                  value:
+                    session_id: cs_test_d4e5f6
+                    payment_status: unpaid
+                    is_paid: false
+        "401":
+          description: 未登入或 token 無效
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                detail: missing_authorization
+        "403":
+          description: session 不屬於目前使用者
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                detail: session_not_owned
+        "404":
+          description: session 或使用者不存在
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                session_not_found:
+                  value:
+                    detail: session_not_found
+                user_not_found:
+                  value:
+                    detail: user_not_found
+        "500":
+          description: 伺服器內部錯誤
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                detail: billing_error
+
+  /billing/webhooks/stripe:
+    post:
+      tags: [billing]
+      summary: Stripe Webhook
+      description: |
+        Stripe 事件入口。要求 Stripe-Signature 驗簽。
+        新增支援事件：checkout.session.expired（清理 pending 訂單）。
+        其他既有事件仍照常處理（例如 checkout.session.completed、invoice.paid）。
+      parameters:
+        - name: Stripe-Signature
+          in: header
+          required: true
+          schema:
+            type: string
+          description: Stripe webhook signature header
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StripeEvent"
+            examples:
+              checkout_session_expired:
+                value:
+                  id: evt_123
+                  type: checkout.session.expired
+                  data:
+                    object:
+                      id: cs_test_d4e5f6
+                      customer: cus_abc123
+                      metadata:
+                        user_id: user_uuid_1
+      responses:
+        "200":
+          description: 事件已處理或忽略
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookProcessResponse"
+              examples:
+                processed:
+                  value:
+                    status: processed
+                ignored:
+                  value:
+                    status: ignored
+        "400":
+          description: 驗簽失敗或事件格式錯誤
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                invalid_signature:
+                  value:
+                    detail: invalid_signature
+                invalid_event:
+                  value:
+                    detail: invalid_event
+        "500":
+          description: 伺服器內部錯誤
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                detail: billing_error
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    CheckoutSessionStatusResponse:
+      type: object
+      required: [session_id, payment_status, is_paid]
+      properties:
+        session_id:
+          type: string
+          example: cs_test_a1b2c3
+        payment_status:
+          type: string
+          description: Stripe checkout session payment_status
+          example: paid
+        is_paid:
+          type: boolean
+          description: 僅當 payment_status == paid 時為 true
+          example: true
+
+    WebhookProcessResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [processed, ignored]
+
+    ErrorResponse:
+      type: object
+      required: [detail]
+      properties:
+        detail:
+          type: string
+
+    StripeEvent:
+      type: object
+      required: [id, type, data]
+      properties:
+        id:
+          type: string
+          example: evt_123
+        type:
+          type: string
+          example: checkout.session.expired
+        data:
+          type: object
+          required: [object]
+          properties:
+            object:
+              type: object
+              additionalProperties: true
