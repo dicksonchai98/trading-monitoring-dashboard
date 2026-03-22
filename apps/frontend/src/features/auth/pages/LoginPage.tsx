@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { login, register } from "@/features/auth/api/auth";
 import { decodeAccessToken, mapTokenRole } from "@/features/auth/lib/token";
+import { getBillingStatus } from "@/features/subscription/api/billing";
+import { mapEntitlement, resolveEntitlementFromBillingStatus } from "@/features/subscription/lib/entitlement";
 import { loginSchema, registerSchema, type LoginFormValues, type RegisterFormValues } from "@/features/auth/validation/auth-schema";
 import { useAuthStore } from "@/lib/store/auth-store";
 import { cn } from "@/lib/utils/cn";
@@ -94,7 +96,7 @@ function InputField<TFieldValues extends FieldValues>({
 }
 
 interface AuthFormProps {
-  onAuthenticated: (token: string) => void;
+  onAuthenticated: (token: string) => Promise<void>;
 }
 
 function LoginForm({ onAuthenticated }: AuthFormProps): JSX.Element {
@@ -105,7 +107,7 @@ function LoginForm({ onAuthenticated }: AuthFormProps): JSX.Element {
 
   const mutation = useMutation({
     mutationFn: login,
-    onSuccess: (data) => onAuthenticated(data.access_token),
+    onSuccess: async (data) => onAuthenticated(data.access_token),
   });
 
   return (
@@ -152,7 +154,7 @@ function RegisterForm({ onAuthenticated }: AuthFormProps): JSX.Element {
 
   const mutation = useMutation({
     mutationFn: register,
-    onSuccess: (data) => onAuthenticated(data.access_token),
+    onSuccess: async (data) => onAuthenticated(data.access_token),
   });
 
   return (
@@ -210,10 +212,17 @@ export function LoginPage(): JSX.Element {
     return <Navigate to="/dashboard" replace />;
   }
 
-  function handleAuthenticated(token: string): void {
+  async function handleAuthenticated(token: string): Promise<void> {
     const payload = decodeAccessToken(token);
     const nextRole = mapTokenRole(payload.role);
-    setSession(token, nextRole, "active");
+    let nextEntitlement = mapEntitlement("none");
+    try {
+      const status = await getBillingStatus(token);
+      nextEntitlement = resolveEntitlementFromBillingStatus(status);
+    } catch {
+      nextEntitlement = mapEntitlement("none");
+    }
+    setSession(token, nextRole, nextEntitlement);
     navigate(redirectTarget, { replace: true });
   }
 
