@@ -35,6 +35,17 @@ class AuthService:
             raise ValueError("user_exists") from err
         return self._mint_pair(user)
 
+    @staticmethod
+    def is_valid_email_username(username: str) -> bool:
+        local_domain = username.split("@")
+        return len(local_domain) == 2 and bool(local_domain[0]) and bool(local_domain[1])
+
+    def user_exists(self, username: str) -> bool:
+        return self._user_repository.get_by_username(username) is not None
+
+    def delete_user(self, username: str) -> None:
+        self._user_repository.delete_by_username(username)
+
     def login(self, username: str, password: str) -> tuple[str, str]:
         user = self._user_repository.get_by_username(username)
         if user is None or not verify_password(password, user.password_hash):

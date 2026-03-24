@@ -102,3 +102,12 @@ class UserRepository:
                 role=model.role,
                 stripe_customer_id=model.stripe_customer_id,
             )
+
+    def delete_by_username(self, username: str) -> None:
+        with self._session_factory() as session:
+            stmt = select(UserModel).where(UserModel.username == username)
+            model = session.execute(stmt).scalar_one_or_none()
+            if model is None:
+                return
+            session.delete(model)
+            session.commit()
