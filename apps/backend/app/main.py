@@ -20,6 +20,7 @@ from app.routes import (
     auth,
     batch_jobs,
     billing,
+    email_webhooks,
     historical_backfill,
     market_crawler,
     realtime,
@@ -41,6 +42,7 @@ app.add_middleware(
 
 app.include_router(auth.router)
 app.include_router(billing.router)
+app.include_router(email_webhooks.router)
 app.include_router(realtime.router)
 app.include_router(analytics.router)
 app.include_router(admin.router)
