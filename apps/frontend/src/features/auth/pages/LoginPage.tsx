@@ -6,7 +6,7 @@ import { type FieldPath, type FieldValues, type UseFormRegister, useForm } from 
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { login, register } from "@/features/auth/api/auth";
+import { login, register, sendEmailOtp, verifyEmailOtp } from "@/features/auth/api/auth";
 import { decodeAccessToken, mapTokenRole } from "@/features/auth/lib/token";
 import { getBillingStatus } from "@/features/subscription/api/billing";
 import { mapEntitlement, resolveEntitlementFromBillingStatus } from "@/features/subscription/lib/entitlement";
@@ -28,8 +28,22 @@ function formatAuthError(message: string | undefined): string | null {
     case "invalid_credentials":
       return "Invalid credentials.";
     case "user_exists":
-      return "This username is already registered.";
+      return "This email is already registered.";
+    case "verification_required":
+      return "Please verify your email before registering.";
+    case "invalid_email":
+      return "Please provide a valid email address.";
+    case "invalid_otp":
+      return "Invalid verification code.";
+    case "expired":
+      return "Verification code expired. Please request a new one.";
+    case "cooldown":
+    case "rate_limited":
+      return "Verification email sent too frequently. Please try again shortly.";
+    case "locked":
+      return "Too many failed attempts. Please request a new verification code.";
     case "auth_request_failed":
+    case "api_request_failed":
       return "Authentication request failed.";
     case "invalid_access_token":
     case "unsupported_role":
@@ -149,38 +163,119 @@ function LoginForm({ onAuthenticated }: AuthFormProps): JSX.Element {
 function RegisterForm({ onAuthenticated }: AuthFormProps): JSX.Element {
   const form = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
-    defaultValues: { username: "", password: "", confirmPassword: "" },
+    defaultValues: { email: "", password: "", confirmPassword: "", otpCode: "" },
   });
 
-  const mutation = useMutation({
+  const [verificationToken, setVerificationToken] = useState<string | null>(null);
+  const [verifiedEmail, setVerifiedEmail] = useState<string | null>(null);
+  const [otpSentEmail, setOtpSentEmail] = useState<string | null>(null);
+  const [otpMessage, setOtpMessage] = useState<string | null>(null);
+  const [localError, setLocalError] = useState<string | null>(null);
+  const currentEmail = form.watch("email");
+  const hasOtpSent = otpSentEmail === currentEmail && currentEmail.length > 0;
+
+  const sendOtpMutation = useMutation({
+    mutationFn: sendEmailOtp,
+    onSuccess: (_, variables) => {
+      setVerificationToken(null);
+      setVerifiedEmail(null);
+      setOtpSentEmail(variables.email);
+      setOtpMessage("Verification code sent. Check your email inbox.");
+      setLocalError(null);
+    },
+  });
+
+  const verifyOtpMutation = useMutation({
+    mutationFn: verifyEmailOtp,
+    onSuccess: (data) => {
+      const email = form.getValues("email");
+      setVerificationToken(data.verification_token);
+      setVerifiedEmail(email);
+      setOtpMessage("Email verified. You can finish registration now.");
+      setLocalError(null);
+    },
+  });
+
+  const registerMutation = useMutation({
     mutationFn: register,
     onSuccess: async (data) => onAuthenticated(data.access_token),
   });
+
+  const isPending = sendOtpMutation.isPending || verifyOtpMutation.isPending || registerMutation.isPending;
+  const errorMessage =
+    localError ??
+    formatAuthError(registerMutation.error instanceof Error ? registerMutation.error.message : undefined) ??
+    formatAuthError(verifyOtpMutation.error instanceof Error ? verifyOtpMutation.error.message : undefined) ??
+    formatAuthError(sendOtpMutation.error instanceof Error ? sendOtpMutation.error.message : undefined);
+
+  async function handleSendOtp(): Promise<void> {
+    setLocalError(null);
+    setOtpMessage(null);
+    sendOtpMutation.reset();
+    verifyOtpMutation.reset();
+    const isValidEmail = await form.trigger("email");
+    if (!isValidEmail) {
+      return;
+    }
+    const email = form.getValues("email");
+    setVerificationToken(null);
+    setVerifiedEmail(null);
+    setOtpSentEmail(null);
+    sendOtpMutation.mutate({ email });
+  }
+
+  async function handleVerifyOtp(): Promise<void> {
+    setLocalError(null);
+    verifyOtpMutation.reset();
+    const isValid = await form.trigger(["email", "otpCode"]);
+    if (!isValid) {
+      return;
+    }
+    const email = form.getValues("email");
+    const otpCode = form.getValues("otpCode");
+    verifyOtpMutation.mutate({ email, otp_code: otpCode });
+  }
+
+  async function handleOtpAction(): Promise<void> {
+    if (hasOtpSent) {
+      await handleVerifyOtp();
+      return;
+    }
+    await handleSendOtp();
+  }
 
   return (
     <FormShell
       title="Create account"
       description="Register a new operator account for the monitoring console."
-      errorMessage={formatAuthError(mutation.error instanceof Error ? mutation.error.message : undefined)}
+      errorMessage={errorMessage}
     >
       <form
         className="space-y-4"
         onSubmit={form.handleSubmit((values) => {
-          mutation.reset();
-          mutation.mutate({ username: values.username, password: values.password });
+          registerMutation.reset();
+          if (!verificationToken || verifiedEmail !== values.email) {
+            setLocalError("Please verify your email before registering.");
+            return;
+          }
+          registerMutation.mutate({
+            username: values.email,
+            password: values.password,
+            verification_token: verificationToken,
+          });
         })}
       >
         <InputField
-          label="Username"
-          disabled={mutation.isPending}
-          error={form.formState.errors.username?.message}
+          label="Email"
+          disabled={isPending}
+          error={form.formState.errors.email?.message}
           registration={form.register}
-          name="username"
+          name="email"
         />
         <InputField
           label="Password"
           type="password"
-          disabled={mutation.isPending}
+          disabled={isPending}
           error={form.formState.errors.password?.message}
           registration={form.register}
           name="password"
@@ -188,13 +283,30 @@ function RegisterForm({ onAuthenticated }: AuthFormProps): JSX.Element {
         <InputField
           label="Confirm password"
           type="password"
-          disabled={mutation.isPending}
+          disabled={isPending}
           error={form.formState.errors.confirmPassword?.message}
           registration={form.register}
           name="confirmPassword"
         />
-        <Button className="w-full" type="submit" disabled={mutation.isPending}>
-          {mutation.isPending ? "Registering..." : "Register"}
+        <div className="space-y-2">
+          <div className="flex items-start gap-2">
+            <div className="flex-1">
+              <InputField
+                label="Verification code"
+                disabled={isPending}
+                error={form.formState.errors.otpCode?.message}
+                registration={form.register}
+                name="otpCode"
+              />
+            </div>
+            <Button className="mt-7 shrink-0" type="button" variant="outline" disabled={isPending} onClick={() => void handleOtpAction()}>
+              {sendOtpMutation.isPending ? "Sending..." : verifyOtpMutation.isPending ? "Verifying..." : hasOtpSent ? "Verify email" : "Send code"}
+            </Button>
+          </div>
+          {otpMessage ? <p className="text-xs text-primary">{otpMessage}</p> : null}
+        </div>
+        <Button className="w-full" type="submit" disabled={isPending}>
+          {registerMutation.isPending ? "Registering..." : "Register"}
         </Button>
       </form>
     </FormShell>
