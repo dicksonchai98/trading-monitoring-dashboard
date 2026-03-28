@@ -6,8 +6,11 @@ export const loginSchema = z.object({
 });
 
 export const registerSchema = loginSchema
+  .omit({ username: true })
   .extend({
+    email: z.string().email("Email is invalid"),
     confirmPassword: z.string().min(1, "Confirm password is required"),
+    otpCode: z.string().min(1, "Verification code is required"),
   })
   .refine((value) => value.password === value.confirmPassword, {
     message: "Passwords do not match",

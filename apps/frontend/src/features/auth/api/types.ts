@@ -1,6 +1,23 @@
-export interface AuthRequest {
+export interface LoginRequest {
   username: string;
   password: string;
+}
+
+export interface RegisterRequest extends LoginRequest {
+  verification_token: string;
+}
+
+export interface SendEmailOtpRequest {
+  email: string;
+}
+
+export interface VerifyEmailOtpRequest {
+  email: string;
+  otp_code: string;
+}
+
+export interface VerifyEmailOtpResponse {
+  verification_token: string;
 }
 
 export interface AuthResponse {
