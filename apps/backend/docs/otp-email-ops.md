@@ -22,8 +22,11 @@ This runbook covers:
 - `OPAQUE_TOKEN_HASH_SECRET`
 - `SENDGRID_API_KEY`
 - `SENDGRID_FROM_EMAIL`
+- `SENDGRID_OTP_TEMPLATE_ID`
 - `SENDGRID_WEBHOOK_SIGNING_KEY`
 - `EMAIL_STREAM_KEY`
+- `EMAIL_STREAM_GROUP`
+- `EMAIL_STREAM_CONSUMER`
 - `REDIS_URL`
 
 ## Local Run
@@ -34,7 +37,13 @@ API:
 uvicorn app.main:app --reload
 ```
 
-Dispatcher (manual loop in shell/python):
+Combined worker (recommended):
+
+```bash
+python -m workers.email_pipeline_worker
+```
+
+Dispatcher (manual run in shell/python):
 
 ```python
 from app.state import get_email_outbox_dispatcher
@@ -56,6 +65,10 @@ worker = EmailWorker(
     provider=SendGridProvider(api_key="...", from_email="noreply@example.com"),
 )
 ```
+
+Notes:
+- `SENDGRID_OTP_TEMPLATE_ID` must be a valid SendGrid dynamic template id (`d-...`).
+- `POST /auth/email/send-otp` returns `202 accepted` after enqueueing outbox task; delivery is done by worker.
 
 ## SendGrid Webhook Setup
 
