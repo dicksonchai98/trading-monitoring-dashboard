@@ -15,6 +15,7 @@ from app.config import (
     OTP_RESEND_COOLDOWN_SECONDS,
     OTP_TTL_SECONDS,
     OTP_VERIFICATION_TOKEN_TTL_SECONDS,
+    SENDGRID_OTP_TEMPLATE_ID,
 )
 from app.models.email_outbox import EmailOutboxModel
 from app.models.otp_challenge import OtpChallengeModel
@@ -113,7 +114,7 @@ class OtpService:
         self._outbox_repository.create_task(
             email_type=EmailOutboxModel.EmailType.OTP,
             recipient=email,
-            template_name="otp_verification",
+            template_name=SENDGRID_OTP_TEMPLATE_ID,
             payload_json={
                 "challenge_id": challenge.id,
                 "otp_code": otp_code,
