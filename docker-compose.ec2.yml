@@ -72,12 +72,42 @@ services:
       - "4173"
     restart: unless-stopped
 
+  postgres:
+    image: postgres:16-alpine
+    env_file:
+      - ./.env.production
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-trading_dashboard}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports: []
+    expose:
+      - "5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-trading_dashboard}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "5"
+
   backend-api:
     env_file:
       - ./.env.production
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports: []
     expose:
       - "8000"
+    environment:
+      DATABASE_URL: ${DATABASE_URL_DOCKER:-postgresql+psycopg://postgres:postgres@postgres:5432/trading_dashboard}
     restart: unless-stopped
     logging:
       options:
@@ -87,6 +117,11 @@ services:
   backend-stream-worker:
     env_file:
       - ./.env.production
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ${DATABASE_URL_DOCKER:-postgresql+psycopg://postgres:postgres@postgres:5432/trading_dashboard}
     restart: unless-stopped
     logging:
       options:
@@ -96,6 +131,11 @@ services:
   backend-email-worker:
     env_file:
       - ./.env.production
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ${DATABASE_URL_DOCKER:-postgresql+psycopg://postgres:postgres@postgres:5432/trading_dashboard}
     restart: unless-stopped
     logging:
       options:
@@ -116,3 +156,29 @@ services:
   redisinsight:
     profiles:
       - debug
+
+  pgadmin:
+    image: dpage/pgadmin4:8
+    env_file:
+      - ./.env.production
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@market-micro.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-change-me}
+      PGADMIN_CONFIG_ENHANCED_COOKIE_PROTECTION: "True"
+      PGADMIN_CONFIG_CONSOLE_LOG_LEVEL: "20"
+      PGADMIN_CONFIG_LOGIN_BANNER: "'Authorized access only.'"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:5050:80"
+    restart: unless-stopped
+    profiles:
+      - debug
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+volumes:
+  postgres_data:
