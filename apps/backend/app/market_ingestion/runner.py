@@ -6,7 +6,6 @@ import asyncio
 import logging
 from collections.abc import Callable, Coroutine
 from contextlib import suppress
-from datetime import datetime
 from typing import Any
 
 from app.config import (
@@ -21,6 +20,7 @@ from app.market_ingestion.shioaji_subscription import resolve_contract, subscrib
 from app.market_ingestion.stream_keys import build_stream_key
 from app.market_ingestion.writer import RedisWriter
 from app.services.metrics import Metrics
+from app.utils.time import utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +78,7 @@ class MarketIngestionRunner:
 
     def _on_quote(self, quote_type: str, quote: Any) -> None:
         code = getattr(quote, "code", INGESTOR_CODE)
-        event_ts_obj = getattr(quote, "datetime", datetime.utcnow())
+        event_ts_obj = getattr(quote, "datetime", utcnow())
         event_ts = (
             event_ts_obj.isoformat() if hasattr(event_ts_obj, "isoformat") else str(event_ts_obj)
         )
