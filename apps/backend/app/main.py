@@ -10,7 +10,6 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app import state
 from app.config import (
-    AGGREGATOR_ENABLED,
     INGESTOR_ENABLED,
     SERVING_CORS_ALLOW_ORIGINS,
     validate_stripe_settings,
@@ -21,6 +20,7 @@ from app.routes import (
     auth,
     batch_jobs,
     billing,
+    email_webhooks,
     historical_backfill,
     market_crawler,
     realtime,
@@ -42,6 +42,7 @@ app.add_middleware(
 
 app.include_router(auth.router)
 app.include_router(billing.router)
+app.include_router(email_webhooks.router)
 app.include_router(realtime.router)
 app.include_router(analytics.router)
 app.include_router(admin.router)
@@ -58,19 +59,12 @@ async def validate_billing_configuration() -> None:
         runner = state.build_ingestor_runner()
         task = asyncio.create_task(runner.start())
         task.add_done_callback(_log_ingestor_start_failure)
-    logging.info(f"AGGREGATOR_ENABLED: {AGGREGATOR_ENABLED}")
-    if AGGREGATOR_ENABLED:
-        runner = state.build_aggregator_runner()
-        task = asyncio.create_task(runner.start())
-        task.add_done_callback(_log_aggregator_start_failure)
 
 
 @app.on_event("shutdown")
 async def shutdown_ingestor() -> None:
     if state.ingestor_runner is not None:
         await state.ingestor_runner.stop()
-    if state.aggregator_runner is not None:
-        await state.aggregator_runner.stop_async()
 
 
 @app.get("/metrics")
@@ -83,10 +77,3 @@ def _log_ingestor_start_failure(task: asyncio.Task[None]) -> None:
         task.result()
     except Exception:
         logger.exception("ingestor startup failed")
-
-
-def _log_aggregator_start_failure(task: asyncio.Task[None]) -> None:
-    try:
-        task.result()
-    except Exception:
-        logger.exception("aggregator startup failed")

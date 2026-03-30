@@ -41,3 +41,12 @@ def test_merge_head_migration_file_exists() -> None:
 def test_batch_job_admin_queue_migration_file_exists() -> None:
     path = Path("alembic/versions/20260315_01_extend_batch_jobs_for_admin_queue.py")
     assert path.exists()
+
+
+def test_otp_email_migration_file_exists() -> None:
+    path = Path("alembic/versions/20260323_01_add_otp_and_email_pipeline_tables.py")
+    assert path.exists()
+
+
+def test_otp_email_ops_doc_exists() -> None:
+    assert Path("docs/otp-email-ops.md").exists()

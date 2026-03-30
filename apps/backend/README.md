@@ -17,6 +17,25 @@ FastAPI modular monolith for ingestion, processing, auth, subscription, and real
 - `GET /billing/status` (`user`/`admin`)
 - `POST /billing/portal-session` (`user`/`admin`)
 
+## OTP + Email Services
+
+- OTP APIs:
+  - `POST /auth/email/send-otp`
+  - `POST /auth/email/verify-otp`
+  - `POST /auth/register` (requires `verification_token`)
+- Webhook:
+  - `POST /email/webhooks/sendgrid`
+- Core modules:
+  - `app/services/otp_service.py`
+  - `app/services/email_outbox_dispatcher.py`
+  - `app/workers/email_worker.py`
+  - `workers/email_pipeline_worker.py`
+  - `app/services/sendgrid_provider.py`
+  - `app/services/notification_email_service.py`
+
+Runbook:
+- `apps/backend/docs/otp-email-ops.md`
+
 ## Market Ingestor (Shioaji -> Redis Streams)
 
 - Enable with `INGESTOR_ENABLED=true`
@@ -50,6 +69,20 @@ Runbook:
 - `POST /api/admin/batch/crawler/jobs`
 - `GET /api/admin/batch/jobs`
 - `GET /api/admin/batch/jobs/{job_id}`
+
+## Stream Processing Worker
+
+- Dedicated process entrypoint: `python -m workers.stream_processing_worker`
+- API process should not run aggregator loops; set `AGGREGATOR_ENABLED=false` for API service.
+- In docker-compose:
+  - `backend-api` serves HTTP only.
+  - `backend-stream-worker` runs stream consumption and state writes.
+
+Quick runbook:
+- Start: `docker compose up -d redis backend-api backend-stream-worker`
+- Check status: `docker compose ps`
+- Restart worker only: `docker compose restart backend-stream-worker`
+- Stop worker without API impact: `docker compose stop backend-stream-worker`
 
 <!-- ## Run (example)
 
