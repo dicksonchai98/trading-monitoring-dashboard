@@ -22,7 +22,8 @@ jobs:
           script: |
             set -e
             cd ~/trading-monitoring-dashboard
-            git stash push -u -m "ci-auto-stash-$(date +%Y%m%d-%H%M%S)" || true
+
+            git stash push -m "ci-auto-stash-$(date +%Y%m%d-%H%M%S)" || true
             git pull origin master
             docker compose --env-file .env.production -f docker-compose.yml -f docker-compose.ec2.yml up -d postgres redis
             docker compose --env-file .env.production -f docker-compose.yml -f docker-compose.ec2.yml run --rm backend-api alembic -c alembic.ini upgrade head
