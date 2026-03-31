@@ -53,6 +53,7 @@ describe("LoginPage", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.clearAllMocks();
   });
@@ -66,7 +67,25 @@ describe("LoginPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /create account/i }));
 
     expect(await screen.findByRole("heading", { name: /create account/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /register/i })).toHaveAttribute("type", "submit");
+    expect(screen.getByRole("button", { name: /verify email address/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^register$/i })).not.toBeInTheDocument();
+  });
+
+  it("shows backend error messages when auth fails", async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ detail: "invalid_credentials" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    renderLoginPage();
+
+    fireEvent.change(screen.getByLabelText(/username/i), { target: { value: "alice" } });
+    fireEvent.change(screen.getByLabelText(/password/i), { target: { value: "wrong" } });
+    fireEvent.click(submitButton(/sign in/i));
+
+    expect(await screen.findByText(/invalid credentials/i)).toBeInTheDocument();
   });
 
   it("submits login, stores session, and redirects to dashboard", async () => {
@@ -139,13 +158,13 @@ describe("LoginPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /create account/i }));
     fireEvent.change(screen.getByLabelText(/email/i), { target: { value: "admin1@example.com" } });
-    fireEvent.click(screen.getByRole("button", { name: /send code/i }));
-    await screen.findByText(/verification code sent/i);
-    fireEvent.change(screen.getByLabelText(/verification code/i), { target: { value: "123456" } });
-    fireEvent.click(screen.getByRole("button", { name: /verify email/i }));
-    await screen.findByText(/email verified/i);
     fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: "admin-pass" } });
     fireEvent.change(screen.getByLabelText(/confirm password/i), { target: { value: "admin-pass" } });
+    fireEvent.click(screen.getByRole("button", { name: /verify email address/i }));
+    await screen.findByText("Verification code sent. Check your email inbox.");
+    fireEvent.change(screen.getByLabelText(/verification code/i), { target: { value: "123456" } });
+    fireEvent.click(screen.getByRole("button", { name: /^verify email$/i }));
+    await screen.findByText(/email verified/i);
     fireEvent.click(submitButton(/register/i));
 
     expect(await screen.findByText("Dashboard")).toBeInTheDocument();
@@ -153,34 +172,34 @@ describe("LoginPage", () => {
     expect(useAuthStore.getState().entitlement).toBe("active");
   });
 
-  it("blocks register submit when email has not been verified", async () => {
-    renderLoginPage();
-
-    fireEvent.click(screen.getByRole("button", { name: /create account/i }));
-    fireEvent.change(screen.getByLabelText(/email/i), { target: { value: "admin1@example.com" } });
-    fireEvent.change(screen.getByLabelText(/verification code/i), { target: { value: "123456" } });
-    fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: "admin-pass" } });
-    fireEvent.change(screen.getByLabelText(/confirm password/i), { target: { value: "admin-pass" } });
-    fireEvent.click(submitButton(/register/i));
-
-    expect(await screen.findByText(/please verify your email before registering/i)).toBeInTheDocument();
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it("shows backend error messages when auth fails", async () => {
+  it("locks resend and shows 60-second cooldown hint after sending otp", async () => {
     fetchMock.mockResolvedValueOnce(
-      new Response(JSON.stringify({ detail: "invalid_credentials" }), {
-        status: 401,
+      new Response(JSON.stringify({ status: "accepted" }), {
+        status: 202,
         headers: { "Content-Type": "application/json" },
       }),
     );
 
     renderLoginPage();
 
-    fireEvent.change(screen.getByLabelText(/username/i), { target: { value: "alice" } });
-    fireEvent.change(screen.getByLabelText(/password/i), { target: { value: "wrong" } });
-    fireEvent.click(submitButton(/sign in/i));
+    fireEvent.click(screen.getByRole("button", { name: /create account/i }));
+    fireEvent.change(screen.getByLabelText(/email/i), { target: { value: "member1@example.com" } });
+    fireEvent.click(screen.getByRole("button", { name: /verify email address/i }));
+    await screen.findByText("Verification code sent. Check your email inbox.");
 
-    expect(await screen.findByText(/invalid credentials/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /resend in 60s/i })).toBeDisabled();
+    expect(screen.getByText(/resend a verification code in 60 seconds/i)).toBeInTheDocument();
   });
+
+  it("hides register button when email has not been verified", async () => {
+    renderLoginPage();
+
+    fireEvent.click(screen.getByRole("button", { name: /create account/i }));
+    fireEvent.change(screen.getByLabelText(/email/i), { target: { value: "admin1@example.com" } });
+    fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: "admin-pass" } });
+    fireEvent.change(screen.getByLabelText(/confirm password/i), { target: { value: "admin-pass" } });
+    expect(screen.queryByRole("button", { name: /^register$/i })).not.toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
 });
