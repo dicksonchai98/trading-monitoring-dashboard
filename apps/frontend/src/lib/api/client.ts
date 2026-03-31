@@ -1,6 +1,6 @@
 import type { ApiErrorPayload, ApiRequestOptions } from "@/lib/api/types";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api";
 
 export class ApiError extends Error {
   code: string;
@@ -16,7 +16,16 @@ export class ApiError extends Error {
 
 async function parseError(response: Response): Promise<ApiError> {
   const payload = (await response.json().catch(() => null)) as ApiErrorPayload | null;
-  return new ApiError(payload?.detail ?? "api_request_failed", response.status);
+  const detail = payload?.detail;
+  if (typeof detail === "string") {
+    return new ApiError(detail, response.status);
+  }
+
+  if (detail && typeof detail === "object" && typeof detail.reason === "string") {
+    return new ApiError(detail.reason, response.status);
+  }
+
+  return new ApiError("api_request_failed", response.status);
 }
 
 async function request<TResponse>(path: string, init: RequestInit): Promise<TResponse> {

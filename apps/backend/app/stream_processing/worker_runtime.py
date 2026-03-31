@@ -126,7 +126,13 @@ class StreamProcessingWorkerRuntime:
 
     @staticmethod
     def _runner_background_tasks_failed(runner: Any) -> bool:
-        for attr_name in ("_tick_task", "_bidask_task"):
+        for attr_name in (
+            "_task",
+            "_tick_task",
+            "_bidask_task",
+            "_tick_db_sink_task",
+            "_bidask_db_sink_task",
+        ):
             task = getattr(runner, attr_name, None)
             if task is None:
                 continue

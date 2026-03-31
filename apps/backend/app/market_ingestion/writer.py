@@ -19,12 +19,20 @@ class RedisWriter:
         maxlen: int,
         retry_attempts: int = 3,
         retry_backoff_ms: int = 50,
+        events_written_metric: str = "events_written_redis_total",
+        write_failure_metric: str = "redis_write_failure_total",
+        write_latency_metric: str = "redis_write_latency_ms",
+        ingest_lag_metric: str = "ingest_lag_ms",
     ) -> None:
         self._redis = redis_client
         self._metrics = metrics
         self._maxlen = maxlen
         self._retry_attempts = retry_attempts
         self._retry_backoff_ms = retry_backoff_ms
+        self._events_written_metric = events_written_metric
+        self._write_failure_metric = write_failure_metric
+        self._write_latency_metric = write_latency_metric
+        self._ingest_lag_metric = ingest_lag_metric
 
     def write(self, stream_key: str, fields: dict[str, str]) -> str:
         start = time.perf_counter()
@@ -35,8 +43,8 @@ class RedisWriter:
             approximate=True,
         )
         elapsed_ms = int((time.perf_counter() - start) * 1000)
-        self._metrics.inc("events_written_redis_total")
-        self._metrics.set_gauge("redis_write_latency_ms", elapsed_ms)
+        self._metrics.inc(self._events_written_metric)
+        self._metrics.set_gauge(self._write_latency_metric, elapsed_ms)
         return str(redis_id)
 
     async def write_with_retry(self, stream_key: str, fields: dict[str, str]) -> bool:
@@ -51,7 +59,7 @@ class RedisWriter:
                     break
                 await asyncio.sleep((self._retry_backoff_ms * attempt) / 1000)
         if last_error is not None:
-            self._metrics.inc("redis_write_failure_total")
+            self._metrics.inc(self._write_failure_metric)
         return False
 
     @staticmethod
@@ -67,18 +75,32 @@ class RedisWriter:
             if parsed.tzinfo is None:
                 parsed = parsed.replace(tzinfo=timezone.utc)
             lag_ms = int((datetime.now(tz=timezone.utc) - parsed).total_seconds() * 1000)
-            self._metrics.set_gauge("ingest_lag_ms", max(lag_ms, 0))
+            self._metrics.set_gauge(self._ingest_lag_metric, max(lag_ms, 0))
         except ValueError:
             return
 
     async def drain_once(self, queue_item: QueueItem) -> bool:
-        event_dict = {
-            "source": queue_item.event.source,
-            "code": queue_item.event.code,
-            "quote_type": queue_item.event.quote_type,
-            "event_ts": queue_item.event.event_ts,
-            "recv_ts": queue_item.event.recv_ts,
-            "payload": queue_item.event.payload,
-        }
+        event_dict: dict[str, Any]
+        if queue_item.event.asset_type == "spot":
+            event_dict = {
+                "source": queue_item.event.source,
+                "symbol": queue_item.event.code,
+                "event_ts": queue_item.event.event_ts,
+                "last_price": queue_item.event.payload.get("last_price", ""),
+                "ingest_seq": queue_item.event.ingest_seq or 0,
+                "recv_ts": queue_item.event.recv_ts,
+                "payload": queue_item.event.payload,
+                "asset_type": queue_item.event.asset_type,
+            }
+        else:
+            event_dict = {
+                "source": queue_item.event.source,
+                "code": queue_item.event.code,
+                "quote_type": queue_item.event.quote_type,
+                "event_ts": queue_item.event.event_ts,
+                "recv_ts": queue_item.event.recv_ts,
+                "payload": queue_item.event.payload,
+                "asset_type": queue_item.event.asset_type,
+            }
         self.update_ingest_lag(queue_item.event.event_ts)
         return await self.write_with_retry(queue_item.stream_key, self.to_redis_fields(event_dict))

@@ -47,6 +47,43 @@
   --sidebar-toggle-size: 1.75rem;
 }
 
+:root[data-font="sans"] {
+  --font-mono: "IBM Plex Sans", "Noto Sans TC", sans-serif;
+}
+
+:root[data-font="mono"] {
+  --font-mono:
+    "IBM Plex Mono", "JetBrains Mono", "Noto Sans Mono CJK TC", monospace;
+}
+
+:root[data-theme="ocean"] {
+  --background: 208 45% 9%;
+  --foreground: 203 35% 96%;
+  --shell: 208 43% 12%;
+  --card: 208 38% 14%;
+  --panel-hover: 208 32% 18%;
+  --primary: 190 93% 44%;
+  --muted: 208 26% 20%;
+  --muted-foreground: 204 12% 73%;
+  --subtle-foreground: 204 10% 62%;
+  --border: 208 22% 25%;
+  --border-strong: 208 26% 35%;
+}
+
+:root[data-theme="graphite"] {
+  --background: 225 8% 8%;
+  --foreground: 210 12% 94%;
+  --shell: 225 8% 11%;
+  --card: 225 8% 14%;
+  --panel-hover: 225 8% 18%;
+  --primary: 16 84% 58%;
+  --muted: 225 8% 18%;
+  --muted-foreground: 220 7% 70%;
+  --subtle-foreground: 220 6% 58%;
+  --border: 225 8% 24%;
+  --border-strong: 225 8% 34%;
+}
+
 * {
   @apply border-border;
 }

@@ -5,18 +5,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { getBillingPlans, getBillingStatus, startCheckout } from "@/features/subscription/api/billing";
+import { mapEntitlement, resolveEntitlementFromBillingStatus } from "@/features/subscription/lib/entitlement";
 import { useAuthStore } from "@/lib/store/auth-store";
 import { PageLayout } from "@/components/ui/page-layout";
-
-function mapEntitlement(status: string): "none" | "pending" | "active" {
-  if (status === "active") {
-    return "active";
-  }
-  if (status === "pending" || status === "checkout_started") {
-    return "pending";
-  }
-  return "none";
-}
+import type { BillingPlan } from "@/features/subscription/api/types";
 
 function statusVariant(status: string): "neutral" | "warning" | "success" {
   if (status === "active") {
@@ -28,8 +20,12 @@ function statusVariant(status: string): "neutral" | "warning" | "success" {
   return "neutral";
 }
 
+function isFreePlan(plan: BillingPlan): boolean {
+  return plan.id.toLowerCase() === "free" || plan.price.toLowerCase() === "free";
+}
+
 export function SubscriptionPage(): JSX.Element {
-  const { token, setSession, role, entitlement } = useAuthStore();
+  const { token, setSession, setCheckoutSessionId, role, entitlement } = useAuthStore();
   const plansQuery = useQuery({
     queryKey: ["billing", "plans"],
     queryFn: getBillingPlans,
@@ -42,21 +38,36 @@ export function SubscriptionPage(): JSX.Element {
   const checkoutMutation = useMutation({
     mutationFn: () => startCheckout(token ?? ""),
     onSuccess: async (result) => {
+      setCheckoutSessionId(result.session_id);
+
       const refreshed = token ? await statusQuery.refetch() : undefined;
-      const nextStatus = refreshed?.data?.status ?? result.status;
+      const nextStatus = refreshed?.data?.status ?? currentStatus;
       if (token) {
-        setSession(token, role, mapEntitlement(nextStatus));
+        const nextEntitlement = refreshed?.data
+          ? resolveEntitlementFromBillingStatus(refreshed.data)
+          : mapEntitlement(nextStatus);
+        setSession(token, role, nextEntitlement);
+      }
+
+      const isJsdom =
+        typeof window !== "undefined" &&
+        typeof window.navigator !== "undefined" &&
+        /jsdom/i.test(window.navigator.userAgent);
+
+      if (!isJsdom && result.checkout_url) {
+        window.location.assign(result.checkout_url);
       }
     },
   });
-
   const plans = plansQuery.data?.plans ?? [];
   const currentStatus = statusQuery.data?.status ?? entitlement;
-  const checkoutStatus = checkoutMutation.data?.status ?? null;
+  const hasCheckedOut = ["checkout_started", "pending", "active", "past_due"].includes(
+    String(currentStatus),
+  );
 
   return (
     <PageLayout
-      title="Subscription (Mock)"
+      title="Subscription"
       className="flex min-h-[calc(100dvh-(var(--shell-padding)*2))] flex-col"
       bodyClassName="flex flex-1 flex-col"
     >
@@ -65,26 +76,42 @@ export function SubscriptionPage(): JSX.Element {
         className="flex flex-1 flex-col"
         gridClassName="h-full flex-1 auto-rows-fr"
       >
-        <Card className="flex h-full min-h-[calc(var(--panel-row-h)*2)] flex-col gap-3 lg:col-span-6">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold">{plans[0]?.name ?? "Loading..."}</h2>
-            <Badge variant={statusVariant(String(currentStatus))}>Entitlement: {currentStatus}</Badge>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Mock billing currently exposes one plan and a coarse subscription status only.
-          </p>
-          <p className="text-sm text-muted-foreground">Price: {plans[0]?.price ?? "..."}</p>
-          {checkoutStatus ? (
-            <p className="text-sm text-muted-foreground">Checkout: {checkoutStatus}</p>
-          ) : null}
-          <Button
-            className="mt-auto w-full"
-            disabled={!token || checkoutMutation.isPending}
-            onClick={() => checkoutMutation.mutate()}
-          >
-            {checkoutMutation.isPending ? "Starting checkout..." : "Start Checkout"}
-          </Button>
-        </Card>
+        {plans.map((plan) => {
+          const freePlan = isFreePlan(plan);
+          const isCurrentPlan = freePlan ? !hasCheckedOut : hasCheckedOut;
+          const canCheckout = !freePlan && !hasCheckedOut;
+
+          return (
+            <Card key={plan.id} className="flex h-full min-h-[calc(var(--panel-row-h)*2)] flex-col gap-3 lg:col-span-3">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-lg font-semibold">{plan.name}</h2>
+                <div className="flex items-center gap-2">
+                  {isCurrentPlan ? <Badge variant="success">Current plan</Badge> : null}
+                  <Badge variant={statusVariant(String(currentStatus))}>Entitlement: {currentStatus}</Badge>
+                </div>
+              </div>
+              <p className="text-sm text-muted-foreground">Price: {plan.price}</p>
+              <p className="text-sm text-muted-foreground">
+                {freePlan
+                  ? "Free plan does not require checkout."
+                  : "Paid plan uses checkout flow and syncs billing status."}
+              </p>
+              {!freePlan ? (
+                <Button
+                  className="mt-auto w-full"
+                  disabled={!token || checkoutMutation.isPending || !canCheckout}
+                  onClick={() => checkoutMutation.mutate()}
+                >
+                  {isCurrentPlan
+                    ? "Current plan"
+                    : checkoutMutation.isPending
+                      ? "Starting checkout..."
+                      : "Start Checkout"}
+                </Button>
+              ) : null}
+            </Card>
+          );
+        })}
       </BentoGridSection>
     </PageLayout>
   );

@@ -10,9 +10,11 @@ from typing import Any, Protocol
 class IngestionEvent:
     source: str
     code: str
+    asset_type: str
     quote_type: str
     event_ts: str
     recv_ts: str
+    ingest_seq: int | None
     payload: dict[str, Any]
 
 
