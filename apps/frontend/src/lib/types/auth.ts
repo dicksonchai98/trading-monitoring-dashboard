@@ -6,4 +6,5 @@ export interface SessionState {
   role: UserRole;
   entitlement: EntitlementState;
   resolved: boolean;
+  checkoutSessionId: string | null;
 }

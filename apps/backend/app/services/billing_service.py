@@ -13,6 +13,7 @@ from app.repositories.subscription_repository import SubscriptionRecord, Subscri
 from app.repositories.user_repository import UserRecord, UserRepository
 from app.services.audit import AuditLog
 from app.services.stripe_provider import StripeProvider
+from app.utils.time import ensure_utc
 
 
 class BillingError(Exception):
@@ -102,7 +103,7 @@ class BillingService:
         return {
             "status": subscription.status,
             "stripe_price_id": subscription.stripe_price_id,
-            "current_period_end": subscription.current_period_end.isoformat()
+            "current_period_end": ensure_utc(subscription.current_period_end).isoformat()
             if subscription.current_period_end
             else None,
             "entitlement_active": subscription.entitlement_active,

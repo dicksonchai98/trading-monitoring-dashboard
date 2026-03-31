@@ -117,9 +117,8 @@ class MarketIngestionRunner:
     def _on_futures_quote(self, quote_type: str, quote: Any) -> None:
         code = getattr(quote, "code", INGESTOR_CODE)
         event_ts_obj = getattr(quote, "datetime", datetime.utcnow())
-        event_ts = (
-            event_ts_obj.isoformat() if hasattr(event_ts_obj, "isoformat") else str(event_ts_obj)
-        )
+        isoformat = getattr(event_ts_obj, "isoformat", None)
+        event_ts = isoformat() if callable(isoformat) else str(event_ts_obj)
         payload = quote.to_dict(raw=True) if hasattr(quote, "to_dict") else dict(vars(quote))
         event = self._futures_pipeline.build_event(
             code=code,
@@ -154,9 +153,8 @@ class MarketIngestionRunner:
         if not symbol:
             return
         event_ts_obj = getattr(quote, "datetime", datetime.utcnow())
-        event_ts = (
-            event_ts_obj.isoformat() if hasattr(event_ts_obj, "isoformat") else str(event_ts_obj)
-        )
+        isoformat = getattr(event_ts_obj, "isoformat", None)
+        event_ts = isoformat() if callable(isoformat) else str(event_ts_obj)
         raw_payload = quote.to_dict(raw=True) if hasattr(quote, "to_dict") else dict(vars(quote))
         ingest_seq = self._next_spot_ingest_seq(symbol)
         payload = {

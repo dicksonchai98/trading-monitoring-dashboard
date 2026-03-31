@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -30,6 +29,7 @@ from app.services.serving_store import (
     resolve_time_range,
 )
 from app.state import metrics, serving_rate_limiter
+from app.utils.time import utcnow
 
 router = APIRouter(prefix="/v1", tags=["serving"])
 
@@ -41,7 +41,7 @@ def _sse_message(event: str, data: dict[str, Any]) -> bytes:
 
 @router.get("/health")
 def health() -> dict[str, Any]:
-    return {"status": "ok", "time": datetime.utcnow().isoformat() + "Z"}
+    return {"status": "ok", "time": utcnow().isoformat().replace("+00:00", "Z")}
 
 
 @router.get("/kbar/1m/current")
