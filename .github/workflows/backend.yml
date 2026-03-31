@@ -1,0 +1,25 @@
+﻿name: Backend Deploy
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "apps/backend/**"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd ~/market-micro
+            git pull origin master
+            cd apps/backend
+            source venv/bin/activate
+            pip install -r requirements.txt
+            pm2 restart all
