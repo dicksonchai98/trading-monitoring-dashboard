@@ -29,6 +29,7 @@ FastAPI modular monolith for ingestion, processing, auth, subscription, and real
   - `app/services/otp_service.py`
   - `app/services/email_outbox_dispatcher.py`
   - `app/workers/email_worker.py`
+  - `workers/email_pipeline_worker.py`
   - `app/services/sendgrid_provider.py`
   - `app/services/notification_email_service.py`
 

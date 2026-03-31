@@ -9,6 +9,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.models.refresh_denylist import RefreshTokenDenylistModel
+from app.utils.time import utcnow
 
 
 def _to_utc(exp_timestamp: int) -> datetime:
@@ -34,7 +35,7 @@ class RefreshDenylistRepository:
 
     def cleanup(self) -> None:
         with self._session_factory() as session:
-            now = datetime.now(tz=timezone.utc)
+            now = utcnow()
             stmt = delete(RefreshTokenDenylistModel).where(
                 RefreshTokenDenylistModel.expires_at <= now
             )

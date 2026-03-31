@@ -43,6 +43,16 @@ def _set_refresh_cookie(response: Response, refresh_token: str) -> None:
     )
 
 
+def _clear_refresh_cookie(response: Response) -> None:
+    response.delete_cookie(
+        key=REFRESH_COOKIE_NAME,
+        httponly=True,
+        secure=True,
+        samesite="strict",
+        path="/",
+    )
+
+
 @router.post("/email/send-otp", status_code=status.HTTP_202_ACCEPTED)
 def send_email_otp(payload: SendOtpRequest, request: Request) -> dict[str, str]:
     requester_ip = request.client.host if request.client else "unknown"
@@ -145,3 +155,12 @@ def refresh(
         ) from err
     _set_refresh_cookie(response, rotated_refresh)
     return {"access_token": access_token, "token_type": "bearer"}
+
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+def logout(request: Request) -> Response:
+    refresh_token = request.cookies.get(REFRESH_COOKIE_NAME)
+    auth_service.logout(refresh_token)
+    response = Response(status_code=status.HTTP_204_NO_CONTENT)
+    _clear_refresh_cookie(response)
+    return response

@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timezone
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.billing_event import BillingEventModel
+from app.utils.time import utcnow
 
 
 @dataclass
@@ -31,7 +31,7 @@ class BillingEventRepository:
                 event_type=event_type,
                 payload_hash=payload_hash,
                 status="processing",
-                processed_at=datetime.now(tz=timezone.utc),
+                processed_at=utcnow(),
             )
             session.add(model)
             try:
@@ -51,5 +51,5 @@ class BillingEventRepository:
             if model is None:
                 return
             model.status = status
-            model.processed_at = datetime.now(tz=timezone.utc)
+            model.processed_at = utcnow()
             session.commit()

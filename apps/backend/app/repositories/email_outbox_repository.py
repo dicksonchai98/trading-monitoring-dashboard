@@ -4,13 +4,14 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.email_outbox import EmailOutboxModel
+from app.utils.time import utcnow
 
 
 @dataclass
@@ -106,7 +107,7 @@ class EmailOutboxRepository:
         return claimed
 
     def recover_stale_processing(self, *, timeout_seconds: int, limit: int) -> int:
-        cutoff = datetime.now(tz=timezone.utc) - timedelta(seconds=timeout_seconds)
+        cutoff = utcnow() - timedelta(seconds=timeout_seconds)
         recovered = 0
         with self._session_factory() as session:
             stmt = (
