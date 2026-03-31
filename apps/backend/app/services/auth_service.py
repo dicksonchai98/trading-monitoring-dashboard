@@ -76,6 +76,20 @@ class AuthService:
         self._metrics.inc("refresh_success")
         return self._mint_pair(user)
 
+    def logout(self, refresh_token: str | None) -> None:
+        if not refresh_token:
+            return
+        try:
+            payload = verify_token(refresh_token, JWT_SECRET, expected_type=REFRESH_TOKEN_TYPE)
+        except TokenError:
+            return
+
+        jti = str(payload["jti"])
+        if self._denylist.contains(jti):
+            return
+        self._denylist.add(jti, int(payload["exp"]))
+        self._metrics.inc("logout_success")
+
     def verify_access_token(self, token: str) -> dict[str, Any]:
         return verify_token(token, JWT_SECRET, expected_type=ACCESS_TOKEN_TYPE)
 

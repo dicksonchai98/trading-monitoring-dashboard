@@ -98,6 +98,32 @@ def test_refresh_rotation_reuse_old_token_fails_with_401() -> None:
     assert replay.status_code == 401
 
 
+def test_logout_revokes_refresh_cookie_token() -> None:
+    client = TestClient(app)
+    auth = _register_and_login(client, username="logout@example.com", password="pass4")
+    refresh_token = auth["set_cookie"].split(";", 1)[0].split("=", 1)[1]
+    headers = {"Authorization": f"Bearer {auth['access_token']}"}
+
+    logout_res = client.post("/auth/logout", cookies={"refresh_token": refresh_token})
+    assert logout_res.status_code == 204
+    cleared_cookie = logout_res.headers.get("set-cookie", "")
+    assert "refresh_token=" in cleared_cookie
+    assert "Max-Age=0" in cleared_cookie
+
+    refresh_res = client.post(
+        "/auth/refresh",
+        headers=headers,
+        cookies={"refresh_token": refresh_token},
+    )
+    assert refresh_res.status_code == 401
+
+
+def test_logout_without_cookie_returns_204() -> None:
+    client = TestClient(app)
+    res = client.post("/auth/logout")
+    assert res.status_code == 204
+
+
 def test_public_routes_allow_anonymous_and_protected_routes_require_auth() -> None:
     client = TestClient(app)
     assert client.get("/billing/plans").status_code == 200
