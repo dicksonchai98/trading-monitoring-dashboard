@@ -21,6 +21,15 @@ function renderSubscriptionPage(): void {
   );
 }
 
+function plansFixture(): { plans: Array<{ id: string; name: string; price: string }> } {
+  return {
+    plans: [
+      { id: "free", name: "Free", price: "free" },
+      { id: "basic", name: "Basic", price: "mock" },
+    ],
+  };
+}
+
 describe("SubscriptionPage", () => {
   const fetchMock = vi.fn<typeof fetch>();
 
@@ -31,6 +40,7 @@ describe("SubscriptionPage", () => {
       role: "member",
       entitlement: "none",
       resolved: true,
+      checkoutSessionId: null,
     });
   });
 
@@ -42,13 +52,13 @@ describe("SubscriptionPage", () => {
   it("uses the shared page layout header and bento grid content layout", async () => {
     fetchMock
       .mockResolvedValueOnce(
-        new Response(JSON.stringify({ plans: [{ id: "basic", name: "Basic", price: "mock" }] }), {
+        new Response(JSON.stringify(plansFixture()), {
           status: 200,
           headers: { "Content-Type": "application/json" },
         }),
       )
       .mockResolvedValueOnce(
-        new Response(JSON.stringify({ status: "active" }), {
+        new Response(JSON.stringify({ status: "none" }), {
           status: 200,
           headers: { "Content-Type": "application/json" },
         }),
@@ -56,33 +66,41 @@ describe("SubscriptionPage", () => {
 
     renderSubscriptionPage();
 
-    expect(screen.getByRole("heading", { name: "Subscription (Mock)" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Subscription" })).toBeInTheDocument();
     expect(screen.getByText("/subscription")).toBeInTheDocument();
     expect(screen.getByTestId("page-layout")).toBeInTheDocument();
     expect(screen.getByText("PLAN OPTIONS")).toBeInTheDocument();
     expect(screen.getAllByTestId("bento-grid")).toHaveLength(1);
     expect(await screen.findByText("Basic")).toBeInTheDocument();
+    expect(screen.getByText("Free")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Start Checkout" })).toBeInTheDocument();
   });
 
   it("loads billing plans and status, then refreshes status after checkout", async () => {
     fetchMock
       .mockResolvedValueOnce(
-        new Response(JSON.stringify({ plans: [{ id: "basic", name: "Basic", price: "mock" }] }), {
+        new Response(JSON.stringify(plansFixture()), {
           status: 200,
           headers: { "Content-Type": "application/json" },
         }),
       )
       .mockResolvedValueOnce(
-        new Response(JSON.stringify({ status: "active" }), {
+        new Response(JSON.stringify({ status: "none" }), {
           status: 200,
           headers: { "Content-Type": "application/json" },
         }),
       )
       .mockResolvedValueOnce(
-        new Response(JSON.stringify({ status: "checkout_started" }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }),
+        new Response(
+          JSON.stringify({
+            checkout_url: "https://example.com/checkout/session-123",
+            session_id: "session-123",
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
       )
       .mockResolvedValueOnce(
         new Response(JSON.stringify({ status: "active" }), {
@@ -93,12 +111,12 @@ describe("SubscriptionPage", () => {
 
     renderSubscriptionPage();
 
-    expect(await screen.findByText("Entitlement: active")).toBeInTheDocument();
+    expect(await screen.findAllByText("Entitlement: none")).toHaveLength(2);
 
     fireEvent.click(screen.getByRole("button", { name: "Start Checkout" }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
-    expect(await screen.findByText("Checkout: checkout_started")).toBeInTheDocument();
+    expect(useAuthStore.getState().checkoutSessionId).toBe("session-123");
     expect(useAuthStore.getState().entitlement).toBe("active");
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
@@ -129,7 +147,40 @@ describe("SubscriptionPage", () => {
   it("stretches the plan cards to fill the visible content area without relying on oversized fixed heights", async () => {
     fetchMock
       .mockResolvedValueOnce(
-        new Response(JSON.stringify({ plans: [{ id: "basic", name: "Basic", price: "mock" }] }), {
+        new Response(JSON.stringify(plansFixture()), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ status: "none" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+
+    renderSubscriptionPage();
+
+    const checkoutButton = await screen.findByRole("button", { name: "Start Checkout" });
+
+    const layoutBody = screen.getByTestId("page-layout-body");
+    const grids = screen.getAllByTestId("bento-grid");
+
+    expect(screen.getByTestId("page-layout")).toHaveClass(
+      "flex",
+      "min-h-[calc(100dvh-(var(--shell-padding)*2))]",
+      "flex-col",
+    );
+    expect(layoutBody).toHaveClass("flex", "flex-1", "flex-col");
+    expect(grids[0]).toHaveClass("h-full", "flex-1", "auto-rows-fr");
+    expect(checkoutButton.closest("section")).toHaveClass("h-full");
+    expect(checkoutButton).toHaveClass("mt-auto");
+  });
+
+  it("disables paid checkout and labels current plan when user already has active subscription", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(plansFixture()), {
           status: 200,
           headers: { "Content-Type": "application/json" },
         }),
@@ -143,15 +194,8 @@ describe("SubscriptionPage", () => {
 
     renderSubscriptionPage();
 
-    const checkoutButton = await screen.findByRole("button", { name: "Start Checkout" });
-
-    const layoutBody = screen.getByTestId("page-layout-body");
-    const grids = screen.getAllByTestId("bento-grid");
-
-    expect(screen.getByTestId("page-layout")).toHaveClass("flex", "min-h-[calc(100dvh-(var(--shell-padding)*2))]", "flex-col");
-    expect(layoutBody).toHaveClass("flex", "flex-1", "flex-col");
-    expect(grids[0]).toHaveClass("h-full", "flex-1", "auto-rows-fr");
-    expect(checkoutButton.closest("section")).toHaveClass("h-full");
-    expect(checkoutButton).toHaveClass("mt-auto");
+    const currentPlanButtons = await screen.findAllByRole("button", { name: "Current plan" });
+    expect(currentPlanButtons[0]).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Start Checkout" })).not.toBeInTheDocument();
   });
 });

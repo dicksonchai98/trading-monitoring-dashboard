@@ -13,6 +13,10 @@ import { MarketThermometerPage } from "@/features/dashboard/pages/MarketThermome
 import { HistoricalDataLoaderPage } from "@/features/dashboard/pages/HistoricalDataLoaderPage";
 import { HistoricalAmplitudeDistributionPage } from "@/features/dashboard/pages/HistoricalAmplitudeDistributionPage";
 import { SubscriptionPage } from "@/features/subscription/pages/SubscriptionPage";
+import {
+  CheckoutCancelPage,
+  CheckoutSuccessPage,
+} from "@/features/subscription/pages/CheckoutResultPage";
 import { AdminAuditPage } from "@/features/admin/pages/AdminAuditPage";
 import { ForbiddenPage } from "@/features/common/pages/ForbiddenPage";
 import { NotFoundPage } from "@/features/common/pages/NotFoundPage";
@@ -25,6 +29,14 @@ const router = createBrowserRouter([
   {
     path: "/login",
     element: <LoginPage />,
+  },
+  {
+    path: "/subscription/checkout/success",
+    element: <CheckoutSuccessPage />,
+  },
+  {
+    path: "/subscription/checkout/cancel",
+    element: <CheckoutCancelPage />,
   },
   {
     element: <AppShell />,

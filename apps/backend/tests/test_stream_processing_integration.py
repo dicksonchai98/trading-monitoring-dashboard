@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import asyncio
 import fnmatch
+from contextlib import suppress
 from datetime import datetime, timezone
 
 from app.db.session import SessionLocal
 from app.market_ingestion.writer import RedisWriter
+from app.models.bidask_metric_1s import BidAskMetric1sModel
 from app.models.kbar_1m import Kbar1mModel
 from app.services.metrics import Metrics
 from app.stream_processing.runner import StreamProcessingRunner, build_state_key
@@ -181,8 +184,163 @@ def test_stream_processing_persists_kbars_to_postgres() -> None:
     )
 
     assert runner.consume_tick_once() == 2
+    assert runner.flush_db_sinks_once() == 1
 
     with SessionLocal() as session:
         rows = session.query(Kbar1mModel).all()
         assert len(rows) == 1
         assert rows[0].code == "TXFC6"
+
+
+def test_stream_processing_persists_bidask_to_postgres() -> None:
+    redis = FakeRedis()
+    runner = build_runner(redis)
+
+    bidask_stream = "dev:stream:bidask:MTX"
+    redis.xadd(
+        bidask_stream,
+        build_event_fields(
+            "bidask",
+            "2026-03-05T09:31:02+08:00",
+            {"bid": 100, "ask": 102, "bid_size": 5, "ask_size": 7},
+            code="TXFC6",
+        ),
+    )
+
+    assert runner.consume_bidask_once() == 1
+    assert runner.flush_db_sinks_once() == 1
+
+    with SessionLocal() as session:
+        rows = session.query(BidAskMetric1sModel).all()
+        assert len(rows) == 1
+        assert rows[0].code == "TXFC6"
+        assert rows[0].bid == 100
+        assert rows[0].ask == 102
+
+
+def test_tick_db_sink_retries_without_dropping_batch() -> None:
+    redis = FakeRedis()
+    runner = build_runner(redis)
+
+    tick_stream = "dev:stream:tick:MTX"
+    redis.xadd(
+        tick_stream,
+        build_event_fields(
+            "tick", "2026-03-05T09:30:10+08:00", {"price": 100, "volume": 1}, code="TXFC6"
+        ),
+    )
+    redis.xadd(
+        tick_stream,
+        build_event_fields(
+            "tick", "2026-03-05T09:31:05+08:00", {"price": 101, "volume": 2}, code="TXFC6"
+        ),
+    )
+
+    assert runner.consume_tick_once() == 2
+
+    original = runner._persist_kbar_batch
+    calls = {"count": 0}
+
+    def _flaky_persist(bars):  # type: ignore[no-untyped-def]
+        calls["count"] += 1
+        if calls["count"] == 1:
+            raise RuntimeError("transient sink failure")
+        return original(bars)
+
+    runner._persist_kbar_batch = _flaky_persist  # type: ignore[method-assign]
+
+    with suppress(RuntimeError):
+        runner._flush_tick_db_sink_once()
+
+    assert runner._flush_tick_db_sink_once() == 1
+
+    with SessionLocal() as session:
+        rows = session.query(Kbar1mModel).all()
+        assert len(rows) == 1
+
+
+def test_tick_db_sink_moves_batch_to_dead_letter_after_retry_exhausted() -> None:
+    redis = FakeRedis()
+    metrics = Metrics()
+    runner = StreamProcessingRunner(
+        redis_client=redis,
+        session_factory=SessionLocal,
+        metrics=metrics,
+        env="dev",
+        code="MTX",
+        tick_group="agg:tick",
+        bidask_group="agg:bidask",
+        tick_consumer="agg-tick-1",
+        bidask_consumer="agg-bidask-1",
+        read_count=100,
+        block_ms=0,
+        claim_idle_ms=1000,
+        claim_count=100,
+        ttl_seconds=60 * 60 * 24,
+        series_fields=["bid", "ask", "mid", "spread", "delta_1s"],
+        db_sink_max_retries=1,
+    )
+    runner.ensure_consumer_groups()
+
+    tick_stream = "dev:stream:tick:MTX"
+    redis.xadd(
+        tick_stream,
+        build_event_fields(
+            "tick", "2026-03-05T09:30:10+08:00", {"price": 100, "volume": 1}, code="TXFC6"
+        ),
+    )
+    redis.xadd(
+        tick_stream,
+        build_event_fields(
+            "tick", "2026-03-05T09:31:05+08:00", {"price": 101, "volume": 2}, code="TXFC6"
+        ),
+    )
+    assert runner.consume_tick_once() == 2
+
+    def _always_fail(_bars):  # type: ignore[no-untyped-def]
+        raise RuntimeError("sink down")
+
+    runner._persist_kbar_batch = _always_fail  # type: ignore[method-assign]
+
+    with suppress(RuntimeError):
+        runner._flush_tick_db_sink_once()
+
+    assert runner._flush_tick_db_sink_once() == 0
+    assert runner._tick_db_pending_batch == []
+    dead_letter_stream = "dev:stream:dead-letter:tick"
+    assert dead_letter_stream in redis.streams
+    assert metrics.counters["tick_db_sink_dead_letter_count"] >= 1
+
+
+def test_stream_processing_runner_can_run_tick_only_pipeline() -> None:
+    redis = FakeRedis()
+    metrics = Metrics()
+    runner = StreamProcessingRunner(
+        redis_client=redis,
+        session_factory=SessionLocal,
+        metrics=metrics,
+        env="dev",
+        code="MTX",
+        tick_group="agg:tick",
+        bidask_group="agg:bidask",
+        tick_consumer="agg-tick-1",
+        bidask_consumer="agg-bidask-1",
+        read_count=100,
+        block_ms=0,
+        claim_idle_ms=1000,
+        claim_count=100,
+        ttl_seconds=60 * 60 * 24,
+        series_fields=["bid", "ask", "mid", "spread", "delta_1s"],
+        enable_tick_pipeline=True,
+        enable_bidask_pipeline=False,
+    )
+
+    async def _exercise() -> None:
+        await runner.start()
+        assert runner._tick_task is not None
+        assert runner._tick_db_sink_task is not None
+        assert runner._bidask_task is None
+        assert runner._bidask_db_sink_task is None
+        await runner.stop_async()
+
+    asyncio.run(_exercise())

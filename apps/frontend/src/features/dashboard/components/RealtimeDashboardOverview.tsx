@@ -14,6 +14,7 @@ import { BentoGridSection } from "@/components/ui/bento-grid";
 import { PageLayout } from "@/components/ui/page-layout";
 import { PanelCard } from "@/components/ui/panel-card";
 import { DashboardMetricPanels } from "@/features/dashboard/components/DashboardMetricPanels";
+import { RealtimeSseChartsSection } from "@/features/dashboard/components/RealtimeSseChartsSection";
 import {
   BreadthDistributionChart,
   BidAskPressureChart,
@@ -243,6 +244,8 @@ export function RealtimeDashboardOverview(): JSX.Element {
           </div>
         </PanelCard>
       </BentoGridSection>
+
+      <RealtimeSseChartsSection />
     </PageLayout>
   );
 }

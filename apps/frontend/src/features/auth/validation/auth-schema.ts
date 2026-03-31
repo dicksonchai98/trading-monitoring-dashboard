@@ -6,7 +6,9 @@ export const loginSchema = z.object({
 });
 
 export const registerSchema = loginSchema
+  .omit({ username: true })
   .extend({
+    email: z.string().email("Email is invalid"),
     confirmPassword: z.string().min(1, "Confirm password is required"),
   })
   .refine((value) => value.password === value.confirmPassword, {
