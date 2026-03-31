@@ -162,6 +162,45 @@ def _build_aggregator_runner_for_role(role: str, redis_module: Any) -> StreamPro
     return runner
 
 
+def _normalize_aggregator_role(role: str) -> str:
+    normalized = role.strip().lower()
+    if normalized not in {"all", "tick", "bidask"}:
+        raise RuntimeError("invalid AGGREGATOR_WORKER_ROLE, expected one of: all, tick, bidask")
+    return normalized
+
+
+def _build_aggregator_runner_for_role(role: str, redis_module: Any) -> StreamProcessingRunner:
+    normalized = _normalize_aggregator_role(role)
+    enable_tick = normalized in {"all", "tick"}
+    enable_bidask = normalized in {"all", "bidask"}
+    runner = StreamProcessingRunner(
+        redis_client=redis_module.from_url(REDIS_URL),
+        session_factory=SessionLocal,
+        metrics=metrics,
+        env=AGGREGATOR_ENV,
+        code=AGGREGATOR_CODE,
+        tick_group=AGGREGATOR_TICK_GROUP,
+        bidask_group=AGGREGATOR_BIDASK_GROUP,
+        tick_consumer=AGGREGATOR_TICK_CONSUMER,
+        bidask_consumer=AGGREGATOR_BIDASK_CONSUMER,
+        read_count=AGGREGATOR_READ_COUNT,
+        block_ms=AGGREGATOR_BLOCK_MS,
+        claim_idle_ms=AGGREGATOR_CLAIM_IDLE_MS,
+        claim_count=AGGREGATOR_CLAIM_COUNT,
+        ttl_seconds=AGGREGATOR_STATE_TTL_SECONDS,
+        series_fields=AGGREGATOR_SERIES_FIELDS,
+        db_sink_batch_size=AGGREGATOR_DB_SINK_BATCH_SIZE,
+        db_sink_retry_backoff_seconds=AGGREGATOR_DB_SINK_RETRY_BACKOFF_SECONDS,
+        db_sink_max_retries=AGGREGATOR_DB_SINK_MAX_RETRIES,
+        db_sink_dead_letter_maxlen=AGGREGATOR_DB_SINK_DEAD_LETTER_MAXLEN,
+        blocking_warn_ms=AGGREGATOR_BLOCKING_WARN_MS,
+        enable_tick_pipeline=enable_tick,
+        enable_bidask_pipeline=enable_bidask,
+    )
+    logger.info("aggregator runner created role=%s", normalized)
+    return runner
+
+
 def build_ingestor_runner() -> MarketIngestionRunner:
     global ingestor_runner
     if ingestor_runner is not None:
