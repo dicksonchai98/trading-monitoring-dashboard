@@ -19,9 +19,10 @@ jobs:
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            cd ~/market-micro
+            set -e
+            cd ~/trading-monitoring-dashboard
             git pull origin master
-            cd apps/backend
-            source venv/bin/activate
-            pip install -r requirements.txt
-            pm2 restart all
+            docker compose --env-file .env.production -f docker-compose.yml -f docker-compose.ec2.yml up -d postgres redis
+            docker compose --env-file .env.production -f docker-compose.yml -f docker-compose.ec2.yml run --rm backend-api alembic -c alembic.ini upgrade head
+            docker compose --env-file .env.production -f docker-compose.yml -f docker-compose.ec2.yml up -d backend-api nginx
+            docker compose --env-file .env.production -f docker-compose.yml -f docker-compose.ec2.yml --profile full up -d backend-stream-worker backend-email-worker
