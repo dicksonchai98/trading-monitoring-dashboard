@@ -246,3 +246,98 @@ curl -kI --resolve market-micro.com:443:<EIP> https://market-micro.com/healthz
 3. 静态站挂载路径和权限是最常见 403/500 根因。
 4. DB 连线错误优先检查：`DATABASE_URL_DOCKER` 与 `POSTGRES_PASSWORD` 一致性。
 5. 在低规格实例（如 `t3.micro`）避免在线 build 前端，改本地/CI build 后上传 `dist`。
+
+---
+
+## 6. 2026-03-31 GitHub Actions Deploy 补充
+
+### 问题 I: `error: missing server host`
+
+#### 现象
+- GitHub Actions `Deploy via SSH` 失败，日志显示：`error: missing server host`。
+
+#### 原因
+- `EC2_HOST` secret 为空、拼错，或该次 workflow run 无法读取 secrets。
+
+#### 处理
+- 在 GitHub repository secrets 中确认：
+  - `EC2_HOST`（EC2 Public IP 或 Public DNS）
+  - `EC2_SSH_KEY`（对应实例 authorized_keys 的私钥完整内容）
+
+---
+
+### 问题 J: SSH 部署脚本与 EC2 运行模型不一致
+
+#### 现象
+- 日志出现：
+  - `cd: /home/ubuntu/market-micro: No such file or directory`
+  - `venv/bin/activate: No such file or directory`
+  - `pip: command not found`
+  - `pm2: command not found`
+
+#### 原因
+- EC2 当前为 Docker Compose 部署，不是 `venv + pip + pm2` 部署。
+- 目录实际是 `~/trading-monitoring-dashboard`。
+
+#### 处理
+- workflow 脚本改为：
+  - `cd ~/trading-monitoring-dashboard`
+  - `git pull origin master`
+  - `docker compose ... up/run ...` 进行部署与 migration。
+
+---
+
+### 问题 K: `git pull` 被本地变更阻挡
+
+#### 现象
+- 日志显示：
+  - `Your local changes ... would be overwritten by merge`
+  - `untracked working tree files would be overwritten by merge`
+
+#### 原因
+- EC2 上工作目录有本地改动/未追踪文件，直接 pull 被拒绝。
+
+#### 处理
+- 在部署脚本 pull 前先执行：
+```bash
+git stash push -m "ci-auto-stash-$(date +%Y%m%d-%H%M%S)" || true
+```
+- 注意：不使用 `-u`。
+
+---
+
+### 问题 L: `.env.production` 消失导致 compose 失败
+
+#### 现象
+- 日志：`couldn't find env file: /home/ubuntu/trading-monitoring-dashboard/.env.production`
+
+#### 原因
+- 先前使用 `git stash push -u`，将未追踪文件 `.env.production` 一并 stash。
+
+#### 处理
+1. 部署脚本改为不带 `-u` 的 stash。
+2. 若已丢失，可从 stash 的 untracked tree 还原：
+```bash
+git show stash@{N}^3:.env.production > .env.production
+```
+
+---
+
+### 问题 M: 需要在无代码变更时手动触发部署
+
+#### 现象
+- 本次仅有流程/配置调整，未命中 `paths` 时不会自动触发 backend deploy。
+
+#### 处理
+- `backend.yml` 增加：
+```yaml
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+    paths:
+      - "apps/backend/**"
+      - "docker-compose.ec2.yml"
+      - "infra/nginx.ec2.conf"
+```
+- 可在 Actions 页面手动 `Run workflow`。
