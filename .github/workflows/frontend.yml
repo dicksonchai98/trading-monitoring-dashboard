@@ -14,6 +14,8 @@ jobs:
 
       - name: Install & Build
         working-directory: apps/frontend
+        env:
+          VITE_API_BASE_URL: /api
         run: |
           npm install
           npm run build
