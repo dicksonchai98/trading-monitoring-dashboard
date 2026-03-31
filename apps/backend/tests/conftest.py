@@ -13,6 +13,8 @@ os.environ.setdefault("STRIPE_WEBHOOK_SECRET", "whsec_local")
 os.environ.setdefault("STRIPE_PRICE_ID", "price_local")
 os.environ.setdefault("STRIPE_SUCCESS_URL", "https://example.com/success")
 os.environ.setdefault("STRIPE_CANCEL_URL", "https://example.com/cancel")
+os.environ.setdefault("OTP_FIXED_CODE_FOR_TESTS", "123456")
+os.environ.setdefault("SENDGRID_WEBHOOK_SIGNING_KEY", "test-sendgrid-signing-key")
 
 from app.db.base import Base
 from app.db.session import engine

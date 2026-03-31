@@ -17,6 +17,25 @@ FastAPI modular monolith for ingestion, processing, auth, subscription, and real
 - `GET /billing/status` (`user`/`admin`)
 - `POST /billing/portal-session` (`user`/`admin`)
 
+## OTP + Email Services
+
+- OTP APIs:
+  - `POST /auth/email/send-otp`
+  - `POST /auth/email/verify-otp`
+  - `POST /auth/register` (requires `verification_token`)
+- Webhook:
+  - `POST /email/webhooks/sendgrid`
+- Core modules:
+  - `app/services/otp_service.py`
+  - `app/services/email_outbox_dispatcher.py`
+  - `app/workers/email_worker.py`
+  - `workers/email_pipeline_worker.py`
+  - `app/services/sendgrid_provider.py`
+  - `app/services/notification_email_service.py`
+
+Runbook:
+- `apps/backend/docs/otp-email-ops.md`
+
 ## Market Ingestor (Shioaji -> Redis Streams)
 
 - Enable with `INGESTOR_ENABLED=true`

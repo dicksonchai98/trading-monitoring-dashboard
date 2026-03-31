@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { Sidebar } from "@/components/ui/sidebar";
 import { useAuthStore } from "@/lib/store/auth-store";
@@ -17,7 +17,12 @@ function makeToken(role: "user" | "admin" = "user", sub = "alice"): string {
 
 describe("Sidebar", () => {
   beforeEach(() => {
-    useAuthStore.setState({ token: null, role: "visitor", entitlement: "none", resolved: true });
+    useAuthStore.setState({
+      token: null,
+      role: "visitor",
+      entitlement: "none",
+      resolved: true,
+    });
   });
 
   it("pins user info to the bottom section and keeps the toggle button near the header", () => {
@@ -34,14 +39,17 @@ describe("Sidebar", () => {
     );
   });
 
-  it("shows a login/register button when the user is not authenticated", () => {
+  it("shows a login link when the user is not authenticated", () => {
     render(
       <MemoryRouter initialEntries={["/dashboard"]}>
         <Sidebar />
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole("link", { name: "登入 / 註冊" })).toHaveAttribute("href", "/login");
+    const loginLink = screen
+      .getAllByRole("link")
+      .find((element) => element.getAttribute("href") === "/login");
+    expect(loginLink).toBeDefined();
     expect(screen.queryByText("Account")).not.toBeInTheDocument();
   });
 
@@ -63,6 +71,39 @@ describe("Sidebar", () => {
     expect(screen.getByText("trader01")).toBeInTheDocument();
     expect(screen.getByText("Role")).toBeInTheDocument();
     expect(screen.getByText("admin")).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "登入 / 註冊" })).not.toBeInTheDocument();
+    expect(screen.getByTestId("sidebar-user-info-trigger")).toBeInTheDocument();
+  });
+
+  it("opens settings modal with font, theme, billing portal and logout controls", () => {
+    useAuthStore.setState({
+      token: makeToken("user", "member01"),
+      role: "member",
+      entitlement: "active",
+      resolved: true,
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/dashboard"]}>
+        <Sidebar />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByTestId("sidebar-user-info-trigger"));
+
+    expect(screen.getByRole("dialog", { name: "Settings dialog" })).toBeInTheDocument();
+    expect(screen.getByText("Font")).toBeInTheDocument();
+    expect(screen.getByText("Color style")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open Billing Portal" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Logout" })).toBeInTheDocument();
+  });
+
+  it("does not show settings trigger when user is not authenticated", () => {
+    render(
+      <MemoryRouter initialEntries={["/dashboard"]}>
+        <Sidebar />
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByTestId("sidebar-user-info-trigger")).not.toBeInTheDocument();
   });
 });

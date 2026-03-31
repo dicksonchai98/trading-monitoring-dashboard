@@ -100,11 +100,25 @@ def test_backfill_create_returns_shared_batch_job_shape(monkeypatch) -> None:
 
 def test_non_admin_cannot_create_backfill_job() -> None:
     client = TestClient(app)
-    register = client.post("/auth/register", json={"username": "user-bf", "password": "pass-bf"})
+    send = client.post("/auth/email/send-otp", json={"email": "user-bf@example.com"})
+    assert send.status_code == 202
+    verify = client.post(
+        "/auth/email/verify-otp",
+        json={"email": "user-bf@example.com", "otp_code": "123456"},
+    )
+    register = client.post(
+        "/auth/register",
+        json={
+            "username": "user-bf@example.com",
+            "password": "pass-bf",
+            "verification_token": verify.json()["verification_token"],
+        },
+    )
     assert register.status_code == 200
-    token = client.post("/auth/login", json={"username": "user-bf", "password": "pass-bf"}).json()[
-        "access_token"
-    ]
+    token = client.post(
+        "/auth/login",
+        json={"username": "user-bf@example.com", "password": "pass-bf"},
+    ).json()["access_token"]
 
     response = client.post(
         "/api/admin/batch/backfill/jobs",

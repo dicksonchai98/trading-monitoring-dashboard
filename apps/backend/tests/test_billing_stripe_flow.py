@@ -40,7 +40,20 @@ class FakeStripeProvider:
 
 
 def _register_and_login(client: TestClient, username: str) -> str:
-    res = client.post("/auth/register", json={"username": username, "password": "pass"})
+    send_res = client.post("/auth/email/send-otp", json={"email": username})
+    assert send_res.status_code == 202
+    verify_res = client.post(
+        "/auth/email/verify-otp", json={"email": username, "otp_code": "123456"}
+    )
+    assert verify_res.status_code == 200
+    res = client.post(
+        "/auth/register",
+        json={
+            "username": username,
+            "password": "pass",
+            "verification_token": verify_res.json()["verification_token"],
+        },
+    )
     assert res.status_code == 200
     login = client.post("/auth/login", json={"username": username, "password": "pass"})
     assert login.status_code == 200
@@ -50,7 +63,7 @@ def _register_and_login(client: TestClient, username: str) -> str:
 def test_checkout_status_portal_happy_path() -> None:
     billing_service._stripe = FakeStripeProvider()
     client = TestClient(app)
-    token = _register_and_login(client, "billing-user")
+    token = _register_and_login(client, "billing-user@example.com")
     headers = {"Authorization": f"Bearer {token}"}
 
     checkout = client.post("/billing/checkout", headers=headers, json={"price_id": "price_local"})
@@ -70,7 +83,7 @@ def test_checkout_status_portal_happy_path() -> None:
 def test_webhook_signature_validation_and_idempotency() -> None:
     billing_service._stripe = FakeStripeProvider()
     client = TestClient(app)
-    token = _register_and_login(client, "hook-user")
+    token = _register_and_login(client, "hook-user@example.com")
     headers = {"Authorization": f"Bearer {token}"}
     checkout = client.post("/billing/checkout", headers=headers, json={"price_id": "price_local"})
     assert checkout.status_code == 200
@@ -80,9 +93,11 @@ def test_webhook_signature_validation_and_idempotency() -> None:
         "type": "checkout.session.completed",
         "data": {
             "object": {
-                "customer": "cus_hook-user",
+                "customer": "cus_hook-user@example.com",
                 "subscription": "sub_1",
-                "metadata": {"user_id": billing_service._users.get_by_username("hook-user").id},
+                "metadata": {
+                    "user_id": billing_service._users.get_by_username("hook-user@example.com").id
+                },
                 "current_period_end": 1924992000,
             }
         },
@@ -115,7 +130,7 @@ def test_webhook_signature_validation_and_idempotency() -> None:
 def test_portal_requires_customer_mapping() -> None:
     billing_service._stripe = FakeStripeProvider()
     client = TestClient(app)
-    token = _register_and_login(client, "no-customer-user")
+    token = _register_and_login(client, "no-customer-user@example.com")
     headers = {"Authorization": f"Bearer {token}"}
 
     res = client.post("/billing/portal-session", headers=headers)

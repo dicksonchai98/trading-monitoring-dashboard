@@ -13,3 +13,14 @@ args=["--app","visual_studio_code"]
 startup_timeout_ms = 20_000
 [mcp_servers.vibe_kanban]
 startup_timeout_ms = 20_000
+
+[mcp_servers.chrome-devtools]
+command = "cmd"
+args = [
+    "/c",
+    "npx",
+    "-y",
+    "chrome-devtools-mcp@latest",
+]
+env = { SystemRoot="C:\\Windows", PROGRAMFILES="C:\\Program Files" }
+startup_timeout_ms = 50_000

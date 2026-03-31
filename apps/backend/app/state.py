@@ -49,11 +49,19 @@ from app.market_ingestion.runner import MarketIngestionRunner
 from app.models.batch_job import BatchJobModel
 from app.models.bidask_metric_1s import BidAskMetric1sModel
 from app.models.billing_event import BillingEventModel
+from app.models.email_delivery_log import EmailDeliveryLogModel
+from app.models.email_outbox import EmailOutboxModel
 from app.models.kbar_1m import Kbar1mModel
+from app.models.otp_challenge import OtpChallengeModel
+from app.models.otp_verification_token import OtpVerificationTokenModel
 from app.models.refresh_denylist import RefreshTokenDenylistModel
 from app.models.subscription import SubscriptionModel
 from app.models.user import UserModel
 from app.repositories.billing_event_repository import BillingEventRepository
+from app.repositories.email_delivery_log_repository import EmailDeliveryLogRepository
+from app.repositories.email_outbox_repository import EmailOutboxRepository
+from app.repositories.otp_challenge_repository import OtpChallengeRepository
+from app.repositories.otp_verification_token_repository import OtpVerificationTokenRepository
 from app.repositories.refresh_denylist_repository import RefreshDenylistRepository
 from app.repositories.subscription_repository import SubscriptionRepository
 from app.repositories.user_repository import UserRepository
@@ -61,7 +69,11 @@ from app.services.audit import AuditLog
 from app.services.auth_service import AuthService
 from app.services.billing_service import BillingService
 from app.services.denylist import RefreshDenylist
+from app.services.email_outbox_dispatcher import EmailOutboxDispatcher
+from app.services.email_webhook_service import EmailWebhookService
 from app.services.metrics import Metrics
+from app.services.notification_email_service import NotificationEmailService
+from app.services.otp_service import OtpService
 from app.services.rate_limiter import SimpleRateLimiter
 from app.services.shioaji_session import build_shioaji_client
 from app.services.stripe_provider import StripeProvider
@@ -73,10 +85,21 @@ user_repository = UserRepository(session_factory=SessionLocal)
 refresh_denylist_repository = RefreshDenylistRepository(session_factory=SessionLocal)
 subscription_repository = SubscriptionRepository(session_factory=SessionLocal)
 billing_event_repository = BillingEventRepository(session_factory=SessionLocal)
+otp_challenge_repository = OtpChallengeRepository(session_factory=SessionLocal)
+otp_verification_token_repository = OtpVerificationTokenRepository(session_factory=SessionLocal)
+email_outbox_repository = EmailOutboxRepository(session_factory=SessionLocal)
+email_delivery_log_repository = EmailDeliveryLogRepository(session_factory=SessionLocal)
 metrics = Metrics()
 denylist = RefreshDenylist(repo=refresh_denylist_repository)
 audit_log = AuditLog()
 auth_service = AuthService(user_repository=user_repository, denylist=denylist, metrics=metrics)
+otp_service = OtpService(
+    user_repository=user_repository,
+    challenge_repository=otp_challenge_repository,
+    token_repository=otp_verification_token_repository,
+    outbox_repository=email_outbox_repository,
+    rate_limiter=SimpleRateLimiter(),
+)
 billing_service = BillingService(
     settings=get_stripe_settings(),
     user_repository=user_repository,
@@ -90,6 +113,53 @@ ingestor_runner: MarketIngestionRunner | None = None
 aggregator_runner: StreamProcessingRunner | None = None
 latest_state_runner: LatestStateRunner | None = None
 serving_redis_client = None
+email_outbox_dispatcher: EmailOutboxDispatcher | None = None
+email_webhook_service = EmailWebhookService(
+    outbox_repository=email_outbox_repository,
+    delivery_log_repository=email_delivery_log_repository,
+)
+notification_email_service = NotificationEmailService(
+    outbox_repository=email_outbox_repository,
+)
+
+
+def _normalize_aggregator_role(role: str) -> str:
+    normalized = role.strip().lower()
+    if normalized not in {"all", "tick", "bidask"}:
+        raise RuntimeError("invalid AGGREGATOR_WORKER_ROLE, expected one of: all, tick, bidask")
+    return normalized
+
+
+def _build_aggregator_runner_for_role(role: str, redis_module: Any) -> StreamProcessingRunner:
+    normalized = _normalize_aggregator_role(role)
+    enable_tick = normalized in {"all", "tick"}
+    enable_bidask = normalized in {"all", "bidask"}
+    runner = StreamProcessingRunner(
+        redis_client=redis_module.from_url(REDIS_URL),
+        session_factory=SessionLocal,
+        metrics=metrics,
+        env=AGGREGATOR_ENV,
+        code=AGGREGATOR_CODE,
+        tick_group=AGGREGATOR_TICK_GROUP,
+        bidask_group=AGGREGATOR_BIDASK_GROUP,
+        tick_consumer=AGGREGATOR_TICK_CONSUMER,
+        bidask_consumer=AGGREGATOR_BIDASK_CONSUMER,
+        read_count=AGGREGATOR_READ_COUNT,
+        block_ms=AGGREGATOR_BLOCK_MS,
+        claim_idle_ms=AGGREGATOR_CLAIM_IDLE_MS,
+        claim_count=AGGREGATOR_CLAIM_COUNT,
+        ttl_seconds=AGGREGATOR_STATE_TTL_SECONDS,
+        series_fields=AGGREGATOR_SERIES_FIELDS,
+        db_sink_batch_size=AGGREGATOR_DB_SINK_BATCH_SIZE,
+        db_sink_retry_backoff_seconds=AGGREGATOR_DB_SINK_RETRY_BACKOFF_SECONDS,
+        db_sink_max_retries=AGGREGATOR_DB_SINK_MAX_RETRIES,
+        db_sink_dead_letter_maxlen=AGGREGATOR_DB_SINK_DEAD_LETTER_MAXLEN,
+        blocking_warn_ms=AGGREGATOR_BLOCKING_WARN_MS,
+        enable_tick_pipeline=enable_tick,
+        enable_bidask_pipeline=enable_bidask,
+    )
+    logger.info("aggregator runner created role=%s", normalized)
+    return runner
 
 
 def _normalize_aggregator_role(role: str) -> str:
@@ -226,10 +296,32 @@ def get_serving_redis_client():
     return serving_redis_client
 
 
+def get_email_outbox_dispatcher() -> EmailOutboxDispatcher:
+    global email_outbox_dispatcher
+    if email_outbox_dispatcher is not None:
+        return email_outbox_dispatcher
+    try:
+        import redis
+    except Exception as err:  # pragma: no cover - depends on runtime dependency
+        raise RuntimeError("email dispatcher dependencies unavailable: install redis") from err
+    email_outbox_dispatcher = EmailOutboxDispatcher(
+        redis_client=redis.from_url(REDIS_URL),
+        outbox_repository=email_outbox_repository,
+    )
+    return email_outbox_dispatcher
+
+
 def reset_state_for_tests() -> None:
+    global email_outbox_dispatcher
     metrics.counters = dict.fromkeys(metrics.counters, 0)
     audit_log.events.clear()
+    otp_service.reset_rate_limits()
+    email_outbox_dispatcher = None
     with SessionLocal() as session:
+        session.execute(delete(EmailDeliveryLogModel))
+        session.execute(delete(EmailOutboxModel))
+        session.execute(delete(OtpVerificationTokenModel))
+        session.execute(delete(OtpChallengeModel))
         session.execute(delete(BatchJobModel))
         session.execute(delete(BidAskMetric1sModel))
         session.execute(delete(BillingEventModel))

@@ -46,3 +46,12 @@ def test_batch_job_admin_queue_migration_file_exists() -> None:
 def test_bidask_metrics_migration_file_exists() -> None:
     path = Path("alembic/versions/20260321_01_add_bidask_metrics_1s.py")
     assert path.exists()
+
+
+def test_otp_email_migration_file_exists() -> None:
+    path = Path("alembic/versions/20260323_01_add_otp_and_email_pipeline_tables.py")
+    assert path.exists()
+
+
+def test_otp_email_ops_doc_exists() -> None:
+    assert Path("docs/otp-email-ops.md").exists()

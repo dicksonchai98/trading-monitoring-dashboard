@@ -20,9 +20,11 @@ from app.routes import (
     auth,
     batch_jobs,
     billing,
+    email_webhooks,
     historical_backfill,
     market_crawler,
     realtime,
+    serving,
 )
 from app.state import metrics
 
@@ -41,12 +43,14 @@ app.add_middleware(
 
 app.include_router(auth.router)
 app.include_router(billing.router)
+app.include_router(email_webhooks.router)
 app.include_router(realtime.router)
 app.include_router(analytics.router)
 app.include_router(admin.router)
 app.include_router(historical_backfill.router)
 app.include_router(market_crawler.router)
 app.include_router(batch_jobs.router)
+app.include_router(serving.router)
 
 
 @app.on_event("startup")

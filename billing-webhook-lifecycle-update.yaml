@@ -1,0 +1,104 @@
+openapi: 3.0.3
+info:
+  title: Trading Dashboard Billing Webhook Lifecycle Update
+  version: "2026-03-20"
+  description: >
+    Incremental webhook behavior spec for billing lifecycle updates.
+    Documents newly handled Stripe events and period-end extraction rules.
+
+paths:
+  /billing/webhooks/stripe:
+    post:
+      summary: Stripe webhook receiver
+      description: >
+        Accepts Stripe webhook events and applies subscription state transitions.
+      tags:
+        - billing
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Webhook processed or ignored
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - status
+                properties:
+                  status:
+                    type: string
+                    enum: [processed, ignored]
+        "400":
+          description: Invalid signature or payload
+        "500":
+          description: Internal billing processing error
+
+x-billing-webhook-lifecycle:
+  handled_events:
+    - name: checkout.session.completed
+      purpose: Initialize or activate subscription after checkout completion.
+      primary_lookup:
+        - metadata.user_id
+        - customer -> users.stripe_customer_id fallback
+      period_end_resolution:
+        - data.object.current_period_end
+        - data.object.period_end
+        - retrieve subscription by data.object.subscription
+    - name: invoice.paid
+      purpose: Mark subscription active on successful invoice payment (initial and renewals).
+      lookup_strategy:
+        - subscription_id mapping (subscriptions.stripe_subscription_id)
+        - fallback: customer_id mapping (subscriptions.stripe_customer_id)
+      writes:
+        - status: active
+        - entitlement_active: true
+        - current_period_end: resolved if available
+    - name: invoice.payment_failed
+      purpose: Move subscription to past_due when renewal payment fails.
+      lookup_strategy:
+        - subscription_id mapping
+        - fallback: customer_id mapping
+      writes:
+        - status: past_due
+        - entitlement_active: false
+    - name: customer.subscription.updated
+      purpose: Sync status/period updates from Stripe subscription lifecycle changes.
+      accepted_status_map:
+        trialing: active
+        unpaid: past_due
+        active: active
+        past_due: past_due
+        canceled: canceled
+      writes:
+        - status: mapped status
+        - entitlement_active: true only when status=active
+        - current_period_end: resolved if available
+    - name: customer.subscription.deleted
+      purpose: Finalize cancellation.
+      writes:
+        - status: canceled
+        - entitlement_active: false
+    - name: checkout.session.expired
+      purpose: Clean pending subscription rows for expired checkout sessions.
+
+  period_end_extraction_order:
+    - obj.current_period_end
+    - obj.period_end
+    - obj.items.data[*].current_period_end
+    - obj.lines.data[*].period.end
+    - fallback: null
+
+  source_of_truth:
+    subscription_status: database.subscriptions.status
+    entitlement: database.subscriptions.entitlement_active
+    period_end: database.subscriptions.current_period_end
+
+  notes:
+    - checkout.session.completed is a checkout-flow event, not recurring invoice event.
+    - recurring renewals should rely on invoice.paid/invoice.payment_failed events.
+    - Stripe cancel_url redirect is not a webhook and must not be used as state authority.
