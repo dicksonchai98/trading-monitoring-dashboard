@@ -5,6 +5,8 @@ on:
     branches: [master]
     paths:
       - "apps/backend/**"
+      - "docker-compose.ec2.yml"
+      - "infra/nginx.ec2.conf"
 
 jobs:
   deploy:
