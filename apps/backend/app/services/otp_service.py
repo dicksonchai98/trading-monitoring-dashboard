@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from secrets import randbelow
 from typing import Callable
 
@@ -15,6 +15,7 @@ from app.config import (
     OTP_RESEND_COOLDOWN_SECONDS,
     OTP_TTL_SECONDS,
     OTP_VERIFICATION_TOKEN_TTL_SECONDS,
+    SENDGRID_OTP_TEMPLATE_ID,
 )
 from app.models.email_outbox import EmailOutboxModel
 from app.models.otp_challenge import OtpChallengeModel
@@ -29,10 +30,7 @@ from app.services.otp_crypto import (
     verify_otp_code,
 )
 from app.services.rate_limiter import SimpleRateLimiter
-
-
-def _utcnow() -> datetime:
-    return datetime.now(tz=timezone.utc)
+from app.utils.time import ensure_utc, utcnow
 
 
 def _default_otp_generator() -> str:
@@ -95,7 +93,7 @@ class OtpService:
 
         latest_pending = self._challenge_repository.get_latest_pending(email)
         if latest_pending is not None:
-            elapsed = (_utcnow() - latest_pending.last_sent_at).total_seconds()
+            elapsed = (utcnow() - ensure_utc(latest_pending.last_sent_at)).total_seconds()
             if elapsed < OTP_RESEND_COOLDOWN_SECONDS:
                 raise OtpThrottleError(
                     "cooldown",
@@ -103,7 +101,7 @@ class OtpService:
                 )
 
         otp_code = self._otp_generator()
-        expires_at = _utcnow() + timedelta(seconds=OTP_TTL_SECONDS)
+        expires_at = utcnow() + timedelta(seconds=OTP_TTL_SECONDS)
         challenge = self._challenge_repository.create_or_replace_pending(
             email=email,
             otp_hash=hash_otp_code(otp_code),
@@ -113,7 +111,7 @@ class OtpService:
         self._outbox_repository.create_task(
             email_type=EmailOutboxModel.EmailType.OTP,
             recipient=email,
-            template_name="otp_verification",
+            template_name=SENDGRID_OTP_TEMPLATE_ID,
             payload_json={
                 "challenge_id": challenge.id,
                 "otp_code": otp_code,
@@ -129,7 +127,7 @@ class OtpService:
         challenge = self._challenge_repository.get_latest_pending(email)
         if challenge is None:
             raise ValueError("challenge_not_found")
-        if challenge.expires_at <= _utcnow():
+        if ensure_utc(challenge.expires_at) <= utcnow():
             self._challenge_repository.update_status(challenge.id, OtpChallengeModel.Status.EXPIRED)
             raise ValueError("expired")
         if challenge.verify_attempts >= challenge.max_attempts:
@@ -151,7 +149,7 @@ class OtpService:
             challenge_id=challenge.id,
             email=email,
             purpose="register",
-            expires_at=_utcnow() + timedelta(seconds=OTP_VERIFICATION_TOKEN_TTL_SECONDS),
+            expires_at=utcnow() + timedelta(seconds=OTP_VERIFICATION_TOKEN_TTL_SECONDS),
         )
         return raw_token
 
@@ -163,7 +161,7 @@ class OtpService:
             token_hash,
             email=email,
             purpose="register",
-            not_expired_at=_utcnow(),
+            not_expired_at=utcnow(),
         )
         if consumed is None:
             raise ValueError("invalid_verification_token")
@@ -182,7 +180,7 @@ class OtpService:
             raise ValueError("invalid_verification_token")
         if candidate.email != email or candidate.purpose != "register":
             raise ValueError("invalid_verification_token")
-        if candidate.expires_at <= _utcnow():
+        if ensure_utc(candidate.expires_at) <= utcnow():
             raise ValueError("expired_verification_token")
         if candidate.used_at is not None:
             raise ValueError("invalid_verification_token")

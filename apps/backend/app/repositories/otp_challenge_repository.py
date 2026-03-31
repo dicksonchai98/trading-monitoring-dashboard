@@ -4,13 +4,14 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.otp_challenge import OtpChallengeModel
+from app.utils.time import ensure_utc, utcnow
 
 
 @dataclass
@@ -48,10 +49,10 @@ class OtpChallengeRepository:
                 email=email,
                 otp_hash=otp_hash,
                 status=OtpChallengeModel.Status.PENDING,
-                expires_at=expires_at,
+                expires_at=ensure_utc(expires_at),
                 verify_attempts=0,
                 max_attempts=max_attempts,
-                last_sent_at=datetime.now(tz=timezone.utc),
+                last_sent_at=utcnow(),
             )
             session.add(model)
             try:
@@ -68,10 +69,10 @@ class OtpChallengeRepository:
                 email=model.email,
                 otp_hash=model.otp_hash,
                 status=model.status.value,
-                expires_at=model.expires_at,
+                expires_at=ensure_utc(model.expires_at),
                 verify_attempts=model.verify_attempts,
                 max_attempts=model.max_attempts,
-                last_sent_at=model.last_sent_at,
+                last_sent_at=ensure_utc(model.last_sent_at),
             )
 
     def get_latest_pending(self, email: str) -> OtpChallengeRecord | None:
@@ -92,10 +93,10 @@ class OtpChallengeRepository:
                 email=model.email,
                 otp_hash=model.otp_hash,
                 status=model.status.value,
-                expires_at=model.expires_at,
+                expires_at=ensure_utc(model.expires_at),
                 verify_attempts=model.verify_attempts,
                 max_attempts=model.max_attempts,
-                last_sent_at=model.last_sent_at,
+                last_sent_at=ensure_utc(model.last_sent_at),
             )
 
     def increment_verify_attempts(self, challenge_id: str) -> OtpChallengeRecord | None:
@@ -111,10 +112,10 @@ class OtpChallengeRepository:
                 email=model.email,
                 otp_hash=model.otp_hash,
                 status=model.status.value,
-                expires_at=model.expires_at,
+                expires_at=ensure_utc(model.expires_at),
                 verify_attempts=model.verify_attempts,
                 max_attempts=model.max_attempts,
-                last_sent_at=model.last_sent_at,
+                last_sent_at=ensure_utc(model.last_sent_at),
             )
 
     def update_status(
@@ -132,8 +133,8 @@ class OtpChallengeRepository:
                 email=model.email,
                 otp_hash=model.otp_hash,
                 status=model.status.value,
-                expires_at=model.expires_at,
+                expires_at=ensure_utc(model.expires_at),
                 verify_attempts=model.verify_attempts,
                 max_attempts=model.max_attempts,
-                last_sent_at=model.last_sent_at,
+                last_sent_at=ensure_utc(model.last_sent_at),
             )

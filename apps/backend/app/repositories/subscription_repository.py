@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.subscription import SubscriptionModel
+from app.utils.time import ensure_utc
 
 
 @dataclass
@@ -78,7 +79,9 @@ class SubscriptionRepository:
                     stripe_customer_id=stripe_customer_id,
                     stripe_subscription_id=stripe_subscription_id,
                     stripe_price_id=stripe_price_id,
-                    current_period_end=current_period_end,
+                    current_period_end=(
+                        ensure_utc(current_period_end) if current_period_end is not None else None
+                    ),
                     status=status,
                     entitlement_active=entitlement_active,
                 )
@@ -90,7 +93,9 @@ class SubscriptionRepository:
                     model.stripe_subscription_id = stripe_subscription_id
                 if stripe_price_id is not None:
                     model.stripe_price_id = stripe_price_id
-                model.current_period_end = current_period_end
+                model.current_period_end = (
+                    ensure_utc(current_period_end) if current_period_end is not None else None
+                )
                 model.status = status
                 model.entitlement_active = entitlement_active
             session.commit()
@@ -105,7 +110,11 @@ class SubscriptionRepository:
             stripe_customer_id=model.stripe_customer_id,
             stripe_subscription_id=model.stripe_subscription_id,
             stripe_price_id=model.stripe_price_id,
-            current_period_end=model.current_period_end,
+            current_period_end=(
+                ensure_utc(model.current_period_end)
+                if model.current_period_end is not None
+                else None
+            ),
             status=model.status,
             entitlement_active=model.entitlement_active,
         )

@@ -4,12 +4,13 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime
 
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.models.otp_verification_token import OtpVerificationTokenModel
+from app.utils.time import ensure_utc, utcnow
 
 
 @dataclass
@@ -41,7 +42,7 @@ class OtpVerificationTokenRepository:
                 challenge_id=challenge_id,
                 email=email,
                 purpose=purpose,
-                expires_at=expires_at,
+                expires_at=ensure_utc(expires_at),
             )
             session.add(model)
             session.commit()
@@ -52,8 +53,8 @@ class OtpVerificationTokenRepository:
                 challenge_id=model.challenge_id,
                 email=model.email,
                 purpose=model.purpose,
-                expires_at=model.expires_at,
-                used_at=model.used_at,
+                expires_at=ensure_utc(model.expires_at),
+                used_at=ensure_utc(model.used_at) if model.used_at is not None else None,
             )
 
     def get_by_token_hash(self, token_hash: str) -> OtpVerificationTokenRecord | None:
@@ -70,8 +71,8 @@ class OtpVerificationTokenRepository:
                 challenge_id=model.challenge_id,
                 email=model.email,
                 purpose=model.purpose,
-                expires_at=model.expires_at,
-                used_at=model.used_at,
+                expires_at=ensure_utc(model.expires_at),
+                used_at=ensure_utc(model.used_at) if model.used_at is not None else None,
             )
 
     def consume_token(
@@ -83,14 +84,14 @@ class OtpVerificationTokenRepository:
         not_expired_at: datetime,
     ) -> OtpVerificationTokenRecord | None:
         with self._session_factory() as session:
-            used_at = datetime.now(tz=timezone.utc)
+            used_at = utcnow()
             update_stmt = (
                 update(OtpVerificationTokenModel)
                 .where(
                     OtpVerificationTokenModel.token_hash == token_hash,
                     OtpVerificationTokenModel.email == email,
                     OtpVerificationTokenModel.purpose == purpose,
-                    OtpVerificationTokenModel.expires_at > not_expired_at,
+                    OtpVerificationTokenModel.expires_at > ensure_utc(not_expired_at),
                     OtpVerificationTokenModel.used_at.is_(None),
                 )
                 .values(used_at=used_at)
@@ -114,6 +115,6 @@ class OtpVerificationTokenRepository:
                 challenge_id=model.challenge_id,
                 email=model.email,
                 purpose=model.purpose,
-                expires_at=model.expires_at,
-                used_at=model.used_at,
+                expires_at=ensure_utc(model.expires_at),
+                used_at=ensure_utc(model.used_at) if model.used_at is not None else None,
             )
