@@ -18,12 +18,14 @@ Before any business logic, the backend applies these checks:
 2. Signature must be valid (`stripe.Webhook.construct_event`).
 3. Webhook payload must contain valid `event.id` and `event.type`.
 4. Event idempotency uses `stripe_event_id` unique key in `billing_events`.
+5. Duplicate `event.id` with a different payload hash is treated as `invalid_event`.
 
 Possible outcomes:
 
 - `invalid_signature` -> HTTP `400`
 - `invalid_event` -> HTTP `400`
 - duplicate `event.id` -> HTTP `200` with `{"status":"ignored"}`
+- duplicate `event.id` + different payload -> HTTP `400` with `{"detail":"invalid_event"}`
 - internal processing error -> HTTP `500` with `{"detail":"billing_error"}`
 
 ## 2. Events Actively Handled
@@ -34,6 +36,8 @@ These event types are recognized and can mutate subscription state:
 2. `invoice.paid`
 3. `invoice.payment_failed`
 4. `customer.subscription.deleted`
+5. `customer.subscription.updated`
+6. `checkout.session.expired`
 
 ### 2.1 `checkout.session.completed`
 
@@ -131,6 +135,42 @@ Possible cases:
 - unknown subscription id -> ignored
 - invalid transition -> ignored
 
+### 2.5 `customer.subscription.updated`
+
+Purpose:
+
+- Synchronize local subscription status with Stripe status changes.
+
+Expected source fields:
+
+- `data.object.id` (Stripe subscription id)
+- `data.object.status`
+- optional `data.object.customer`
+- optional `data.object.current_period_end`
+
+State behavior:
+
+- `active` / `trialing` -> local `active` + entitlement true
+- `past_due` / `unpaid` / `incomplete` -> local `past_due` + entitlement false
+- `canceled` / `incomplete_expired` -> local `canceled` + entitlement false
+
+### 2.6 `checkout.session.expired`
+
+Purpose:
+
+- Ensure abandoned checkout sessions remain non-entitled.
+
+Expected source fields:
+
+- `data.object.metadata.user_id` (preferred)
+- fallback: `data.object.customer` -> map to internal user
+
+State behavior:
+
+- target status: `pending`
+- sets `entitlement_active = false`
+- ignored when current status is already `active`
+
 ## 3. Stripe Events That May Arrive But Are Not Used
 
 Stripe often sends additional events during checkout. Examples seen in logs:
@@ -192,7 +232,7 @@ If Stripe CLI shows webhook delivery failure:
 
 If events return `200` but no state change:
 
-1. Confirm event type is one of the 4 handled lifecycle events.
+1. Confirm event type is one of the 6 handled lifecycle events.
 2. Check whether subscription id/user mapping exists.
 3. Check if transition is disallowed by current state.
 4. Check `billing_events.status` to distinguish `processed` vs `ignored`.
