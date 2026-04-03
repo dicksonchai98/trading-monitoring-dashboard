@@ -22,21 +22,9 @@ import { cn } from "@/lib/utils/cn";
 
 const nav = [
   { to: "/dashboard", label: "Dashboard", icon: BarChart3 },
-  {
-    to: "/historical-data-analysis",
-    label: "Historical Data Analysis",
-    icon: Database,
-  },
-  {
-    to: "/historical-data-loader",
-    label: "Historical Data Loader",
-    icon: History,
-  },
-  {
-    to: "/historical-amplitude-distribution",
-    label: "歷史振幅分佈圖",
-    icon: BarChart3,
-  },
+  { to: "/historical-data-analysis", label: "Historical Data Analysis", icon: Database },
+  { to: "/historical-data-loader", label: "Historical Data Loader", icon: History },
+  { to: "/historical-amplitude-distribution", label: "Historical Amplitude Distribution", icon: BarChart3 },
   { to: "/market-thermometer", label: "Market Thermometer", icon: Gauge },
   { to: "/subscription", label: "Subscription", icon: CreditCard },
   { to: "/admin/audit", label: "Admin Audit", icon: ClipboardList },
@@ -46,7 +34,10 @@ const nav = [
 interface SidebarProps {
   className?: string;
   collapsed?: boolean;
+  mobile?: boolean;
+  mobileOpen?: boolean;
   onToggle?: () => void;
+  onCloseMobile?: () => void;
 }
 
 type FontPreset = "mono" | "sans";
@@ -72,7 +63,10 @@ function applyThemePreset(value: ThemePreset): void {
 export function Sidebar({
   className,
   collapsed = false,
+  mobile = false,
+  mobileOpen = true,
   onToggle,
+  onCloseMobile,
 }: SidebarProps): JSX.Element {
   const navigate = useNavigate();
   const location = useLocation();
@@ -84,7 +78,6 @@ export function Sidebar({
   const [portalUrl, setPortalUrl] = useState<string | null>(null);
   const [portalLoading, setPortalLoading] = useState(false);
   const [portalError, setPortalError] = useState<string | null>(null);
-  console.log(role);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -161,41 +154,41 @@ export function Sidebar({
         className,
       )}
     >
-      <div
-        className={cn("mb-[var(--section-gap)] px-3 py-2", collapsed && "px-2")}
-      >
-        <button
-          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          className="absolute -right-3 top-[var(--shell-padding)] z-10 inline-flex h-[var(--sidebar-toggle-size)] w-[var(--sidebar-toggle-size)] items-center justify-center rounded-sm border border-border bg-shell text-muted-foreground shadow-sm transition-colors hover:bg-panel-hover hover:text-foreground"
-          onClick={onToggle}
-          type="button"
-        >
-          {collapsed ? (
-            <PanelLeftOpen className="h-4 w-4" />
-          ) : (
-            <PanelLeftClose className="h-4 w-4" />
-          )}
-        </button>
-        <div
-          className={cn(
-            "flex items-center gap-2",
-            collapsed && "justify-center",
-          )}
-        >
+      <div className={cn("mb-[var(--section-gap)] px-3 py-2", collapsed && "px-2")}>
+        {!mobile ? (
+          <button
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            className="absolute -right-3 top-[var(--shell-padding)] z-10 inline-flex h-[var(--sidebar-toggle-size)] w-[var(--sidebar-toggle-size)] items-center justify-center rounded-sm border border-border bg-shell text-muted-foreground shadow-sm transition-colors hover:bg-panel-hover hover:text-foreground"
+            onClick={onToggle}
+            type="button"
+          >
+            {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+          </button>
+        ) : (
+          <button
+            type="button"
+            aria-label="Close sidebar"
+            className={cn(
+              "absolute right-2 top-2 inline-flex h-8 w-8 items-center justify-center rounded-sm border border-border text-muted-foreground transition-colors hover:bg-panel-hover hover:text-foreground",
+              !mobileOpen && "hidden",
+            )}
+            onClick={onCloseMobile}
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
+        <div className={cn("flex items-center gap-2", collapsed && "justify-center")}>
           <span
             aria-label="Trading Monitor brand"
             className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-sm border border-primary/40 bg-primary/15 text-primary"
           >
             <BarChart3 className="h-4 w-4" />
           </span>
-          {collapsed ? null : (
-            <p className="text-sm font-semibold text-foreground">
-              Trading Monitor
-            </p>
-          )}
+          {collapsed ? null : <p className="text-sm font-semibold text-foreground">Trading Monitor</p>}
         </div>
       </div>
-      <nav className="flex-1 space-y-[var(--space-1)]">
+
+      <nav className="flex-1 space-y-[var(--space-1)]" data-testid="sidebar-nav">
         {nav.map((item) => {
           const active = location.pathname === item.to;
           const Icon = item.icon;
@@ -212,26 +205,39 @@ export function Sidebar({
                   : "border-transparent text-muted-foreground hover:border-border hover:bg-card hover:text-foreground",
               )}
               to={item.to}
+              onClick={() => {
+                if (mobile) {
+                  onCloseMobile?.();
+                }
+              }}
             >
               <Icon className="h-4 w-4" />
-              {collapsed ? null : (
-                <span className="truncate">{item.label}</span>
-              )}
+              {collapsed ? null : <span className="truncate">{item.label}</span>}
             </Link>
           );
         })}
+
+        <button
+          type="button"
+          aria-label={collapsed ? "Settings" : undefined}
+          data-testid="sidebar-settings-nav"
+          className={cn(
+            "flex w-full items-center rounded-sm border py-2 text-sm transition-colors",
+            collapsed ? "justify-center px-2" : "gap-2 px-3",
+            "border-transparent text-muted-foreground hover:border-border hover:bg-card hover:text-foreground",
+          )}
+          onClick={() => setSettingsOpen(true)}
+        >
+          <Settings className="h-4 w-4" />
+          {collapsed ? null : <span className="truncate">Settings</span>}
+        </button>
       </nav>
-      <div
-        className={cn("relative mt-[var(--section-gap)]")}
-        data-testid="sidebar-footer"
-      >
+
+      <div className={cn("relative mt-[var(--section-gap)]")} data-testid="sidebar-footer">
         <div
           id="user-info"
           data-name="user-info"
-          className={cn(
-            "border border-border bg-card p-2 text-xs text-muted-foreground",
-            collapsed && "hidden",
-          )}
+          className={cn("border border-border bg-card p-2 text-xs text-muted-foreground", collapsed && "hidden")}
           data-testid="sidebar-user-info"
         >
           {isAuthenticated ? (
@@ -244,23 +250,15 @@ export function Sidebar({
             >
               <div className="mb-2 flex items-center gap-2 text-subtle-foreground">
                 <Settings className="h-4 w-4" />
-                <span className="text-[11px] uppercase tracking-[0.08em]">
-                  Settings
-                </span>
+                <span className="text-[11px] uppercase tracking-[0.08em]">Settings</span>
               </div>
               <div className="space-y-2">
                 <div className="space-y-1">
-                  <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-subtle-foreground">
-                    Account
-                  </p>
-                  <p className="font-semibold text-foreground">
-                    {account || "unknown"}
-                  </p>
+                  <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-subtle-foreground">Account</p>
+                  <p className="font-semibold text-foreground">{account || "unknown"}</p>
                 </div>
                 <div className="space-y-1">
-                  <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-subtle-foreground">
-                    Role
-                  </p>
+                  <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-subtle-foreground">Role</p>
                   <p className="text-foreground">{role}</p>
                 </div>
               </div>
@@ -269,12 +267,18 @@ export function Sidebar({
             <Link
               className="flex h-10 w-full items-center justify-center rounded-sm border border-primary bg-primary text-sm font-medium text-primary-foreground transition-colors hover:brightness-110"
               to="/login"
+              onClick={() => {
+                if (mobile) {
+                  onCloseMobile?.();
+                }
+              }}
             >
-              登入 / 註冊
+              Login / Register
             </Link>
           )}
         </div>
       </div>
+
       {settingsOpen ? (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
@@ -301,15 +305,11 @@ export function Sidebar({
 
             <div className="space-y-4">
               <div className="space-y-2">
-                <p className="text-xs font-medium uppercase tracking-[0.08em] text-subtle-foreground">
-                  Font
-                </p>
+                <p className="text-xs font-medium uppercase tracking-[0.08em] text-subtle-foreground">Font</p>
                 <select
                   className="h-10 w-full rounded-sm border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-border-strong"
                   value={fontPreset}
-                  onChange={(event) =>
-                    updateFontPreset(event.target.value as FontPreset)
-                  }
+                  onChange={(event) => updateFontPreset(event.target.value as FontPreset)}
                 >
                   <option value="mono">Mono</option>
                   <option value="sans">Sans</option>
@@ -317,15 +317,11 @@ export function Sidebar({
               </div>
 
               <div className="space-y-2">
-                <p className="text-xs font-medium uppercase tracking-[0.08em] text-subtle-foreground">
-                  Color style
-                </p>
+                <p className="text-xs font-medium uppercase tracking-[0.08em] text-subtle-foreground">Color style</p>
                 <select
                   className="h-10 w-full rounded-sm border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-border-strong"
                   value={themePreset}
-                  onChange={(event) =>
-                    updateThemePreset(event.target.value as ThemePreset)
-                  }
+                  onChange={(event) => updateThemePreset(event.target.value as ThemePreset)}
                 >
                   <option value="ember">Ember</option>
                   <option value="ocean">Ocean</option>
@@ -334,9 +330,7 @@ export function Sidebar({
               </div>
 
               <div className="space-y-2 border-t border-border pt-4">
-                <p className="text-xs font-medium uppercase tracking-[0.08em] text-subtle-foreground">
-                  Billing portal
-                </p>
+                <p className="text-xs font-medium uppercase tracking-[0.08em] text-subtle-foreground">Billing portal</p>
                 <button
                   type="button"
                   className="h-10 w-full rounded-sm border border-border bg-background px-3 text-sm text-foreground transition-colors hover:border-border-strong hover:bg-panel-hover disabled:cursor-not-allowed disabled:opacity-50"
@@ -346,18 +340,11 @@ export function Sidebar({
                   {portalLoading ? "Opening portal..." : "Open Billing Portal"}
                 </button>
                 {portalUrl ? (
-                  <a
-                    className="text-xs text-primary underline-offset-4 hover:underline"
-                    href={portalUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
+                  <a className="text-xs text-primary underline-offset-4 hover:underline" href={portalUrl} target="_blank" rel="noreferrer">
                     Open latest billing portal link
                   </a>
                 ) : null}
-                {portalError ? (
-                  <p className="text-xs text-danger">{portalError}</p>
-                ) : null}
+                {portalError ? <p className="text-xs text-danger">{portalError}</p> : null}
               </div>
 
               {isAuthenticated ? (

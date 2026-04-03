@@ -12,6 +12,11 @@ vi.mock("react-router-dom", async () => {
 });
 
 describe("AppShell", () => {
+  afterEach(() => {
+    Object.defineProperty(window, "innerWidth", { configurable: true, writable: true, value: 1024 });
+    window.dispatchEvent(new Event("resize"));
+  });
+
   it("renders sidebar and main canvas regions", () => {
     render(
       <MemoryRouter initialEntries={["/dashboard"]}>
@@ -53,5 +58,22 @@ describe("AppShell", () => {
 
     expect(screen.getByText("Dashboard")).toBeInTheDocument();
     expect(screen.getByText("Trading Monitor")).toBeInTheDocument();
+  });
+
+  it("hides sidebar content by default on mobile and shows toggle icon", () => {
+    Object.defineProperty(window, "innerWidth", { configurable: true, writable: true, value: 640 });
+    window.dispatchEvent(new Event("resize"));
+
+    render(
+      <MemoryRouter initialEntries={["/dashboard"]}>
+        <AppShell />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole("button", { name: "Open sidebar" })).toBeInTheDocument();
+    expect(screen.queryByText("Dashboard")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open sidebar" }));
+    expect(screen.getByText("Dashboard")).toBeInTheDocument();
   });
 });
