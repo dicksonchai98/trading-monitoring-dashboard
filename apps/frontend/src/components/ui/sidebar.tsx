@@ -63,7 +63,7 @@ export function Sidebar({
   return (
     <aside
       className={cn(
-        "relative flex h-full flex-col overflow-visible rounded-md border border-border bg-shell p-[var(--panel-padding)] transition-[width] duration-200",
+        "relative flex h-full flex-col overflow-visible rounded-md border border-border bg-shell p-[var(--panel-padding)] transition-[width] duration-300 ease-out will-change-[width]",
         className,
       )}
     >

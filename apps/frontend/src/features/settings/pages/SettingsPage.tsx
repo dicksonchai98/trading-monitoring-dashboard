@@ -10,9 +10,11 @@ import { useAuthStore } from "@/lib/store/auth-store";
 
 type FontPreset = "mono" | "sans";
 type ThemePreset = "ember" | "ocean" | "graphite";
+type LanguagePreset = "en" | "zh-TW";
 
 const FONT_STORAGE_KEY = "ui.font.preset";
 const THEME_STORAGE_KEY = "ui.theme.preset";
+const LANGUAGE_STORAGE_KEY = "ui.language.preset";
 
 function applyFontPreset(value: FontPreset): void {
   if (typeof document === "undefined") {
@@ -28,12 +30,21 @@ function applyThemePreset(value: ThemePreset): void {
   document.documentElement.setAttribute("data-theme", value);
 }
 
+function applyLanguagePreset(value: LanguagePreset): void {
+  if (typeof document === "undefined") {
+    return;
+  }
+  document.documentElement.setAttribute("lang", value);
+  document.documentElement.setAttribute("data-language", value);
+}
+
 export function SettingsPage(): JSX.Element {
   const navigate = useNavigate();
   const { token, role, clearSession } = useAuthStore();
   const isAuthenticated = role !== "visitor";
   const [fontPreset, setFontPreset] = useState<FontPreset>("mono");
   const [themePreset, setThemePreset] = useState<ThemePreset>("ember");
+  const [languagePreset, setLanguagePreset] = useState<LanguagePreset>("en");
   const [portalUrl, setPortalUrl] = useState<string | null>(null);
   const [portalLoading, setPortalLoading] = useState(false);
   const [portalError, setPortalError] = useState<string | null>(null);
@@ -44,12 +55,16 @@ export function SettingsPage(): JSX.Element {
     }
     const savedFont = window.localStorage.getItem(FONT_STORAGE_KEY);
     const savedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
+    const savedLanguage = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
     const nextFont: FontPreset = savedFont === "sans" ? "sans" : "mono";
     const nextTheme: ThemePreset = savedTheme === "ocean" || savedTheme === "graphite" ? savedTheme : "ember";
+    const nextLanguage: LanguagePreset = savedLanguage === "zh-TW" ? "zh-TW" : "en";
     setFontPreset(nextFont);
     setThemePreset(nextTheme);
+    setLanguagePreset(nextLanguage);
     applyFontPreset(nextFont);
     applyThemePreset(nextTheme);
+    applyLanguagePreset(nextLanguage);
   }, []);
 
   function updateFontPreset(nextFont: FontPreset): void {
@@ -65,6 +80,14 @@ export function SettingsPage(): JSX.Element {
     applyThemePreset(nextTheme);
     if (typeof window !== "undefined") {
       window.localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
+    }
+  }
+
+  function updateLanguagePreset(nextLanguage: LanguagePreset): void {
+    setLanguagePreset(nextLanguage);
+    applyLanguagePreset(nextLanguage);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(LANGUAGE_STORAGE_KEY, nextLanguage);
     }
   }
 
@@ -117,6 +140,17 @@ export function SettingsPage(): JSX.Element {
             <option value="ember">Ember</option>
             <option value="ocean">Ocean</option>
             <option value="graphite">Graphite</option>
+          </select>
+        </div>
+        <div className="space-y-2">
+          <p className="text-xs font-medium uppercase tracking-[0.08em] text-subtle-foreground">Language</p>
+          <select
+            className="h-10 w-full rounded-sm border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-border-strong"
+            value={languagePreset}
+            onChange={(event) => updateLanguagePreset(event.target.value as LanguagePreset)}
+          >
+            <option value="en">English</option>
+            <option value="zh-TW">中文</option>
           </select>
         </div>
       </Card>

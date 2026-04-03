@@ -46,32 +46,32 @@ export function EmailVerificationStep({
       </label>
       <label className="space-y-2 text-sm text-foreground">
         <span className="block">Verification code</span>
-        <input
-          type="text"
-          value={otpCode}
-          disabled={disabled}
-          onChange={(event) => onOtpCodeChange(event.target.value)}
-          className="h-10 w-full rounded-sm border border-border bg-shell px-3 text-sm text-foreground outline-none transition-colors placeholder:text-subtle-foreground focus:border-border-strong disabled:cursor-not-allowed disabled:opacity-60"
-        />
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={otpCode}
+            disabled={disabled}
+            onChange={(event) => onOtpCodeChange(event.target.value)}
+            className="h-10 w-full rounded-sm border border-border bg-shell px-3 text-sm text-foreground outline-none transition-colors placeholder:text-subtle-foreground hover:border-border-strong focus:border-border-strong disabled:cursor-not-allowed disabled:opacity-60"
+          />
+          <Button
+            type="button"
+            variant="outline"
+            className="h-10 min-w-[120px]"
+            disabled={disabled || (hasOtpSent && resendCooldownSeconds > 0)}
+            onClick={onSendCode}
+          >
+            {isSending
+              ? "Sending..."
+              : hasOtpSent
+                ? resendCooldownSeconds > 0
+                  ? `Resend ${resendCooldownSeconds}s`
+                  : "Resend"
+                : "Send code"}
+          </Button>
+        </div>
       </label>
-      {hasOtpSent && resendCooldownSeconds > 0 ? (
-        <p className="text-xs text-muted-foreground">You can resend a verification code in {resendCooldownSeconds} seconds.</p>
-      ) : null}
-      <div className="grid grid-cols-2 gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          disabled={disabled || (hasOtpSent && resendCooldownSeconds > 0)}
-          onClick={onSendCode}
-        >
-          {isSending
-            ? "Sending..."
-            : hasOtpSent
-              ? resendCooldownSeconds > 0
-                ? `Resend in ${resendCooldownSeconds}s`
-                : "Resend code"
-              : "Send code"}
-        </Button>
+      <div className="grid grid-cols-1 gap-2">
         <Button type="button" disabled={disabled || !hasOtpSent} onClick={onVerifyCode}>
           {isVerifying ? "Verifying..." : "Verify email"}
         </Button>
