@@ -39,6 +39,20 @@ describe("Sidebar", () => {
     );
   });
 
+  it("renders setting nav item at the end and keeps user info in a separate footer section", () => {
+    render(
+      <MemoryRouter initialEntries={["/dashboard"]}>
+        <Sidebar />
+      </MemoryRouter>,
+    );
+
+    const nav = screen.getByTestId("sidebar-nav");
+    const navButtons = nav.querySelectorAll("a,button");
+    const lastNavItem = navButtons[navButtons.length - 1];
+    expect(lastNavItem).toHaveAttribute("data-testid", "sidebar-settings-nav");
+    expect(screen.getByTestId("sidebar-footer")).toContainElement(screen.getByTestId("sidebar-user-info"));
+  });
+
   it("shows a login link when the user is not authenticated", () => {
     render(
       <MemoryRouter initialEntries={["/dashboard"]}>
