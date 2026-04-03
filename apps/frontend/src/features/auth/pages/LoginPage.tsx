@@ -337,7 +337,6 @@ function RegisterForm({ onAuthenticated }: AuthFormProps): JSX.Element {
             onUserIdChange={(value) => form.setValue("user_id", value, { shouldDirty: true, shouldValidate: true })}
             onPasswordChange={(value) => form.setValue("password", value, { shouldDirty: true, shouldValidate: true })}
             onConfirmPasswordChange={(value) => form.setValue("confirmPassword", value, { shouldDirty: true, shouldValidate: true })}
-            onBack={() => setStep("verify_email")}
           />
         )}
       </form>

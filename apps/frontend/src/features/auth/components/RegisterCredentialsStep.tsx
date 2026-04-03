@@ -13,7 +13,6 @@ interface RegisterCredentialsStepProps {
   onUserIdChange: (value: string) => void;
   onPasswordChange: (value: string) => void;
   onConfirmPasswordChange: (value: string) => void;
-  onBack: () => void;
 }
 
 export function RegisterCredentialsStep({
@@ -28,7 +27,6 @@ export function RegisterCredentialsStep({
   onUserIdChange,
   onPasswordChange,
   onConfirmPasswordChange,
-  onBack,
 }: RegisterCredentialsStepProps): JSX.Element {
   return (
     <div className="space-y-4">
@@ -66,10 +64,7 @@ export function RegisterCredentialsStep({
         />
         {confirmPasswordError ? <span className="block text-xs text-danger">{confirmPasswordError}</span> : null}
       </label>
-      <div className="grid grid-cols-2 gap-2">
-        <Button type="button" variant="outline" disabled={disabled} onClick={onBack}>
-          Back
-        </Button>
+      <div className="grid grid-cols-1 gap-2">
         <Button type="submit" disabled={disabled}>
           {isRegistering ? "Registering..." : "Register"}
         </Button>

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { AppShell } from "@/app/layout/AppShell";
 
@@ -12,9 +12,17 @@ vi.mock("react-router-dom", async () => {
 });
 
 describe("AppShell", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
   afterEach(() => {
     Object.defineProperty(window, "innerWidth", { configurable: true, writable: true, value: 1024 });
-    window.dispatchEvent(new Event("resize"));
+    act(() => {
+      window.dispatchEvent(new Event("resize"));
+    });
+    vi.runOnlyPendingTimers();
+    vi.useRealTimers();
   });
 
   it("renders sidebar and main canvas regions", () => {
@@ -23,6 +31,9 @@ describe("AppShell", () => {
         <AppShell />
       </MemoryRouter>,
     );
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
 
     expect(screen.getByRole("complementary")).toBeInTheDocument();
     expect(screen.getByRole("complementary")).toHaveClass("w-[var(--sidebar-w-expanded)]");
@@ -39,6 +50,9 @@ describe("AppShell", () => {
         <AppShell />
       </MemoryRouter>,
     );
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
 
     const collapseButton = screen.getByRole("button", { name: "Collapse sidebar" });
     expect(screen.getByText("Dashboard")).toBeInTheDocument();
@@ -62,13 +76,18 @@ describe("AppShell", () => {
 
   it("hides sidebar content by default on mobile and shows toggle icon", () => {
     Object.defineProperty(window, "innerWidth", { configurable: true, writable: true, value: 640 });
-    window.dispatchEvent(new Event("resize"));
+    act(() => {
+      window.dispatchEvent(new Event("resize"));
+    });
 
     render(
       <MemoryRouter initialEntries={["/dashboard"]}>
         <AppShell />
       </MemoryRouter>,
     );
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
 
     expect(screen.getByRole("button", { name: "Open sidebar" })).toBeInTheDocument();
     expect(screen.queryByText("Dashboard")).not.toBeInTheDocument();

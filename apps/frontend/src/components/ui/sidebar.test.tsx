@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { Sidebar } from "@/components/ui/sidebar";
 import { useAuthStore } from "@/lib/store/auth-store";
@@ -85,33 +85,21 @@ describe("Sidebar", () => {
     expect(screen.getByText("trader01")).toBeInTheDocument();
     expect(screen.getByText("Role")).toBeInTheDocument();
     expect(screen.getByText("admin")).toBeInTheDocument();
-    expect(screen.getByTestId("sidebar-user-info-trigger")).toBeInTheDocument();
+    expect(screen.getByTestId("sidebar-user-info-display")).toBeInTheDocument();
   });
 
-  it("opens settings modal with font, theme, billing portal and logout controls", () => {
-    useAuthStore.setState({
-      token: makeToken("user", "member01"),
-      role: "member",
-      entitlement: "active",
-      resolved: true,
-    });
-
+  it("renders settings as a navigation link instead of modal trigger", () => {
     render(
       <MemoryRouter initialEntries={["/dashboard"]}>
         <Sidebar />
       </MemoryRouter>,
     );
 
-    fireEvent.click(screen.getByTestId("sidebar-user-info-trigger"));
-
-    expect(screen.getByRole("dialog", { name: "Settings dialog" })).toBeInTheDocument();
-    expect(screen.getByText("Font")).toBeInTheDocument();
-    expect(screen.getByText("Color style")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Open Billing Portal" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Logout" })).toBeInTheDocument();
+    const settingsLink = screen.getByTestId("sidebar-settings-nav");
+    expect(settingsLink).toHaveAttribute("href", "/settings");
   });
 
-  it("does not show settings trigger when user is not authenticated", () => {
+  it("does not show clickable settings trigger in user info block", () => {
     render(
       <MemoryRouter initialEntries={["/dashboard"]}>
         <Sidebar />

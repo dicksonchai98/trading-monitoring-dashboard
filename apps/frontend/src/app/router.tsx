@@ -20,6 +20,7 @@ import {
 import { AdminAuditPage } from "@/features/admin/pages/AdminAuditPage";
 import { ForbiddenPage } from "@/features/common/pages/ForbiddenPage";
 import { NotFoundPage } from "@/features/common/pages/NotFoundPage";
+import { SettingsPage } from "@/features/settings/pages/SettingsPage";
 
 const router = createBrowserRouter([
   {
@@ -94,6 +95,14 @@ const router = createBrowserRouter([
         element: (
           <GuardedRoute requiredRole="admin">
             <AdminAuditPage />
+          </GuardedRoute>
+        ),
+      },
+      {
+        path: "/settings",
+        element: (
+          <GuardedRoute requiredRole="visitor">
+            <SettingsPage />
           </GuardedRoute>
         ),
       },
