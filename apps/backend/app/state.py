@@ -48,6 +48,7 @@ from app.latest_state.runner import LatestStateRunner
 from app.market_ingestion.runner import MarketIngestionRunner
 from app.models.batch_job import BatchJobModel
 from app.models.bidask_metric_1s import BidAskMetric1sModel
+from app.models.billing_plan import BillingPlanModel
 from app.models.billing_event import BillingEventModel
 from app.models.email_delivery_log import EmailDeliveryLogModel
 from app.models.email_outbox import EmailOutboxModel
@@ -325,6 +326,7 @@ def reset_state_for_tests() -> None:
         session.execute(delete(BatchJobModel))
         session.execute(delete(BidAskMetric1sModel))
         session.execute(delete(BillingEventModel))
+        session.execute(delete(BillingPlanModel))
         session.execute(delete(Kbar1mModel))
         session.execute(delete(SubscriptionModel))
         session.execute(delete(RefreshTokenDenylistModel))

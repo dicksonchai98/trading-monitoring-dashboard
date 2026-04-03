@@ -303,9 +303,13 @@ def test_plans_endpoint_returns_real_plan_fields() -> None:
     res = client.get("/billing/plans")
     assert res.status_code == 200
     plans = res.json()["plans"]
-    assert len(plans) == 1
-    plan = plans[0]
-    assert plan["name"] == "Basic"
-    assert plan["price_id"] == "price_local"
-    assert plan["currency"] == "usd"
-    assert plan["interval"] == "month"
+    assert len(plans) == 2
+    free_plan = plans[0]
+    basic_plan = plans[1]
+    assert free_plan["id"] == "free"
+    assert free_plan["price"] == "free"
+    assert basic_plan["id"] == "basic"
+    assert basic_plan["name"] == "Basic"
+    assert basic_plan["price_id"] == "price_local"
+    assert basic_plan["currency"] == "usd"
+    assert basic_plan["interval"] == "month"
