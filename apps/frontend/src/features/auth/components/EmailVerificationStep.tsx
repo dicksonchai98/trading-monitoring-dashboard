@@ -5,7 +5,6 @@ interface EmailVerificationStepProps {
   email: string;
   emailError?: string;
   otpCode: string;
-  otpMessage: string | null;
   disabled: boolean;
   isSending: boolean;
   isVerifying: boolean;
@@ -21,7 +20,6 @@ export function EmailVerificationStep({
   email,
   emailError,
   otpCode,
-  otpMessage,
   disabled,
   isSending,
   isVerifying,
@@ -59,7 +57,6 @@ export function EmailVerificationStep({
       {hasOtpSent && resendCooldownSeconds > 0 ? (
         <p className="text-xs text-muted-foreground">You can resend a verification code in {resendCooldownSeconds} seconds.</p>
       ) : null}
-      {otpMessage ? <p className="text-xs text-primary">{otpMessage}</p> : null}
       <div className="grid grid-cols-2 gap-2">
         <Button
           type="button"
