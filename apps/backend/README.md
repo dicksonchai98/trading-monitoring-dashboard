@@ -19,6 +19,9 @@ FastAPI modular monolith for ingestion, processing, auth, subscription, and real
 
 ## OTP + Email Services
 
+- Auth payload contract (Wave 1):
+  - `POST /auth/login` body: `{ "user_id": "...", "password": "..." }`
+  - `POST /auth/register` body: `{ "user_id": "...", "email": "...", "password": "...", "verification_token": "..." }`
 - OTP APIs:
   - `POST /auth/email/send-otp`
   - `POST /auth/email/verify-otp`
