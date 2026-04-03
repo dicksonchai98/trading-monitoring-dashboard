@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from app.models.batch_job import BatchJobModel
 from app.models.bidask_metric_1s import BidAskMetric1sModel
+from app.models.billing_plan import BillingPlanModel
 from app.models.billing_event import BillingEventModel
 from app.models.email_delivery_log import EmailDeliveryLogModel
 from app.models.email_outbox import EmailOutboxModel
@@ -28,6 +29,10 @@ def test_subscription_model_table_name() -> None:
 
 def test_billing_event_model_table_name() -> None:
     assert BillingEventModel.__tablename__ == "billing_events"
+
+
+def test_billing_plan_model_table_name() -> None:
+    assert BillingPlanModel.__tablename__ == "billing_plans"
 
 
 def test_kbar_1m_model_table_name() -> None:
