@@ -7,6 +7,8 @@ import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { login, register, sendEmailOtp, verifyEmailOtp } from "@/features/auth/api/auth";
+import { EmailVerificationStep } from "@/features/auth/components/EmailVerificationStep";
+import { RegisterCredentialsStep } from "@/features/auth/components/RegisterCredentialsStep";
 import { decodeAccessToken, mapTokenRole } from "@/features/auth/lib/token";
 import { getBillingStatus } from "@/features/subscription/api/billing";
 import { mapEntitlement, resolveEntitlementFromBillingStatus } from "@/features/subscription/lib/entitlement";
@@ -164,14 +166,15 @@ function LoginForm({ onAuthenticated }: AuthFormProps): JSX.Element {
 }
 
 function RegisterForm({ onAuthenticated }: AuthFormProps): JSX.Element {
+  type RegisterStep = "verify_email" | "credentials";
   const form = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
     defaultValues: { user_id: "", email: "", password: "", confirmPassword: "" },
   });
 
+  const [step, setStep] = useState<RegisterStep>("verify_email");
   const [verificationToken, setVerificationToken] = useState<string | null>(null);
   const [verifiedEmail, setVerifiedEmail] = useState<string | null>(null);
-  const [otpModalOpen, setOtpModalOpen] = useState(false);
   const [otpCode, setOtpCode] = useState("");
   const [otpSentEmail, setOtpSentEmail] = useState<string | null>(null);
   const [resendCooldownSeconds, setResendCooldownSeconds] = useState(0);
@@ -179,7 +182,6 @@ function RegisterForm({ onAuthenticated }: AuthFormProps): JSX.Element {
   const [localError, setLocalError] = useState<string | null>(null);
   const currentEmail = form.watch("email");
   const hasOtpSent = otpSentEmail === currentEmail && currentEmail.length > 0;
-  const isEmailVerified = Boolean(verificationToken && verifiedEmail === currentEmail);
 
   const sendOtpMutation = useMutation({
     mutationFn: sendEmailOtp,
@@ -200,9 +202,9 @@ function RegisterForm({ onAuthenticated }: AuthFormProps): JSX.Element {
       const email = form.getValues("email");
       setVerificationToken(data.verification_token);
       setVerifiedEmail(email);
-      setOtpModalOpen(false);
       setOtpMessage("Email verified. You can finish registration now.");
       setLocalError(null);
+      setStep("credentials");
     },
   });
 
@@ -238,6 +240,7 @@ function RegisterForm({ onAuthenticated }: AuthFormProps): JSX.Element {
     setResendCooldownSeconds(0);
     setOtpCode("");
     setOtpMessage(null);
+    setStep("verify_email");
   }, [currentEmail, verifiedEmail]);
 
   async function handleSendOtp(): Promise<void> {
@@ -275,19 +278,8 @@ function RegisterForm({ onAuthenticated }: AuthFormProps): JSX.Element {
     verifyOtpMutation.mutate({ email, otp_code: otpCode.trim() });
   }
 
-  async function handleOpenOtpModal(): Promise<void> {
-    setLocalError(null);
-    setOtpMessage(null);
-    sendOtpMutation.reset();
-    verifyOtpMutation.reset();
-    const isValid = await form.trigger("email");
-    if (!isValid) {
-      return;
-    }
-    setOtpModalOpen(true);
-    if (!hasOtpSent) {
-      await handleSendOtp();
-    }
+  async function handleRequestOtp(): Promise<void> {
+    await handleSendOtp();
   }
 
   return (
@@ -302,6 +294,7 @@ function RegisterForm({ onAuthenticated }: AuthFormProps): JSX.Element {
           registerMutation.reset();
           if (!verificationToken || verifiedEmail !== values.email) {
             setLocalError("Please verify your email before registering.");
+            setStep("verify_email");
             return;
           }
           registerMutation.mutate({
@@ -312,92 +305,39 @@ function RegisterForm({ onAuthenticated }: AuthFormProps): JSX.Element {
           });
         })}
       >
-        <InputField
-          label="User ID"
-          disabled={isPending}
-          error={form.formState.errors.user_id?.message}
-          registration={form.register}
-          name="user_id"
-        />
-        <InputField
-          label="Email"
-          disabled={isPending}
-          error={form.formState.errors.email?.message}
-          registration={form.register}
-          name="email"
-        />
-        <InputField
-          label="Password"
-          type="password"
-          disabled={isPending}
-          error={form.formState.errors.password?.message}
-          registration={form.register}
-          name="password"
-        />
-        <InputField
-          label="Confirm password"
-          type="password"
-          disabled={isPending}
-          error={form.formState.errors.confirmPassword?.message}
-          registration={form.register}
-          name="confirmPassword"
-        />
-        <Button className="w-full" type="button" variant="outline" disabled={isPending} onClick={() => void handleOpenOtpModal()}>
-          {isEmailVerified ? "Verified email address" : "Verify email address"}
-        </Button>
-        {otpMessage ? <p className="text-xs text-primary">{otpMessage}</p> : null}
-        {isEmailVerified ? (
-          <Button className="w-full" type="submit" disabled={isPending}>
-            {registerMutation.isPending ? "Registering..." : "Register"}
-          </Button>
-        ) : null}
+        {step === "verify_email" ? (
+          <EmailVerificationStep
+            email={form.watch("email")}
+            emailError={form.formState.errors.email?.message}
+            otpCode={otpCode}
+            otpMessage={otpMessage}
+            disabled={isPending}
+            isSending={sendOtpMutation.isPending}
+            isVerifying={verifyOtpMutation.isPending}
+            hasOtpSent={hasOtpSent}
+            resendCooldownSeconds={resendCooldownSeconds}
+            onEmailChange={(value) => form.setValue("email", value, { shouldDirty: true, shouldValidate: true })}
+            onOtpCodeChange={setOtpCode}
+            onSendCode={() => void handleRequestOtp()}
+            onVerifyCode={() => void handleVerifyOtp()}
+          />
+        ) : (
+          <RegisterCredentialsStep
+            userId={form.watch("user_id")}
+            password={form.watch("password")}
+            confirmPassword={form.watch("confirmPassword")}
+            userIdError={form.formState.errors.user_id?.message}
+            passwordError={form.formState.errors.password?.message}
+            confirmPasswordError={form.formState.errors.confirmPassword?.message}
+            disabled={isPending}
+            isRegistering={registerMutation.isPending}
+            onUserIdChange={(value) => form.setValue("user_id", value, { shouldDirty: true, shouldValidate: true })}
+            onPasswordChange={(value) => form.setValue("password", value, { shouldDirty: true, shouldValidate: true })}
+            onConfirmPasswordChange={(value) => form.setValue("confirmPassword", value, { shouldDirty: true, shouldValidate: true })}
+            onBack={() => setStep("verify_email")}
+          />
+        )}
       </form>
-      {otpModalOpen ? (
-        <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/40 px-4">
-          <Card className="w-full max-w-sm space-y-4 border-border-strong bg-shell p-5">
-            <div className="space-y-1">
-              <h2 className="text-base font-semibold text-foreground">Verify email address</h2>
-              <p className="text-xs text-muted-foreground">Enter the verification code sent to your email.</p>
-            </div>
-            <label className="space-y-2 text-sm text-foreground">
-              <span className="block">Verification code</span>
-              <input
-                type="text"
-                value={otpCode}
-                disabled={isPending}
-                onChange={(event) => setOtpCode(event.target.value)}
-                className="h-10 w-full rounded-sm border border-border bg-background px-3 text-sm text-foreground outline-none transition-colors focus:border-border-strong disabled:cursor-not-allowed disabled:opacity-60"
-              />
-            </label>
-            {hasOtpSent && resendCooldownSeconds > 0 ? (
-              <p className="text-xs text-muted-foreground">You can resend a verification code in {resendCooldownSeconds} seconds.</p>
-            ) : null}
-            <div className="flex gap-2">
-              <Button className="flex-1" type="button" variant="outline" disabled={isPending} onClick={() => setOtpModalOpen(false)}>
-                Cancel
-              </Button>
-              <Button
-                className="flex-1"
-                type="button"
-                variant="outline"
-                disabled={isPending || (hasOtpSent && resendCooldownSeconds > 0)}
-                onClick={() => void handleSendOtp()}
-              >
-                {sendOtpMutation.isPending
-                  ? "Sending..."
-                  : hasOtpSent
-                    ? resendCooldownSeconds > 0
-                      ? `Resend in ${resendCooldownSeconds}s`
-                      : "Resend code"
-                    : "Send code"}
-              </Button>
-              <Button className="flex-1" type="button" disabled={isPending || !hasOtpSent} onClick={() => void handleVerifyOtp()}>
-                {verifyOtpMutation.isPending ? "Verifying..." : "Verify email"}
-              </Button>
-            </div>
-          </Card>
-        </div>
-      ) : null}
     </FormShell>
   );
 }
