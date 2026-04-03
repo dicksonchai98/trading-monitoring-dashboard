@@ -16,6 +16,8 @@ from app.models.user import UserModel
 class UserRecord:
     id: str
     username: str
+    user_id: str
+    email: str
     password_hash: str
     role: str
     stripe_customer_id: str | None
@@ -34,6 +36,24 @@ class UserRepository:
             return UserRecord(
                 id=row.id,
                 username=row.username,
+                user_id=row.user_id,
+                email=row.email,
+                password_hash=row.password_hash,
+                role=row.role,
+                stripe_customer_id=row.stripe_customer_id,
+            )
+
+    def get_by_user_id(self, user_id: str) -> UserRecord | None:
+        with self._session_factory() as session:
+            stmt = select(UserModel).where(UserModel.user_id == user_id)
+            row = session.execute(stmt).scalar_one_or_none()
+            if row is None:
+                return None
+            return UserRecord(
+                id=row.id,
+                username=row.username,
+                user_id=row.user_id,
+                email=row.email,
                 password_hash=row.password_hash,
                 role=row.role,
                 stripe_customer_id=row.stripe_customer_id,
@@ -47,6 +67,8 @@ class UserRepository:
             return UserRecord(
                 id=row.id,
                 username=row.username,
+                user_id=row.user_id,
+                email=row.email,
                 password_hash=row.password_hash,
                 role=row.role,
                 stripe_customer_id=row.stripe_customer_id,
@@ -61,14 +83,28 @@ class UserRepository:
             return UserRecord(
                 id=row.id,
                 username=row.username,
+                user_id=row.user_id,
+                email=row.email,
                 password_hash=row.password_hash,
                 role=row.role,
                 stripe_customer_id=row.stripe_customer_id,
             )
 
-    def create_user(self, username: str, password_hash: str, role: str) -> UserRecord:
+    def create_user(
+        self,
+        user_id: str,
+        email: str,
+        password_hash: str,
+        role: str,
+    ) -> UserRecord:
         with self._session_factory() as session:
-            model = UserModel(username=username, password_hash=password_hash, role=role)
+            model = UserModel(
+                username=email,
+                user_id=user_id,
+                email=email,
+                password_hash=password_hash,
+                role=role,
+            )
             session.add(model)
             try:
                 session.commit()
@@ -78,6 +114,8 @@ class UserRepository:
             return UserRecord(
                 id=model.id,
                 username=model.username,
+                user_id=model.user_id,
+                email=model.email,
                 password_hash=model.password_hash,
                 role=model.role,
                 stripe_customer_id=model.stripe_customer_id,
@@ -98,6 +136,8 @@ class UserRepository:
             return UserRecord(
                 id=model.id,
                 username=model.username,
+                user_id=model.user_id,
+                email=model.email,
                 password_hash=model.password_hash,
                 role=model.role,
                 stripe_customer_id=model.stripe_customer_id,
