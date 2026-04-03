@@ -48,6 +48,15 @@ class AuthService:
         trimmed = user_id.strip()
         return len(trimmed) >= 3 and len(trimmed) <= 64
 
+    @staticmethod
+    def is_valid_password(password: str) -> bool:
+        if len(password) < 8:
+            return False
+        has_upper = any(ch.isupper() for ch in password)
+        has_lower = any(ch.islower() for ch in password)
+        has_digit = any(ch.isdigit() for ch in password)
+        return has_upper and has_lower and has_digit
+
     def email_exists(self, email: str) -> bool:
         return self._user_repository.get_by_email(email) is not None
 
@@ -105,7 +114,7 @@ class AuthService:
         return verify_token(token, JWT_SECRET, expected_type=ACCESS_TOKEN_TYPE)
 
     def _mint_pair(self, user: UserRecord) -> tuple[str, str]:
-        claims = {"sub": user.username, "role": user.role}
+        claims = {"sub": user.username, "user_id": user.user_id, "role": user.role}
         access_token = issue_token(
             claims,
             ACCESS_TOKEN_TTL_SECONDS,

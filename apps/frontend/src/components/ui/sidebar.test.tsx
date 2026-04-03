@@ -7,10 +7,10 @@ function b64url(value: string): string {
   return Buffer.from(value).toString("base64url");
 }
 
-function makeToken(role: "user" | "admin" = "user", sub = "alice"): string {
+function makeToken(role: "user" | "admin" = "user", sub = "alice", userId = "alice-id"): string {
   return [
     b64url(JSON.stringify({ alg: "none", typ: "JWT" })),
-    b64url(JSON.stringify({ sub, role, exp: 9_999_999_999, type: "access" })),
+    b64url(JSON.stringify({ sub, user_id: userId, role, exp: 9_999_999_999, type: "access" })),
     "signature",
   ].join(".");
 }
@@ -64,12 +64,12 @@ describe("Sidebar", () => {
       .getAllByRole("link")
       .find((element) => element.getAttribute("href") === "/login");
     expect(loginLink).toBeDefined();
-    expect(screen.queryByText("Account")).not.toBeInTheDocument();
+    expect(screen.queryByText("User ID")).not.toBeInTheDocument();
   });
 
   it("shows account and role from the current auth session when authenticated", () => {
     useAuthStore.setState({
-      token: makeToken("admin", "trader01"),
+      token: makeToken("admin", "trader01@example.com", "trader01"),
       role: "admin",
       entitlement: "active",
       resolved: true,
@@ -81,7 +81,7 @@ describe("Sidebar", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText("Account")).toBeInTheDocument();
+    expect(screen.getByText("User ID")).toBeInTheDocument();
     expect(screen.getByText("trader01")).toBeInTheDocument();
     expect(screen.getByText("Role")).toBeInTheDocument();
     expect(screen.getByText("admin")).toBeInTheDocument();

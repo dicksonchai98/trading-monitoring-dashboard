@@ -110,14 +110,14 @@ def test_non_admin_cannot_create_backfill_job() -> None:
         "/auth/register",
         json={
             "username": "user-bf@example.com",
-            "password": "pass-bf",
+            "password": "Passbf123",
             "verification_token": verify.json()["verification_token"],
         },
     )
     assert register.status_code == 200
     token = client.post(
         "/auth/login",
-        json={"username": "user-bf@example.com", "password": "pass-bf"},
+        json={"username": "user-bf@example.com", "password": "Passbf123"},
     ).json()["access_token"]
 
     response = client.post(

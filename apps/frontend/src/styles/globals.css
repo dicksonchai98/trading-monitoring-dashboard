@@ -96,3 +96,18 @@ body {
 #root {
   min-height: 100vh;
 }
+
+@keyframes auth-step-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(-16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.auth-step-enter {
+  animation: auth-step-slide-in 240ms ease-out both;
+}

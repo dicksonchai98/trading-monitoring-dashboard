@@ -50,13 +50,16 @@ export function Sidebar({
   const { token, role } = useAuthStore();
   const isAuthenticated = role !== "visitor";
 
-  let account = "";
+  let userId = "";
   if (token) {
     try {
       const payload = decodeAccessToken(token);
-      account = typeof payload.sub === "string" ? payload.sub : "";
+      userId = typeof payload.user_id === "string" ? payload.user_id : "";
+      if (!userId) {
+        userId = typeof payload.sub === "string" ? payload.sub : "";
+      }
     } catch {
-      account = "";
+      userId = "";
     }
   }
 
@@ -142,8 +145,8 @@ export function Sidebar({
           {isAuthenticated ? (
             <div data-testid="sidebar-user-info-display" className="space-y-2">
               <div className="space-y-1">
-                <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-subtle-foreground">Account</p>
-                <p className="font-semibold text-foreground">{account || "unknown"}</p>
+                <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-subtle-foreground">User ID</p>
+                <p className="font-semibold text-foreground">{userId || "unknown"}</p>
               </div>
               <div className="space-y-1">
                 <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-subtle-foreground">Role</p>

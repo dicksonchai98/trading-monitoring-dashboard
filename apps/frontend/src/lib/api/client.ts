@@ -47,6 +47,10 @@ async function request<TResponse>(path: string, init: RequestInit): Promise<TRes
     throw await parseError(response);
   }
 
+  if (response.status === 204) {
+    return {} as TResponse;
+  }
+
   return (await response.json()) as TResponse;
 }
 

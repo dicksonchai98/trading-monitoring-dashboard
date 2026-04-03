@@ -25,7 +25,7 @@ def test_register_requires_verification_token_for_email_username() -> None:
     client = TestClient(app)
     res = client.post(
         "/auth/register",
-        json={"user_id": "newuser", "email": "new@example.com", "password": "pass1"},
+        json={"user_id": "newuser", "email": "new@example.com", "password": "Passw0rd1"},
     )
     assert res.status_code == 400
     assert res.json()["detail"] == "verification_required"
