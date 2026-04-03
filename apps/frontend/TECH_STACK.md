@@ -81,12 +81,18 @@ export function isSnapshotMessage(input: unknown): input is SnapshotMessage {
 import { z } from 'zod'
 
 export const loginSchema = z.object({
-  email: z.string().email(),
+  user_id: z.string().min(3),
   password: z.string().min(8),
 })
 
 export type LoginFormValues = z.infer<typeof loginSchema>
 ```
+
+註冊流程採兩步驟：
+
+- Step 1: `email` 驗證（send OTP -> verify OTP）
+- Step 2: `user_id + password` 建立帳號
+- 註冊 API payload 以 `user_id`, `email`, `password`, `verification_token` 為準
 
 ### Zustand
 
@@ -132,6 +138,7 @@ apps/frontend/
   - `admin`: 後台頁
 - 明確處理 `401` / `403`，並提供可預期 UX（redirect + message）。
 - SSE 必須提供連線狀態 UI：`connected` / `retrying` / `disconnected`。
+- 高流量頁面（auth/dashboard/subscription）需提供 `PageSkeleton` 作為初始 loading/fallback，避免內容閃爍。
 - 不在前端重算後端已提供的市場指標。
 
 ## 7. 測試建議（最低要求）
