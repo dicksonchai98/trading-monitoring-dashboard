@@ -4,6 +4,7 @@ import { BentoGridSection } from "@/components/ui/bento-grid";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { PageSkeleton } from "@/components/ui/page-skeleton";
 import { getBillingPlans, getBillingStatus, startCheckout } from "@/features/subscription/api/billing";
 import { mapEntitlement, resolveEntitlementFromBillingStatus } from "@/features/subscription/lib/entitlement";
 import { useAuthStore } from "@/lib/store/auth-store";
@@ -65,6 +66,11 @@ export function SubscriptionPage(): JSX.Element {
   const hasCheckedOut = ["checkout_started", "pending", "active", "past_due"].includes(
     String(currentStatus),
   );
+  const isBootstrapLoading = plansQuery.isLoading || (Boolean(token) && statusQuery.isLoading);
+
+  if (isBootstrapLoading) {
+    return <PageSkeleton />;
+  }
 
   return (
     <PageLayout

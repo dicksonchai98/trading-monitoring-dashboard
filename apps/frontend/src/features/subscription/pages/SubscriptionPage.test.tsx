@@ -35,6 +35,7 @@ describe("SubscriptionPage", () => {
 
   beforeEach(() => {
     vi.stubGlobal("fetch", fetchMock);
+    fetchMock.mockReset();
     useAuthStore.setState({
       token: "token",
       role: "member",
@@ -47,6 +48,14 @@ describe("SubscriptionPage", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.clearAllMocks();
+  });
+
+  it("shows skeleton while bootstrap/query is loading", () => {
+    fetchMock.mockImplementation(() => new Promise<Response>(() => {}));
+
+    renderSubscriptionPage();
+
+    expect(screen.getByTestId("page-skeleton")).toBeInTheDocument();
   });
 
   it("uses the shared page layout header and bento grid content layout", async () => {
@@ -66,7 +75,7 @@ describe("SubscriptionPage", () => {
 
     renderSubscriptionPage();
 
-    expect(screen.getByRole("heading", { name: "Subscription" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Subscription" })).toBeInTheDocument();
     expect(screen.getByText("/subscription")).toBeInTheDocument();
     expect(screen.getByTestId("page-layout")).toBeInTheDocument();
     expect(screen.getByText("PLAN OPTIONS")).toBeInTheDocument();
