@@ -93,6 +93,8 @@ def register(payload: RegisterRequest, response: Response) -> dict[str, str]:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="invalid_email")
     if not auth_service.is_valid_user_id(payload.user_id):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="invalid_user_id")
+    if not auth_service.is_valid_password(payload.password):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="invalid_password")
     if not payload.verification_token:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

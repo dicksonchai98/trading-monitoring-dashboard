@@ -27,3 +27,7 @@ export function register(payload: RegisterRequest): Promise<AuthResponse> {
 export function refresh(): Promise<AuthResponse> {
   return postJson<AuthResponse, Record<string, never>>("/auth/refresh", {});
 }
+
+export function logout(): Promise<Record<string, never>> {
+  return postJson<Record<string, never>, Record<string, never>>("/auth/logout", {});
+}

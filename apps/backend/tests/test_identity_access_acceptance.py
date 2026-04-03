@@ -8,7 +8,7 @@ def _register_and_login(
     client: TestClient,
     user_id: str = "alice01",
     email: str = "alice@example.com",
-    password: str = "alice-pass",
+    password: str = "AlicePass1",
 ) -> dict[str, str]:
     send_res = client.post("/auth/email/send-otp", json={"email": email})
     assert send_res.status_code == 202
@@ -47,7 +47,7 @@ def test_register_and_login_return_access_and_secure_refresh_cookie() -> None:
         json={
             "user_id": "user1",
             "email": "user1@example.com",
-            "password": "pass1",
+            "password": "Passw0rd1",
             "verification_token": verify_res.json()["verification_token"],
         },
     )
@@ -61,7 +61,7 @@ def test_register_and_login_return_access_and_secure_refresh_cookie() -> None:
 
     login_res = client.post(
         "/auth/login",
-        json={"user_id": "user1", "password": "pass1"},
+        json={"user_id": "user1", "password": "Passw0rd1"},
     )
     assert login_res.status_code == 200
     assert "access_token" in login_res.json()
@@ -71,16 +71,39 @@ def test_register_email_requires_verification_token() -> None:
     client = TestClient(app)
     res = client.post(
         "/auth/register",
-        json={"user_id": "email-user", "email": "email-user@example.com", "password": "pass1"},
+        json={"user_id": "email-user", "email": "email-user@example.com", "password": "Passw0rd1"},
     )
     assert res.status_code == 400
     assert res.json()["detail"] == "verification_required"
 
 
+def test_register_rejects_weak_password() -> None:
+    client = TestClient(app)
+    send_res = client.post("/auth/email/send-otp", json={"email": "weak-pass@example.com"})
+    assert send_res.status_code == 202
+    verify_res = client.post(
+        "/auth/email/verify-otp",
+        json={"email": "weak-pass@example.com", "otp_code": "123456"},
+    )
+    assert verify_res.status_code == 200
+
+    register_res = client.post(
+        "/auth/register",
+        json={
+            "user_id": "weakpass01",
+            "email": "weak-pass@example.com",
+            "password": "password",
+            "verification_token": verify_res.json()["verification_token"],
+        },
+    )
+    assert register_res.status_code == 400
+    assert register_res.json()["detail"] == "invalid_password"
+
+
 def test_refresh_rotation_reuse_old_token_fails_with_401() -> None:
     client = TestClient(app)
     auth = _register_and_login(
-        client, user_id="user2", email="user2@example.com", password="pass2"
+        client, user_id="user2", email="user2@example.com", password="Passw0rd2"
     )
     headers = {"Authorization": f"Bearer {auth['access_token']}"}
     current_refresh = auth["set_cookie"].split(";", 1)[0].split("=", 1)[1]
@@ -108,7 +131,7 @@ def test_refresh_rotation_reuse_old_token_fails_with_401() -> None:
 def test_logout_revokes_refresh_cookie_token() -> None:
     client = TestClient(app)
     auth = _register_and_login(
-        client, user_id="logout01", email="logout@example.com", password="pass4"
+        client, user_id="logout01", email="logout@example.com", password="Passw0rd4"
     )
     refresh_token = auth["set_cookie"].split(";", 1)[0].split("=", 1)[1]
     headers = {"Authorization": f"Bearer {auth['access_token']}"}
@@ -146,7 +169,7 @@ def test_public_routes_allow_anonymous_and_protected_routes_require_auth() -> No
 def test_admin_routes_return_403_for_non_admin_user() -> None:
     client = TestClient(app)
     auth = _register_and_login(
-        client, user_id="user3", email="user3@example.com", password="pass3"
+        client, user_id="user3", email="user3@example.com", password="Passw0rd3"
     )
     headers = {"Authorization": f"Bearer {auth['access_token']}"}
     res = client.get("/api/admin/logs", headers=headers)

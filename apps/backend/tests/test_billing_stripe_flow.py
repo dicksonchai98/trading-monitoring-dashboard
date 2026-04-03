@@ -50,12 +50,12 @@ def _register_and_login(client: TestClient, username: str) -> str:
         "/auth/register",
         json={
             "username": username,
-            "password": "pass",
+            "password": "Passw0rd1",
             "verification_token": verify_res.json()["verification_token"],
         },
     )
     assert res.status_code == 200
-    login = client.post("/auth/login", json={"username": username, "password": "pass"})
+    login = client.post("/auth/login", json={"username": username, "password": "Passw0rd1"})
     assert login.status_code == 200
     return str(login.json()["access_token"])
 

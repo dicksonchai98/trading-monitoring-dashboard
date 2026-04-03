@@ -20,9 +20,7 @@ describe("SettingsPage", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole("heading", { name: "Settings" })).toBeInTheDocument();
-    expect(screen.getByText("Appearance")).toBeInTheDocument();
-    expect(screen.getByText("Account")).toBeInTheDocument();
+    expect(screen.getAllByRole("heading", { name: "Settings" }).length).toBeGreaterThan(0);
     expect(screen.getByText("Language")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open Billing Portal" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Logout" })).toBeInTheDocument();

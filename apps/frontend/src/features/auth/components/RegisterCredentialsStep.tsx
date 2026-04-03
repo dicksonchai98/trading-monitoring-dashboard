@@ -1,5 +1,6 @@
 import type { JSX } from "react";
 import { useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface RegisterCredentialsStepProps {
@@ -54,14 +55,15 @@ export function RegisterCredentialsStep({
             value={password}
             disabled={disabled}
             onChange={(event) => onPasswordChange(event.target.value)}
-            className="h-10 w-full rounded-sm border border-border bg-shell px-3 pr-16 text-sm text-foreground outline-none transition-colors placeholder:text-subtle-foreground hover:border-border-strong focus:border-border-strong disabled:cursor-not-allowed disabled:opacity-60"
+            className="h-10 w-full rounded-sm border border-border bg-shell px-3 pr-10 text-sm text-foreground outline-none transition-colors placeholder:text-subtle-foreground hover:border-border-strong focus:border-border-strong disabled:cursor-not-allowed disabled:opacity-60"
           />
           <button
             type="button"
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground hover:text-foreground"
+            aria-label={showPassword ? "Hide secret input" : "Show secret input"}
+            className="absolute right-2 top-1/2 inline-flex -translate-y-1/2 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
             onClick={() => setShowPassword((value) => !value)}
           >
-            {showPassword ? "Hide" : "Show"}
+            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </button>
         </div>
         {passwordError ? <span className="block text-xs text-danger">{passwordError}</span> : null}
@@ -74,14 +76,15 @@ export function RegisterCredentialsStep({
             value={confirmPassword}
             disabled={disabled}
             onChange={(event) => onConfirmPasswordChange(event.target.value)}
-            className="h-10 w-full rounded-sm border border-border bg-shell px-3 pr-16 text-sm text-foreground outline-none transition-colors placeholder:text-subtle-foreground hover:border-border-strong focus:border-border-strong disabled:cursor-not-allowed disabled:opacity-60"
+            className="h-10 w-full rounded-sm border border-border bg-shell px-3 pr-10 text-sm text-foreground outline-none transition-colors placeholder:text-subtle-foreground hover:border-border-strong focus:border-border-strong disabled:cursor-not-allowed disabled:opacity-60"
           />
           <button
             type="button"
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground hover:text-foreground"
+            aria-label={showConfirmPassword ? "Hide confirm secret input" : "Show confirm secret input"}
+            className="absolute right-2 top-1/2 inline-flex -translate-y-1/2 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
             onClick={() => setShowConfirmPassword((value) => !value)}
           >
-            {showConfirmPassword ? "Hide" : "Show"}
+            {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </button>
         </div>
         {confirmPasswordError ? <span className="block text-xs text-danger">{confirmPasswordError}</span> : null}

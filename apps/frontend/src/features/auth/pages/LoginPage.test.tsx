@@ -49,6 +49,7 @@ describe("LoginPage", () => {
 
   beforeEach(() => {
     vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("alert", vi.fn());
     useAuthStore.setState({ token: null, role: "visitor", entitlement: "none", resolved: true });
   });
 
@@ -195,8 +196,8 @@ describe("LoginPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /^verify email$/i }));
     await screen.findByText(/step 2: create account/i);
     fireEvent.change(screen.getByLabelText(/user id/i), { target: { value: "admin1" } });
-    fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: "admin-pass" } });
-    fireEvent.change(screen.getByLabelText(/confirm password/i), { target: { value: "admin-pass" } });
+    fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: "AdminPass1" } });
+    fireEvent.change(screen.getByLabelText(/confirm password/i), { target: { value: "AdminPass1" } });
     fireEvent.click(await screen.findByRole("button", { name: /^register$/i }));
 
     expect(await screen.findByText("Dashboard")).toBeInTheDocument();

@@ -1,9 +1,11 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
+import { Eye, EyeOff } from "lucide-react";
 import type { JSX } from "react";
 import { useEffect, useState } from "react";
 import { type FieldPath, type FieldValues, type UseFormRegister, useForm } from "react-hook-form";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import { AlertBanner } from "@/components/ui/alert-banner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -40,6 +42,8 @@ function formatAuthError(message: string | undefined): string | null {
       return "Please provide a valid email address.";
     case "invalid_user_id":
       return "User ID format is invalid.";
+    case "invalid_password":
+      return "Password must be at least 8 characters and include uppercase, lowercase, and number.";
     case "invalid_otp":
       return "Invalid verification code.";
     case "expired":
@@ -117,7 +121,40 @@ function InputField<TFieldValues extends FieldValues>({
 }
 
 interface AuthFormProps {
-  onAuthenticated: (token: string) => Promise<void>;
+  onAuthenticated: (token: string, source: "login" | "register") => Promise<void>;
+}
+
+function PasswordInputField<TFieldValues extends FieldValues>({
+  label,
+  error,
+  disabled = false,
+  registration,
+  name,
+}: GenericInputFieldProps<TFieldValues>): JSX.Element {
+  const [showPassword, setShowPassword] = useState(false);
+
+  return (
+    <label className="space-y-2 text-sm text-foreground">
+      <span className="block">{label}</span>
+      <div className="relative">
+        <input
+          type={showPassword ? "text" : "password"}
+          disabled={disabled}
+          className="h-10 w-full rounded-sm border border-border bg-shell px-3 pr-10 text-sm text-foreground outline-none transition-colors placeholder:text-subtle-foreground hover:border-border-strong focus:border-border-strong disabled:cursor-not-allowed disabled:opacity-60"
+          {...registration(name)}
+        />
+        <button
+          type="button"
+          aria-label={showPassword ? "Hide secret input" : "Show secret input"}
+          className="absolute right-2 top-1/2 inline-flex -translate-y-1/2 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+          onClick={() => setShowPassword((value) => !value)}
+        >
+          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+        </button>
+      </div>
+      {error ? <span className="block text-xs text-danger">{error}</span> : null}
+    </label>
+  );
 }
 
 function LoginForm({ onAuthenticated }: AuthFormProps): JSX.Element {
@@ -128,9 +165,14 @@ function LoginForm({ onAuthenticated }: AuthFormProps): JSX.Element {
 
   const mutation = useMutation({
     mutationFn: login,
-    onSuccess: async (data) => onAuthenticated(data.access_token),
+    onSuccess: async (data) => onAuthenticated(data.access_token, "login"),
+    onError: (error) => {
+      const message = formatAuthError(error instanceof Error ? error.message : undefined);
+      if (message) {
+        toast.error(message);
+      }
+    },
   });
-  const [showPassword, setShowPassword] = useState(false);
 
   return (
     <FormShell
@@ -152,21 +194,13 @@ function LoginForm({ onAuthenticated }: AuthFormProps): JSX.Element {
           registration={form.register}
           name="user_id"
         />
-        <InputField
+        <PasswordInputField
           label="Password"
-          type={showPassword ? "text" : "password"}
           disabled={mutation.isPending}
           error={form.formState.errors.password?.message}
           registration={form.register}
           name="password"
         />
-        <button
-          type="button"
-          className="text-xs text-muted-foreground hover:text-foreground"
-          onClick={() => setShowPassword((value) => !value)}
-        >
-          {showPassword ? "Hide password" : "Show password"}
-        </button>
         <Button className="w-full" type="submit" disabled={mutation.isPending}>
           {mutation.isPending ? "Signing in..." : "Sign in"}
         </Button>
@@ -203,6 +237,13 @@ function RegisterForm({ onAuthenticated }: AuthFormProps): JSX.Element {
       setResendCooldownSeconds(OTP_RESEND_COOLDOWN_SECONDS);
       setStatusMessage("Verification code sent. Check your email inbox.");
       setLocalError(null);
+      toast.success("Verification code sent.");
+    },
+    onError: (error) => {
+      const message = formatAuthError(error instanceof Error ? error.message : undefined);
+      if (message) {
+        toast.error(message);
+      }
     },
   });
 
@@ -215,12 +256,25 @@ function RegisterForm({ onAuthenticated }: AuthFormProps): JSX.Element {
       setStatusMessage("Email verified. Continue to create account.");
       setLocalError(null);
       setStep("credentials");
+      toast.success("Email verification successful.");
+    },
+    onError: (error) => {
+      const message = formatAuthError(error instanceof Error ? error.message : undefined);
+      if (message) {
+        toast.error(message);
+      }
     },
   });
 
   const registerMutation = useMutation({
     mutationFn: register,
-    onSuccess: async (data) => onAuthenticated(data.access_token),
+    onSuccess: async (data) => onAuthenticated(data.access_token, "register"),
+    onError: (error) => {
+      const message = formatAuthError(error instanceof Error ? error.message : undefined);
+      if (message) {
+        toast.error(message);
+      }
+    },
   });
 
   const isPending = sendOtpMutation.isPending || verifyOtpMutation.isPending || registerMutation.isPending;
@@ -317,36 +371,40 @@ function RegisterForm({ onAuthenticated }: AuthFormProps): JSX.Element {
           });
         })}
       >
-        {step === "verify_email" ? (
-          <EmailVerificationStep
-            email={form.watch("email")}
-            emailError={form.formState.errors.email?.message}
-            otpCode={otpCode}
-            disabled={isPending}
-            isSending={sendOtpMutation.isPending}
-            isVerifying={verifyOtpMutation.isPending}
-            hasOtpSent={hasOtpSent}
-            resendCooldownSeconds={resendCooldownSeconds}
-            onEmailChange={(value) => form.setValue("email", value, { shouldDirty: true, shouldValidate: true })}
-            onOtpCodeChange={setOtpCode}
-            onSendCode={() => void handleRequestOtp()}
-            onVerifyCode={() => void handleVerifyOtp()}
-          />
-        ) : (
-          <RegisterCredentialsStep
-            userId={form.watch("user_id")}
-            password={form.watch("password")}
-            confirmPassword={form.watch("confirmPassword")}
-            userIdError={form.formState.errors.user_id?.message}
-            passwordError={form.formState.errors.password?.message}
-            confirmPasswordError={form.formState.errors.confirmPassword?.message}
-            disabled={isPending}
-            isRegistering={registerMutation.isPending}
-            onUserIdChange={(value) => form.setValue("user_id", value, { shouldDirty: true, shouldValidate: true })}
-            onPasswordChange={(value) => form.setValue("password", value, { shouldDirty: true, shouldValidate: true })}
-            onConfirmPasswordChange={(value) => form.setValue("confirmPassword", value, { shouldDirty: true, shouldValidate: true })}
-          />
-        )}
+        <div key={step} className="auth-step-enter">
+          {step === "verify_email" ? (
+            <EmailVerificationStep
+              email={form.watch("email")}
+              emailError={form.formState.errors.email?.message}
+              otpCode={otpCode}
+              disabled={isPending}
+              isSending={sendOtpMutation.isPending}
+              isVerifying={verifyOtpMutation.isPending}
+              hasOtpSent={hasOtpSent}
+              resendCooldownSeconds={resendCooldownSeconds}
+              onEmailChange={(value) => form.setValue("email", value, { shouldDirty: true, shouldValidate: true })}
+              onOtpCodeChange={setOtpCode}
+              onSendCode={() => void handleRequestOtp()}
+              onVerifyCode={() => void handleVerifyOtp()}
+            />
+          ) : (
+            <RegisterCredentialsStep
+              userId={form.watch("user_id")}
+              password={form.watch("password")}
+              confirmPassword={form.watch("confirmPassword")}
+              userIdError={form.formState.errors.user_id?.message}
+              passwordError={form.formState.errors.password?.message}
+              confirmPasswordError={form.formState.errors.confirmPassword?.message}
+              disabled={isPending}
+              isRegistering={registerMutation.isPending}
+              onUserIdChange={(value) => form.setValue("user_id", value, { shouldDirty: true, shouldValidate: true })}
+              onPasswordChange={(value) => form.setValue("password", value, { shouldDirty: true, shouldValidate: true })}
+              onConfirmPasswordChange={(value) =>
+                form.setValue("confirmPassword", value, { shouldDirty: true, shouldValidate: true })
+              }
+            />
+          )}
+        </div>
       </form>
     </FormShell>
   );
@@ -367,7 +425,7 @@ export function LoginPage(): JSX.Element {
     return <Navigate to="/dashboard" replace />;
   }
 
-  async function handleAuthenticated(token: string): Promise<void> {
+  async function handleAuthenticated(token: string, source: "login" | "register"): Promise<void> {
     const payload = decodeAccessToken(token);
     const nextRole = mapTokenRole(payload.role);
     let nextEntitlement = mapEntitlement("none");
@@ -378,6 +436,7 @@ export function LoginPage(): JSX.Element {
       nextEntitlement = mapEntitlement("none");
     }
     setSession(token, nextRole, nextEntitlement);
+    toast.success(source === "register" ? "Registration successful." : "Login successful.");
     navigate(redirectTarget, { replace: true });
   }
 
