@@ -59,6 +59,22 @@ class UserRepository:
                 stripe_customer_id=row.stripe_customer_id,
             )
 
+    def get_by_email(self, email: str) -> UserRecord | None:
+        with self._session_factory() as session:
+            stmt = select(UserModel).where(UserModel.email == email)
+            row = session.execute(stmt).scalar_one_or_none()
+            if row is None:
+                return None
+            return UserRecord(
+                id=row.id,
+                username=row.username,
+                user_id=row.user_id,
+                email=row.email,
+                password_hash=row.password_hash,
+                role=row.role,
+                stripe_customer_id=row.stripe_customer_id,
+            )
+
     def get_by_id(self, user_id: str) -> UserRecord | None:
         with self._session_factory() as session:
             row = session.get(UserModel, user_id)
@@ -146,6 +162,15 @@ class UserRepository:
     def delete_by_username(self, username: str) -> None:
         with self._session_factory() as session:
             stmt = select(UserModel).where(UserModel.username == username)
+            model = session.execute(stmt).scalar_one_or_none()
+            if model is None:
+                return
+            session.delete(model)
+            session.commit()
+
+    def delete_by_user_id(self, user_id: str) -> None:
+        with self._session_factory() as session:
+            stmt = select(UserModel).where(UserModel.user_id == user_id)
             model = session.execute(stmt).scalar_one_or_none()
             if model is None:
                 return
