@@ -34,6 +34,8 @@ function formatAuthError(message: string | undefined): string | null {
       return "Please verify your email before registering.";
     case "invalid_email":
       return "Please provide a valid email address.";
+    case "invalid_user_id":
+      return "User ID format is invalid.";
     case "invalid_otp":
       return "Invalid verification code.";
     case "expired":
@@ -117,7 +119,7 @@ interface AuthFormProps {
 function LoginForm({ onAuthenticated }: AuthFormProps): JSX.Element {
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
-    defaultValues: { username: "", password: "" },
+    defaultValues: { user_id: "", password: "" },
   });
 
   const mutation = useMutation({
@@ -139,11 +141,11 @@ function LoginForm({ onAuthenticated }: AuthFormProps): JSX.Element {
         })}
       >
         <InputField
-          label="Username"
+          label="User ID"
           disabled={mutation.isPending}
-          error={form.formState.errors.username?.message}
+          error={form.formState.errors.user_id?.message}
           registration={form.register}
-          name="username"
+          name="user_id"
         />
         <InputField
           label="Password"
@@ -164,7 +166,7 @@ function LoginForm({ onAuthenticated }: AuthFormProps): JSX.Element {
 function RegisterForm({ onAuthenticated }: AuthFormProps): JSX.Element {
   const form = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
-    defaultValues: { email: "", password: "", confirmPassword: "" },
+    defaultValues: { user_id: "", email: "", password: "", confirmPassword: "" },
   });
 
   const [verificationToken, setVerificationToken] = useState<string | null>(null);
@@ -303,12 +305,20 @@ function RegisterForm({ onAuthenticated }: AuthFormProps): JSX.Element {
             return;
           }
           registerMutation.mutate({
-            username: values.email,
+            user_id: values.user_id,
+            email: values.email,
             password: values.password,
             verification_token: verificationToken,
           });
         })}
       >
+        <InputField
+          label="User ID"
+          disabled={isPending}
+          error={form.formState.errors.user_id?.message}
+          registration={form.register}
+          name="user_id"
+        />
         <InputField
           label="Email"
           disabled={isPending}
