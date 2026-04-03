@@ -81,8 +81,8 @@ describe("LoginPage", () => {
 
     renderLoginPage();
 
-    fireEvent.change(screen.getByLabelText(/username/i), { target: { value: "alice" } });
-    fireEvent.change(screen.getByLabelText(/password/i), { target: { value: "wrong" } });
+    fireEvent.change(screen.getByLabelText(/user id/i), { target: { value: "alice" } });
+    fireEvent.change(screen.getByLabelText(/password/i), { target: { value: "wrong-pass" } });
     fireEvent.click(submitButton(/sign in/i));
 
     expect(await screen.findByText(/invalid credentials/i)).toBeInTheDocument();
@@ -105,7 +105,7 @@ describe("LoginPage", () => {
 
     renderLoginPage({ from: "/subscription" });
 
-    fireEvent.change(screen.getByLabelText(/username/i), { target: { value: "alice" } });
+    fireEvent.change(screen.getByLabelText(/user id/i), { target: { value: "alice" } });
     fireEvent.change(screen.getByLabelText(/password/i), { target: { value: "alice-pass" } });
     fireEvent.click(submitButton(/sign in/i));
 
@@ -123,6 +123,7 @@ describe("LoginPage", () => {
       expect.objectContaining({
         method: "POST",
         credentials: "include",
+        body: JSON.stringify({ user_id: "alice", password: "alice-pass" }),
       }),
     );
   });
@@ -157,6 +158,7 @@ describe("LoginPage", () => {
     renderLoginPage();
 
     fireEvent.click(screen.getByRole("button", { name: /create account/i }));
+    fireEvent.change(screen.getByLabelText(/user id/i), { target: { value: "admin1" } });
     fireEvent.change(screen.getByLabelText(/email/i), { target: { value: "admin1@example.com" } });
     fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: "admin-pass" } });
     fireEvent.change(screen.getByLabelText(/confirm password/i), { target: { value: "admin-pass" } });
@@ -165,7 +167,7 @@ describe("LoginPage", () => {
     fireEvent.change(screen.getByLabelText(/verification code/i), { target: { value: "123456" } });
     fireEvent.click(screen.getByRole("button", { name: /^verify email$/i }));
     await screen.findByText(/email verified/i);
-    fireEvent.click(submitButton(/register/i));
+    fireEvent.click(await screen.findByRole("button", { name: /^register$/i }));
 
     expect(await screen.findByText("Dashboard")).toBeInTheDocument();
     expect(useAuthStore.getState().role).toBe("admin");
@@ -183,6 +185,7 @@ describe("LoginPage", () => {
     renderLoginPage();
 
     fireEvent.click(screen.getByRole("button", { name: /create account/i }));
+    fireEvent.change(screen.getByLabelText(/user id/i), { target: { value: "member1" } });
     fireEvent.change(screen.getByLabelText(/email/i), { target: { value: "member1@example.com" } });
     fireEvent.click(screen.getByRole("button", { name: /verify email address/i }));
     await screen.findByText("Verification code sent. Check your email inbox.");
@@ -195,6 +198,7 @@ describe("LoginPage", () => {
     renderLoginPage();
 
     fireEvent.click(screen.getByRole("button", { name: /create account/i }));
+    fireEvent.change(screen.getByLabelText(/user id/i), { target: { value: "admin2" } });
     fireEvent.change(screen.getByLabelText(/email/i), { target: { value: "admin1@example.com" } });
     fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: "admin-pass" } });
     fireEvent.change(screen.getByLabelText(/confirm password/i), { target: { value: "admin-pass" } });
