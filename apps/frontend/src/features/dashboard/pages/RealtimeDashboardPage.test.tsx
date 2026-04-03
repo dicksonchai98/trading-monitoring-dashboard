@@ -1,8 +1,25 @@
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { RealtimeDashboardPage } from "@/features/dashboard/pages/RealtimeDashboardPage";
+import { useAuthStore } from "@/lib/store/auth-store";
 
 describe("RealtimeDashboardPage", () => {
+  beforeEach(() => {
+    useAuthStore.setState({ token: "token", role: "member", entitlement: "none", resolved: true });
+  });
+
+  it("shows skeleton while auth bootstrap is unresolved", () => {
+    useAuthStore.setState({ token: null, role: "visitor", entitlement: "none", resolved: false });
+
+    render(
+      <MemoryRouter initialEntries={["/dashboard"]}>
+        <RealtimeDashboardPage />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByTestId("page-skeleton")).toBeInTheDocument();
+  });
+
   it("renders existing dashboard sections and the new SSE chart section at the bottom", () => {
     render(
       <MemoryRouter initialEntries={["/dashboard"]}>

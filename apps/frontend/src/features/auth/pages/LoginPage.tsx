@@ -7,6 +7,7 @@ import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { AlertBanner } from "@/components/ui/alert-banner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { PageSkeleton } from "@/components/ui/page-skeleton";
 import { login, register, sendEmailOtp, verifyEmailOtp } from "@/features/auth/api/auth";
 import { EmailVerificationStep } from "@/features/auth/components/EmailVerificationStep";
 import { RegisterCredentialsStep } from "@/features/auth/components/RegisterCredentialsStep";
@@ -348,8 +349,12 @@ export function LoginPage(): JSX.Element {
   const navigate = useNavigate();
   const location = useLocation();
   const [mode, setMode] = useState<AuthMode>("login");
-  const { role, setSession } = useAuthStore();
+  const { role, resolved, setSession } = useAuthStore();
   const redirectTarget = getRedirectTarget(location.state);
+
+  if (!resolved) {
+    return <PageSkeleton />;
+  }
 
   if (role !== "visitor") {
     return <Navigate to="/dashboard" replace />;
