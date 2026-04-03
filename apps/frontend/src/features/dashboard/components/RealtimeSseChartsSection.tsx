@@ -72,10 +72,12 @@ function statusBadgeVariant(
   return "neutral";
 }
 
-function EmptyState({ text }: { text: string }): JSX.Element {
+function EmptyState(): JSX.Element {
   return (
-    <div className="flex h-full min-h-[180px] items-center justify-center text-xs text-muted-foreground">
-      {text}
+    <div className="flex h-full min-h-[180px] flex-col justify-center gap-3" data-testid="sse-panel-skeleton">
+      <div className="h-3 w-2/3 animate-pulse rounded-sm bg-muted/80" />
+      <div className="h-3 w-1/2 animate-pulse rounded-sm bg-muted/70" />
+      <div className="h-20 w-full animate-pulse rounded-md bg-muted/60" />
     </div>
   );
 }
@@ -177,7 +179,7 @@ export function RealtimeSseChartsSection(): JSX.Element {
         data-testid="sse-close-trend-panel"
       >
         {closeSeries.length === 0 ? (
-          <EmptyState text="Waiting for SSE data..." />
+          <EmptyState />
         ) : (
           <div className="h-[220px] w-full" data-testid="sse-close-trend-chart">
             <ResponsiveContainer width="100%" height="100%">
@@ -223,7 +225,7 @@ export function RealtimeSseChartsSection(): JSX.Element {
         data-testid="sse-spread-panel"
       >
         {spreadSeries.length === 0 ? (
-          <EmptyState text="Waiting for spread/mid metrics..." />
+          <EmptyState />
         ) : (
           <div className="h-[220px] w-full" data-testid="sse-spread-chart">
             <ResponsiveContainer width="100%" height="100%">
@@ -276,7 +278,7 @@ export function RealtimeSseChartsSection(): JSX.Element {
         data-testid="sse-depth-panel"
       >
         {depthSeries.length === 0 ? (
-          <EmptyState text="Waiting for depth size metrics..." />
+          <EmptyState />
         ) : (
           <div className="h-[220px] w-full" data-testid="sse-depth-chart">
             <ResponsiveContainer width="100%" height="100%">

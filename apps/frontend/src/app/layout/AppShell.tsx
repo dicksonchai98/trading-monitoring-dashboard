@@ -1,7 +1,8 @@
 import type { JSX } from "react";
 import { useEffect, useState } from "react";
 import { Menu } from "lucide-react";
-import { Outlet } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
+import { PageSkeleton } from "@/components/ui/page-skeleton";
 import { Sidebar } from "@/components/ui/sidebar";
 
 function readIsMobileViewport(): boolean {
@@ -12,9 +13,17 @@ function readIsMobileViewport(): boolean {
 }
 
 export function AppShell(): JSX.Element {
+  const location = useLocation();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(readIsMobileViewport);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [routeLoading, setRouteLoading] = useState(true);
+
+  useEffect(() => {
+    setRouteLoading(true);
+    const timerId = window.setTimeout(() => setRouteLoading(false), 260);
+    return () => window.clearTimeout(timerId);
+  }, [location.pathname]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -41,14 +50,19 @@ export function AppShell(): JSX.Element {
       <div className="min-h-screen w-full">
         {isMobile ? (
           <>
-            <button
-              type="button"
-              aria-label="Open sidebar"
-              className="fixed left-4 top-4 z-30 inline-flex h-10 w-10 items-center justify-center rounded-sm border border-border bg-shell text-muted-foreground shadow-sm transition-colors hover:bg-panel-hover hover:text-foreground"
-              onClick={() => setMobileSidebarOpen(true)}
-            >
-              <Menu className="h-5 w-5" />
-            </button>
+            <header className="fixed inset-x-0 top-0 z-30 flex h-14 items-center border-b border-border bg-shell/95 px-3 backdrop-blur">
+              <button
+                type="button"
+                aria-label="Open sidebar"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-sm border border-border bg-shell text-muted-foreground transition-colors hover:bg-panel-hover hover:text-foreground"
+                onClick={() => setMobileSidebarOpen(true)}
+              >
+                <Menu className="h-5 w-5" />
+              </button>
+              <div className="pointer-events-none absolute inset-x-0 text-center">
+                <span className="text-sm font-semibold text-foreground">Trading Monitor</span>
+              </div>
+            </header>
             {mobileSidebarOpen ? (
               <>
                 <button
@@ -80,9 +94,12 @@ export function AppShell(): JSX.Element {
 
         <main
           className="min-h-screen min-w-0 bg-background p-[var(--shell-padding)]"
-          style={{ marginLeft: isMobile ? "0px" : sidebarWidth }}
+          style={{
+            marginLeft: isMobile ? "0px" : sidebarWidth,
+            paddingTop: isMobile ? "calc(var(--shell-padding) + 56px)" : undefined,
+          }}
         >
-          <Outlet />
+          {routeLoading ? <PageSkeleton className="px-0 py-0" /> : <Outlet />}
         </main>
       </div>
     </div>

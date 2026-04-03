@@ -1,5 +1,6 @@
 import type { JSX, PropsWithChildren } from "react";
 import { Navigate, useLocation } from "react-router-dom";
+import { PageSkeleton } from "@/components/ui/page-skeleton";
 import { useAuthStore } from "@/lib/store/auth-store";
 import type { UserRole } from "@/lib/types/auth";
 
@@ -23,7 +24,7 @@ export function GuardedRoute({
   const { resolved, role, entitlement } = useAuthStore();
 
   if (!resolved) {
-    return <div className="p-4 text-sm text-muted-foreground">Resolving session...</div>;
+    return <PageSkeleton />;
   }
 
   if (roleRank[role] < roleRank[requiredRole]) {

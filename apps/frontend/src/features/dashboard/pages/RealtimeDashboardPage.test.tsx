@@ -37,6 +37,6 @@ describe("RealtimeDashboardPage", () => {
     expect(screen.getByTestId("sse-close-trend-panel")).toBeInTheDocument();
     expect(screen.getByTestId("sse-spread-panel")).toBeInTheDocument();
     expect(screen.getByTestId("sse-depth-panel")).toBeInTheDocument();
-    expect(screen.getByText("Waiting for SSE data...")).toBeInTheDocument();
+    expect(screen.getAllByTestId("sse-panel-skeleton").length).toBeGreaterThan(0);
   });
 });
