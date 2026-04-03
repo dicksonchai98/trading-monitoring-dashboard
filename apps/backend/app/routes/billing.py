@@ -17,6 +17,15 @@ class CheckoutRequest(BaseModel):
     price_id: str | None = None
 
 
+def _plan_price_text(amount: int | None, currency: str, interval: str) -> str:
+    if amount is None:
+        return "configured"
+    if amount <= 0:
+        return "free"
+    normalized = amount / 100
+    return f"{normalized:.2f} {currency.upper()}/{interval}"
+
+
 @router.get("/plans")
 def plans() -> dict[str, list[dict[str, str]]]:
     settings = get_stripe_settings()
@@ -25,6 +34,9 @@ def plans() -> dict[str, list[dict[str, str]]]:
             {
                 "id": "basic",
                 "name": settings.plan_name,
+                "price": _plan_price_text(
+                    settings.price_amount, settings.price_currency, settings.price_interval
+                ),
                 "price_id": settings.price_id,
                 "amount": str(settings.price_amount) if settings.price_amount is not None else "",
                 "currency": settings.price_currency,
