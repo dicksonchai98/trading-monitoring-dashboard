@@ -15,6 +15,7 @@ import { PageLayout } from "@/components/ui/page-layout";
 import { PanelCard } from "@/components/ui/panel-card";
 import { DashboardMetricPanels } from "@/features/dashboard/components/DashboardMetricPanels";
 import { RealtimeSseChartsSection } from "@/features/dashboard/components/RealtimeSseChartsSection";
+import { useRealtimeConnection } from "@/features/realtime/hooks/use-realtime-connection";
 import {
   BreadthDistributionChart,
   BidAskPressureChart,
@@ -116,11 +117,26 @@ function renderCandleShape(props: {
   );
 }
 
+function statusBadgeVariant(status: string): "success" | "warning" | "danger" | "neutral" {
+  if (status === "connected") {
+    return "success";
+  }
+  if (status === "retrying" || status === "connecting") {
+    return "warning";
+  }
+  if (status === "error") {
+    return "danger";
+  }
+  return "neutral";
+}
+
 export function RealtimeDashboardOverview(): JSX.Element {
+  const { connectionStatus } = useRealtimeConnection();
+
   return (
     <PageLayout
       title="Futures Dashboard"
-      actions={<Badge variant="success">SSE Connected</Badge>}
+      actions={<Badge variant={statusBadgeVariant(connectionStatus)}>{connectionStatus.toUpperCase()}</Badge>}
       bodyClassName="space-y-[var(--section-gap)]"
     >
       <DashboardMetricPanels />
