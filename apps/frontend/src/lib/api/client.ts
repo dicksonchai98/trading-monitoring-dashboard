@@ -1,6 +1,7 @@
 import type { ApiErrorPayload, ApiRequestOptions } from "@/lib/api/types";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api";
+const ABSOLUTE_HTTP_PATTERN = /^http:\/\//i;
 
 export class ApiError extends Error {
   code: string;
@@ -29,6 +30,14 @@ async function parseError(response: Response): Promise<ApiError> {
 }
 
 async function request<TResponse>(path: string, init: RequestInit): Promise<TResponse> {
+  if (
+    typeof window !== "undefined" &&
+    window.location.protocol === "https:" &&
+    ABSOLUTE_HTTP_PATTERN.test(API_BASE_URL)
+  ) {
+    throw new ApiError("insecure_transport", 0, "API base URL must use HTTPS when app is served over HTTPS.");
+  }
+
   const response = await fetch(`${API_BASE_URL}${path}`, {
     credentials: "include",
     ...init,

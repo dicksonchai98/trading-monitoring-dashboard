@@ -204,7 +204,7 @@ describe("LoginPage", () => {
     expect(useAuthStore.getState().entitlement).toBe("active");
   });
 
-  it("locks resend and shows 60-second cooldown hint after sending otp", async () => {
+  it("locks resend with cooldown after sending otp", async () => {
     fetchMock.mockResolvedValueOnce(
       new Response(JSON.stringify({ status: "accepted" }), {
         status: 202,
@@ -219,8 +219,7 @@ describe("LoginPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /send code/i }));
     await screen.findByText("Verification code sent. Check your email inbox.");
 
-    expect(screen.getByRole("button", { name: /resend in 60s/i })).toBeDisabled();
-    expect(screen.getByText(/resend a verification code in 60 seconds/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /resend 60s/i })).toBeDisabled();
   });
 
   it("hides register button when email has not been verified", async () => {

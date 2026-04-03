@@ -108,7 +108,7 @@ function InputField<TFieldValues extends FieldValues>({
       <input
         type={type}
         disabled={disabled}
-        className="h-10 w-full rounded-sm border border-border bg-shell px-3 text-sm text-foreground outline-none transition-colors placeholder:text-subtle-foreground focus:border-border-strong disabled:cursor-not-allowed disabled:opacity-60"
+        className="h-10 w-full rounded-sm border border-border bg-shell px-3 text-sm text-foreground outline-none transition-colors placeholder:text-subtle-foreground hover:border-border-strong focus:border-border-strong disabled:cursor-not-allowed disabled:opacity-60"
         {...registration(name)}
       />
       {error ? <span className="block text-xs text-danger">{error}</span> : null}
@@ -130,6 +130,7 @@ function LoginForm({ onAuthenticated }: AuthFormProps): JSX.Element {
     mutationFn: login,
     onSuccess: async (data) => onAuthenticated(data.access_token),
   });
+  const [showPassword, setShowPassword] = useState(false);
 
   return (
     <FormShell
@@ -153,12 +154,19 @@ function LoginForm({ onAuthenticated }: AuthFormProps): JSX.Element {
         />
         <InputField
           label="Password"
-          type="password"
+          type={showPassword ? "text" : "password"}
           disabled={mutation.isPending}
           error={form.formState.errors.password?.message}
           registration={form.register}
           name="password"
         />
+        <button
+          type="button"
+          className="text-xs text-muted-foreground hover:text-foreground"
+          onClick={() => setShowPassword((value) => !value)}
+        >
+          {showPassword ? "Hide password" : "Show password"}
+        </button>
         <Button className="w-full" type="submit" disabled={mutation.isPending}>
           {mutation.isPending ? "Signing in..." : "Sign in"}
         </Button>
@@ -376,7 +384,7 @@ export function LoginPage(): JSX.Element {
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4 py-10">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(249,115,22,0.12),transparent_35%),linear-gradient(180deg,rgba(255,255,255,0.02),transparent_45%)]" />
-      <Card className="relative z-10 w-full max-w-md space-y-6 border-border-strong bg-shell/95 p-6 backdrop-blur">
+      <Card className="relative z-10 w-full max-w-md space-y-6 border-border-strong bg-shell/95 p-6 backdrop-blur hover:bg-shell/95">
         <div className="space-y-2">
           <p className="text-[11px] uppercase tracking-[0.12em] text-subtle-foreground">Trading Monitoring Console</p>
           <div className="grid grid-cols-2 gap-2 rounded-sm border border-border bg-background/70 p-1">

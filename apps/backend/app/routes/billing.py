@@ -32,6 +32,15 @@ def plans() -> dict[str, list[dict[str, str]]]:
     return {
         "plans": [
             {
+                "id": "free",
+                "name": "Free",
+                "price": "free",
+                "price_id": "",
+                "amount": "0",
+                "currency": settings.price_currency,
+                "interval": settings.price_interval,
+            },
+            {
                 "id": "basic",
                 "name": settings.plan_name,
                 "price": _plan_price_text(

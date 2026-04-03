@@ -93,7 +93,7 @@ export function AppShell(): JSX.Element {
         )}
 
         <main
-          className="min-h-screen min-w-0 bg-background p-[var(--shell-padding)]"
+          className="min-h-screen min-w-0 bg-background p-[var(--shell-padding)] transition-[margin-left,padding-top] duration-300 ease-out"
           style={{
             marginLeft: isMobile ? "0px" : sidebarWidth,
             paddingTop: isMobile ? "calc(var(--shell-padding) + 56px)" : undefined,

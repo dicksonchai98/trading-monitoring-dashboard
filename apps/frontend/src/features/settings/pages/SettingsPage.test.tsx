@@ -23,6 +23,7 @@ describe("SettingsPage", () => {
     expect(screen.getByRole("heading", { name: "Settings" })).toBeInTheDocument();
     expect(screen.getByText("Appearance")).toBeInTheDocument();
     expect(screen.getByText("Account")).toBeInTheDocument();
+    expect(screen.getByText("Language")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open Billing Portal" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Logout" })).toBeInTheDocument();
   });
