@@ -4,6 +4,7 @@ import type { JSX } from "react";
 import { useEffect, useState } from "react";
 import { type FieldPath, type FieldValues, type UseFormRegister, useForm } from "react-hook-form";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
+import { AlertBanner } from "@/components/ui/alert-banner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { login, register, sendEmailOtp, verifyEmailOtp } from "@/features/auth/api/auth";
@@ -62,19 +63,19 @@ interface FormShellProps {
   title: string;
   description: string;
   errorMessage: string | null;
+  successMessage?: string | null;
   children: JSX.Element | JSX.Element[];
 }
 
-function FormShell({ title, description, errorMessage, children }: FormShellProps): JSX.Element {
+function FormShell({ title, description, errorMessage, successMessage, children }: FormShellProps): JSX.Element {
   return (
     <>
       <div className="space-y-2">
         <h1 className="text-xl font-semibold text-foreground">{title}</h1>
         <p className="text-sm text-muted-foreground">{description}</p>
       </div>
-      {errorMessage ? (
-        <div className="rounded-sm border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">{errorMessage}</div>
-      ) : null}
+      {errorMessage ? <AlertBanner variant="error" message={errorMessage} /> : null}
+      {!errorMessage && successMessage ? <AlertBanner variant="success" message={successMessage} /> : null}
       {children}
     </>
   );
@@ -178,7 +179,7 @@ function RegisterForm({ onAuthenticated }: AuthFormProps): JSX.Element {
   const [otpCode, setOtpCode] = useState("");
   const [otpSentEmail, setOtpSentEmail] = useState<string | null>(null);
   const [resendCooldownSeconds, setResendCooldownSeconds] = useState(0);
-  const [otpMessage, setOtpMessage] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
   const currentEmail = form.watch("email");
   const hasOtpSent = otpSentEmail === currentEmail && currentEmail.length > 0;
@@ -191,7 +192,7 @@ function RegisterForm({ onAuthenticated }: AuthFormProps): JSX.Element {
       setOtpCode("");
       setOtpSentEmail(variables.email);
       setResendCooldownSeconds(OTP_RESEND_COOLDOWN_SECONDS);
-      setOtpMessage("Verification code sent. Check your email inbox.");
+      setStatusMessage("Verification code sent. Check your email inbox.");
       setLocalError(null);
     },
   });
@@ -202,7 +203,7 @@ function RegisterForm({ onAuthenticated }: AuthFormProps): JSX.Element {
       const email = form.getValues("email");
       setVerificationToken(data.verification_token);
       setVerifiedEmail(email);
-      setOtpMessage("Email verified. You can finish registration now.");
+      setStatusMessage("Email verified. Continue to create account.");
       setLocalError(null);
       setStep("credentials");
     },
@@ -239,7 +240,7 @@ function RegisterForm({ onAuthenticated }: AuthFormProps): JSX.Element {
     setOtpSentEmail(null);
     setResendCooldownSeconds(0);
     setOtpCode("");
-    setOtpMessage(null);
+    setStatusMessage(null);
     setStep("verify_email");
   }, [currentEmail, verifiedEmail]);
 
@@ -256,6 +257,7 @@ function RegisterForm({ onAuthenticated }: AuthFormProps): JSX.Element {
     setVerifiedEmail(null);
     setOtpSentEmail(null);
     setOtpCode("");
+    setStatusMessage(null);
     sendOtpMutation.mutate({ email });
   }
 
@@ -287,6 +289,7 @@ function RegisterForm({ onAuthenticated }: AuthFormProps): JSX.Element {
       title="Create account"
       description="Register a new operator account for the monitoring console."
       errorMessage={errorMessage}
+      successMessage={statusMessage}
     >
       <form
         className="space-y-4"
@@ -310,7 +313,6 @@ function RegisterForm({ onAuthenticated }: AuthFormProps): JSX.Element {
             email={form.watch("email")}
             emailError={form.formState.errors.email?.message}
             otpCode={otpCode}
-            otpMessage={otpMessage}
             disabled={isPending}
             isSending={sendOtpMutation.isPending}
             isVerifying={verifyOtpMutation.isPending}

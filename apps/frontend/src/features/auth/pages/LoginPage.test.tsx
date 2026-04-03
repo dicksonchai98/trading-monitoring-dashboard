@@ -153,6 +153,7 @@ describe("LoginPage", () => {
     fireEvent.change(screen.getByLabelText(/verification code/i), { target: { value: "123456" } });
     fireEvent.click(screen.getByRole("button", { name: /^verify email$/i }));
 
+    expect(await screen.findByText("Email verified. Continue to create account.")).toBeInTheDocument();
     expect(await screen.findByText(/step 2: create account/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/user id/i)).toBeInTheDocument();
   });
