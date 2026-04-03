@@ -219,6 +219,7 @@ async def stream_sse(
                 except Exception:
                     metrics.inc("serving_redis_errors_total")
                     break
+                now = asyncio.get_running_loop().time()
 
                 if current_k and current_k != last_kbar:
                     last_kbar = current_k
@@ -230,7 +231,6 @@ async def stream_sse(
                     metrics.inc("serving_sse_push_total")
                     yield _sse_message("metric_latest", metric_latest)
 
-                now = asyncio.get_running_loop().time()
                 if now - last_heartbeat >= SERVING_HEARTBEAT_SECONDS:
                     last_heartbeat = now
                     yield _sse_message("heartbeat", {"ts": int(now * 1000)})

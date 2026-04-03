@@ -299,8 +299,8 @@ function OtcIndexLinePanel(): JSX.Element {
       contentClassName="pt-[var(--panel-gap)]"
       data-testid="live-metrics-otc-line-panel"
     >
-      <div className="h-full min-h-[120px] w-full" data-testid="panel-chart">
-        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+      <div className="h-[180px] min-h-[120px] w-full" data-testid="panel-chart">
+        <ResponsiveContainer width="100%" aspect={2.4} minWidth={0} minHeight={120}>
           <AreaChart
             data={otcIndexSeries}
             margin={{ top: 8, right: 8, bottom: 2, left: -20 }}
