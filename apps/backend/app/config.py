@@ -92,7 +92,19 @@ AGGREGATOR_DB_SINK_DEAD_LETTER_MAXLEN = _env_int("AGGREGATOR_DB_SINK_DEAD_LETTER
 AGGREGATOR_BLOCKING_WARN_MS = _env_int("AGGREGATOR_BLOCKING_WARN_MS", 200)
 AGGREGATOR_SERIES_FIELDS = _env_list(
     "AGGREGATOR_SERIES_FIELDS",
-    ["bid", "ask", "mid", "spread", "delta_1s"],
+    [
+        "bid",
+        "ask",
+        "mid",
+        "spread",
+        "bid_total_vol",
+        "ask_total_vol",
+        "imbalance",
+        "ratio",
+        "delta_1s",
+        "delta_bid_total_vol_1s",
+        "delta_ask_total_vol_1s",
+    ],
 )
 AGGREGATOR_WORKER_ROLE = os.getenv("AGGREGATOR_WORKER_ROLE", "all")
 

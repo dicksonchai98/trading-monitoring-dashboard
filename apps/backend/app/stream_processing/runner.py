@@ -154,6 +154,22 @@ class MetricsRegistry:
         ask = extract_number(payload, ("ask_price", "ask", "best_ask"))
         bid_size = extract_number(payload, ("bid_size", "bid_volume"))
         ask_size = extract_number(payload, ("ask_size", "ask_volume"))
+        bid_total_vol = extract_number(
+            payload,
+            (
+                "bid_total_vol",
+                "total_bid_vol",
+                "bid_total_volume",
+            ),
+        )
+        ask_total_vol = extract_number(
+            payload,
+            (
+                "ask_total_vol",
+                "total_ask_vol",
+                "ask_total_volume",
+            ),
+        )
         metrics: dict[str, Any] = {}
         if bid is not None:
             metrics["bid"] = bid
@@ -166,6 +182,15 @@ class MetricsRegistry:
             metrics["bid_size"] = bid_size
         if ask_size is not None:
             metrics["ask_size"] = ask_size
+        if bid_total_vol is not None:
+            metrics["bid_total_vol"] = bid_total_vol
+        if ask_total_vol is not None:
+            metrics["ask_total_vol"] = ask_total_vol
+        if bid_total_vol is not None and ask_total_vol is not None:
+            metrics["imbalance"] = bid_total_vol - ask_total_vol
+            metrics["sum_total_vol"] = bid_total_vol + ask_total_vol
+            if ask_total_vol > 0:
+                metrics["ratio"] = bid_total_vol / ask_total_vol
         return metrics
 
 
@@ -211,11 +236,29 @@ class BidAskStateMachine:
                 sample["delta_1s"] = sample["mid"] - self.last_sample["mid"]
             elif "delta_1s" in series_fields and self.last_sample is not None:
                 sample["delta_1s"] = 0
+            if "delta_bid_total_vol_1s" in series_fields and self.last_sample is not None:
+                sample["delta_bid_total_vol_1s"] = self._compute_delta(
+                    sample=sample,
+                    previous=self.last_sample,
+                    field="bid_total_vol",
+                )
+            if "delta_ask_total_vol_1s" in series_fields and self.last_sample is not None:
+                sample["delta_ask_total_vol_1s"] = self._compute_delta(
+                    sample=sample,
+                    previous=self.last_sample,
+                    field="ask_total_vol",
+                )
             on_sample(second, sample)
             self.last_sample = sample
             self.last_sample_second = second
             samples_written += 1
         return samples_written
+
+    @staticmethod
+    def _compute_delta(sample: dict[str, Any], previous: dict[str, Any], field: str) -> float:
+        if field not in sample or field not in previous:
+            return 0
+        return float(sample[field]) - float(previous[field])
 
 
 class StreamProcessingRunner:
