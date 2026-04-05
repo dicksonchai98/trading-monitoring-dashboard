@@ -37,6 +37,10 @@ def test_ingestor_and_shioaji_defaults(monkeypatch) -> None:
     assert reloaded.AGGREGATOR_ENABLED is False
     assert reloaded.AGGREGATOR_ENV in {"dev", "prod"}
     assert "delta_1s" in reloaded.AGGREGATOR_SERIES_FIELDS
+    assert "imbalance" in reloaded.AGGREGATOR_SERIES_FIELDS
+    assert "ratio" in reloaded.AGGREGATOR_SERIES_FIELDS
+    assert "delta_bid_total_vol_1s" in reloaded.AGGREGATOR_SERIES_FIELDS
+    assert "delta_ask_total_vol_1s" in reloaded.AGGREGATOR_SERIES_FIELDS
     assert reloaded.QUOTE_WORKER_ENABLED is False
     assert reloaded.QUOTE_WORKER_TARGET_CODE == reloaded.INGESTOR_CODE
     assert reloaded.QUOTE_WORKER_GROUP == "agg:quote"
