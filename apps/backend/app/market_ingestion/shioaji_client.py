@@ -50,3 +50,16 @@ class ShioajiClient:
 
     def set_on_event_callback(self, callback: Callable[..., Any]) -> None:
         self._api.quote.on_event(callback)
+
+    def set_on_market_callback(self, callback: Callable[..., Any]) -> bool:
+        quote = self._api.quote
+        for name in (
+            "set_on_tick_idx_v1_callback",
+            "set_on_tick_index_v1_callback",
+            "set_on_quote_stk_v1_callback",
+        ):
+            handler = getattr(quote, name, None)
+            if callable(handler):
+                handler(callback)
+                return True
+        return False
