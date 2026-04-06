@@ -47,18 +47,36 @@ from app.config import (
     QUOTE_WORKER_REDIS_RETRY_BACKOFF_MS,
     QUOTE_WORKER_STREAM_MAXLEN,
     QUOTE_WORKER_TARGET_CODE,
+    MARKET_ADJUSTMENT_FACTOR,
+    MARKET_BLOCK_MS,
+    MARKET_CLAIM_COUNT,
+    MARKET_CLAIM_IDLE_MS,
+    MARKET_CODE,
+    MARKET_CONSUMER_NAME,
+    MARKET_DB_SINK_BATCH_SIZE,
+    MARKET_DB_SINK_DEAD_LETTER_MAXLEN,
+    MARKET_DB_SINK_MAX_RETRIES,
+    MARKET_DB_SINK_RETRY_BACKOFF_SECONDS,
+    MARKET_GROUP,
+    MARKET_READ_COUNT,
+    MARKET_STATE_TTL_SECONDS,
+    MARKET_SUMMARY_ENV,
+    MARKET_TRADING_END,
+    MARKET_TRADING_START,
     REDIS_URL,
     get_stripe_settings,
 )
 from app.db.session import SessionLocal
 from app.latest_state.runner import LatestStateRunner
 from app.market_ingestion.runner import MarketIngestionRunner
+from app.market_summary.runner import MarketSummaryRunner
 from app.models.batch_job import BatchJobModel
 from app.models.bidask_metric_1s import BidAskMetric1sModel
 from app.models.billing_event import BillingEventModel
 from app.models.email_delivery_log import EmailDeliveryLogModel
 from app.models.email_outbox import EmailOutboxModel
 from app.models.kbar_1m import Kbar1mModel
+from app.models.market_summary_1m import MarketSummary1mModel
 from app.models.otp_challenge import OtpChallengeModel
 from app.models.otp_verification_token import OtpVerificationTokenModel
 from app.models.quote_feature_1m import QuoteFeature1mModel
@@ -121,6 +139,7 @@ serving_rate_limiter = SimpleRateLimiter()
 ingestor_runner: MarketIngestionRunner | None = None
 aggregator_runner: StreamProcessingRunner | None = None
 latest_state_runner: LatestStateRunner | None = None
+market_summary_runner: MarketSummaryRunner | None = None
 serving_redis_client = None
 email_outbox_dispatcher: EmailOutboxDispatcher | None = None
 email_webhook_service = EmailWebhookService(
@@ -293,27 +312,6 @@ def build_latest_state_runner() -> LatestStateRunner:
     return latest_state_runner
 
 
-def build_quote_worker_runner() -> QuoteWorkerRunner:
-    try:
-        import redis
-    except Exception as err:  # pragma: no cover - depends on runtime dependency
-        raise RuntimeError("quote-worker dependencies unavailable: install redis") from err
-
-    return QuoteWorkerRunner(
-        redis_client=redis.from_url(REDIS_URL),
-        session_factory=SessionLocal,
-        metrics=metrics,
-        env=AGGREGATOR_ENV,
-        code=QUOTE_WORKER_TARGET_CODE,
-        group=QUOTE_WORKER_GROUP,
-        consumer=QUOTE_WORKER_CONSUMER_NAME,
-        stream_maxlen=QUOTE_WORKER_STREAM_MAXLEN,
-        redis_retry_attempts=QUOTE_WORKER_REDIS_RETRY_ATTEMPTS,
-        redis_retry_backoff_ms=QUOTE_WORKER_REDIS_RETRY_BACKOFF_MS,
-        db_flush_enabled=QUOTE_WORKER_DB_FLUSH_ENABLED,
-    )
-
-
 def get_serving_redis_client():
     global serving_redis_client
     if serving_redis_client is not None:
@@ -356,7 +354,6 @@ def reset_state_for_tests() -> None:
         session.execute(delete(BidAskMetric1sModel))
         session.execute(delete(BillingEventModel))
         session.execute(delete(Kbar1mModel))
-        session.execute(delete(QuoteFeature1mModel))
         session.execute(delete(SubscriptionModel))
         session.execute(delete(RefreshTokenDenylistModel))
         session.execute(delete(UserModel))

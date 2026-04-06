@@ -44,6 +44,18 @@ class _FakeRedis:
         return "1-0"
 
 
+class _FakeMarketQuote:
+    def __init__(self) -> None:
+        self.code = "TSE001"
+        self.datetime = "2026-04-06T10:30:01+08:00"
+
+    def to_dict(self, raw: bool = True):  # noqa: ARG002
+        return {
+            "index_value": 21000.0,
+            "cumulative_turnover": 123456789,
+        }
+
+
 def test_reconnect_backoff_is_exponential_and_capped() -> None:
     assert reconnect_delays(6) == [1, 2, 4, 8, 16, 30]
 
@@ -98,3 +110,27 @@ def test_quote_event_reconnected_codes_trigger_resubscribe() -> None:
     runner._on_quote_event(0, 16, "", "")
 
     assert called == ["resubscribe", "resubscribe"]
+
+
+def test_market_quote_is_enqueued_to_market_stream() -> None:
+    runner = MarketIngestionRunner(
+        shioaji_client=ShioajiClient(
+            api=_FakeAPI(),
+            api_key="k",
+            secret_key="s",
+            simulation=True,
+        ),
+        redis_client=_FakeRedis(),
+        metrics=Metrics(),
+        queue_maxsize=8,
+        stream_maxlen=100,
+        retry_attempts=2,
+        retry_backoff_ms=10,
+    )
+    runner._market_enabled = True
+    runner._market_code = "TSE001"
+    quote = _FakeMarketQuote()
+    runner._on_market_quote(quote)
+    queued = runner._futures_pipeline.queue.get_nowait()
+    assert queued.stream_key == "dev:stream:market:TSE001"
+    assert queued.event.quote_type == "market"

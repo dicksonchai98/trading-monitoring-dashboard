@@ -6,6 +6,7 @@ from app.models.billing_event import BillingEventModel
 from app.models.email_delivery_log import EmailDeliveryLogModel
 from app.models.email_outbox import EmailOutboxModel
 from app.models.kbar_1m import Kbar1mModel
+from app.models.market_summary_1m import MarketSummary1mModel
 from app.models.otp_challenge import OtpChallengeModel
 from app.models.otp_verification_token import OtpVerificationTokenModel
 from app.models.quote_feature_1m import QuoteFeature1mModel
@@ -41,6 +42,8 @@ def test_bidask_metric_1s_model_table_name() -> None:
 
 def test_quote_feature_1m_model_table_name() -> None:
     assert QuoteFeature1mModel.__tablename__ == "quote_features_1m"
+def test_market_summary_1m_model_table_name() -> None:
+    assert MarketSummary1mModel.__tablename__ == "market_summary_1m"
 
 
 def test_batch_job_status_column_allows_longest_status_value() -> None:

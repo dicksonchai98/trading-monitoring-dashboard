@@ -3,7 +3,9 @@ from __future__ import annotations
 import pytest
 from app.market_ingestion.shioaji_subscription import (
     resolve_contract,
+    resolve_market_contract,
     resolve_stock_contract,
+    subscribe_market_topic,
     subscribe_spot_ticks,
     subscribe_topics,
 )
@@ -25,14 +27,25 @@ class FakeFutures(dict):
 
 
 class FakeContracts:
-    def __init__(self, futures: FakeFutures, stocks: dict[str, object] | None = None) -> None:
+    def __init__(
+        self,
+        futures: FakeFutures,
+        stocks: dict[str, object] | None = None,
+        indices: dict[str, object] | None = None,
+    ) -> None:
         self.Futures = futures
         self.Stocks = stocks or {}
+        self.Indexs = indices or {}
 
 
 class FakeAPI:
-    def __init__(self, futures: FakeFutures, stocks: dict[str, object] | None = None) -> None:
-        self.Contracts = FakeContracts(futures=futures, stocks=stocks)
+    def __init__(
+        self,
+        futures: FakeFutures,
+        stocks: dict[str, object] | None = None,
+        indices: dict[str, object] | None = None,
+    ) -> None:
+        self.Contracts = FakeContracts(futures=futures, stocks=stocks, indices=indices)
         self.quote = FakeQuote()
 
 
@@ -113,3 +126,18 @@ def test_subscribe_spot_ticks_for_symbols() -> None:
     assert subscribed == 2
     assert any(target is contract_2330 for _, target, _ in api.quote.subscriptions)
     assert any(target is contract_2317 for _, target, _ in api.quote.subscriptions)
+
+
+def test_resolve_market_contract_prefers_index_bucket() -> None:
+    idx_contract = object()
+    api = FakeAPI(FakeFutures({}), indices={"TSE001": idx_contract})
+    assert resolve_market_contract(api, "TSE001") is idx_contract
+
+
+def test_subscribe_market_topic_subscribes_tick_v1() -> None:
+    idx_contract = object()
+    api = FakeAPI(FakeFutures({}), indices={"TSE001": idx_contract})
+    subscribe_market_topic(api, idx_contract)
+    assert any(
+        kind == "tick" and target is idx_contract for kind, target, _ in api.quote.subscriptions
+    )
