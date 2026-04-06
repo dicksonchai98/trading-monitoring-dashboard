@@ -10,6 +10,7 @@ from app.models.kbar_1m import Kbar1mModel
 from app.models.market_open_interest_daily import MarketOpenInterestDailyModel
 from app.models.otp_challenge import OtpChallengeModel
 from app.models.otp_verification_token import OtpVerificationTokenModel
+from app.models.quote_feature_1m import QuoteFeature1mModel
 from app.models.refresh_denylist import RefreshTokenDenylistModel
 from app.models.subscription import SubscriptionModel
 from app.models.user import UserModel
@@ -26,6 +27,7 @@ __all__ = [
     "MarketOpenInterestDailyModel",
     "OtpChallengeModel",
     "OtpVerificationTokenModel",
+    "QuoteFeature1mModel",
     "EmailOutboxModel",
     "EmailDeliveryLogModel",
 ]

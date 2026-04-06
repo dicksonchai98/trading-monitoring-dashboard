@@ -7,12 +7,16 @@ class FakeQuote:
     def __init__(self) -> None:
         self.on_event_callback = None
         self.on_tick_stk_callback = None
+        self.on_quote_fop_callback = None
 
     def set_on_tick_fop_v1_callback(self, _callback) -> None:
         return None
 
     def set_on_bidask_fop_v1_callback(self, _callback) -> None:
         return None
+
+    def set_on_quote_fop_v1_callback(self, callback) -> None:
+        self.on_quote_fop_callback = callback
 
     def set_on_tick_stk_v1_callback(self, callback) -> None:
         self.on_tick_stk_callback = callback
@@ -80,3 +84,14 @@ def test_set_on_tick_stk_callback_registers_handler() -> None:
 
     client.set_on_tick_stk_v1_callback(_callback)
     assert api.quote.on_tick_stk_callback is _callback
+
+
+def test_set_on_quote_fop_callback_registers_handler() -> None:
+    api = FakeAPI()
+    client = ShioajiClient(api=api, api_key="k", secret_key=_fake_secret(), simulation=True)
+
+    def _callback(*_args):
+        return None
+
+    client.set_on_quote_fop_v1_callback(_callback)
+    assert api.quote.on_quote_fop_callback is _callback

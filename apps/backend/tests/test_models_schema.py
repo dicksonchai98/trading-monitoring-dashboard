@@ -8,6 +8,7 @@ from app.models.email_outbox import EmailOutboxModel
 from app.models.kbar_1m import Kbar1mModel
 from app.models.otp_challenge import OtpChallengeModel
 from app.models.otp_verification_token import OtpVerificationTokenModel
+from app.models.quote_feature_1m import QuoteFeature1mModel
 from app.models.refresh_denylist import RefreshTokenDenylistModel
 from app.models.subscription import SubscriptionModel
 from app.models.user import UserModel
@@ -36,6 +37,10 @@ def test_kbar_1m_model_table_name() -> None:
 
 def test_bidask_metric_1s_model_table_name() -> None:
     assert BidAskMetric1sModel.__tablename__ == "bidask_metrics_1s"
+
+
+def test_quote_feature_1m_model_table_name() -> None:
+    assert QuoteFeature1mModel.__tablename__ == "quote_features_1m"
 
 
 def test_batch_job_status_column_allows_longest_status_value() -> None:

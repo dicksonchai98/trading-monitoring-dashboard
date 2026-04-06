@@ -31,6 +31,7 @@ Based on Context7 source `/llmstxt/sinotrade_github_io_llms-full_txt`, the start
 - Examples:
   - `dev:stream:tick:MTX`
   - `dev:stream:bidask:MTX`
+  - `dev:stream:quote:MTX`
 - Retention: approximate `MAXLEN ~` (default `100000`, tune per environment)
 
 ## Ordering and reliability scope

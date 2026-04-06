@@ -12,6 +12,7 @@ from app.services.metrics import Metrics
 class _FakeQuote:
     def __init__(self) -> None:
         self.tick_fop_callback = None
+        self.quote_fop_callback = None
         self.tick_stk_callback = None
         self.bidask_fop_callback = None
         self.subscriptions: list[tuple[object, object, object | None]] = []
@@ -21,6 +22,9 @@ class _FakeQuote:
 
     def set_on_tick_stk_v1_callback(self, callback) -> None:
         self.tick_stk_callback = callback
+
+    def set_on_quote_fop_v1_callback(self, callback) -> None:
+        self.quote_fop_callback = callback
 
     def set_on_bidask_fop_v1_callback(self, callback) -> None:
         self.bidask_fop_callback = callback
@@ -74,6 +78,18 @@ class _FakeFuturesTick:
     def to_dict(self, raw: bool = True):
         _ = raw
         return {"price": self.price}
+
+
+class _FakeFuturesQuote:
+    def __init__(self, code: str, price: float, volume: int) -> None:
+        self.code = code
+        self.price = price
+        self.volume = volume
+        self.datetime = datetime.now(tz=timezone.utc)
+
+    def to_dict(self, raw: bool = True):
+        _ = raw
+        return {"price": self.price, "volume": self.volume}
 
 
 class _SelectiveRedis:
@@ -174,3 +190,21 @@ def test_futures_path_continues_when_spot_publish_fails(tmp_path, caplog) -> Non
     assert runner._metrics.counters["ingestion_spot_publish_errors_total"] >= 1
     assert "asset_type=spot" in caplog.text
     assert "symbol=2330" in caplog.text
+
+
+def test_quote_callback_publishes_to_quote_stream(tmp_path) -> None:
+    symbols_file = tmp_path / "symbols.txt"
+    symbols_file.write_text("2330\n", encoding="utf-8")
+    redis = _SelectiveRedis()
+    runner = _build_runner(redis, str(symbols_file), expected_count=1, spot_required=True)
+
+    async def _scenario() -> None:
+        await runner.start()
+        quote = runner._client.api.quote
+        assert quote.quote_fop_callback is not None
+        quote.quote_fop_callback(None, _FakeFuturesQuote("MTX", 20000, 7))
+        await asyncio.sleep(0.05)
+        await runner.stop()
+
+    asyncio.run(_scenario())
+    assert any(stream == "dev:stream:quote:MTX" for stream, _ in redis.writes)
