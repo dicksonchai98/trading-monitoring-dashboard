@@ -10,12 +10,15 @@ from typing import Any
 from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session
 
+from app.config import KBAR_ANALYTICS_RETRY_BACKOFF_SECONDS, KBAR_ANALYTICS_RETRY_MAX_ATTEMPTS
 from app.models.analytics_job import AnalyticsJobModel
 from app.models.kbar_1m import Kbar1mModel
 from app.models.kbar_daily_feature import KbarDailyFeatureModel
 from app.models.kbar_distribution_stat import KbarDistributionStatModel
 from app.models.kbar_event_sample import KbarEventSampleModel
 from app.models.kbar_event_stat import KbarEventStatModel
+from app.modules.batch_shared.retry.errors import ErrorCategory
+from app.modules.batch_shared.retry.policy import RetryPolicy
 from app.modules.kbar_analytics.registry import (
     EVENT_REGISTRY,
     METRIC_REGISTRY,
@@ -448,14 +451,23 @@ class KbarAnalyticsService:
         return self.session.execute(stmt).scalar_one_or_none()
 
     def create_job(self, *, job_type: str, payload: dict[str, Any]) -> AnalyticsJobModel:
-        job = AnalyticsJobModel(job_type=job_type, payload=payload, status="pending")
+        job = AnalyticsJobModel(job_type=job_type, payload=payload, status="pending", retry_count=0)
         self.session.add(job)
         self.session.flush()
         return job
 
     def mark_job_running(self, job: AnalyticsJobModel) -> None:
         job.status = "running"
-        job.started_at = _utcnow()
+        if job.started_at is None:
+            job.started_at = _utcnow()
+        self.session.flush()
+
+    def mark_job_retrying(
+        self, job: AnalyticsJobModel, *, attempt: int, category: ErrorCategory
+    ) -> None:
+        job.status = "running"
+        job.retry_count = attempt
+        job.error_message = f"retry_{category.value}"
         self.session.flush()
 
     def mark_job_success(self, job: AnalyticsJobModel) -> None:
@@ -468,3 +480,97 @@ class KbarAnalyticsService:
         job.error_message = error_message
         job.finished_at = _utcnow()
         self.session.flush()
+
+    def execute_job_with_retry(
+        self,
+        *,
+        job: AnalyticsJobModel,
+        operation,
+        max_attempts: int = KBAR_ANALYTICS_RETRY_MAX_ATTEMPTS,
+        backoff_seconds: int = KBAR_ANALYTICS_RETRY_BACKOFF_SECONDS,
+    ) -> dict[str, int]:
+        retry_policy = RetryPolicy(
+            max_attempts=max(1, max_attempts), backoff_seconds=max(0, backoff_seconds)
+        )
+
+        def _operation() -> dict[str, int]:
+            self.mark_job_running(job)
+            return operation()
+
+        def _on_retry(attempt: int, category: ErrorCategory) -> None:
+            self.mark_job_retrying(job, attempt=attempt, category=category)
+
+        try:
+            result = retry_policy.run(_operation, _on_retry)
+            self.mark_job_success(job)
+            return result
+        except Exception as err:
+            self.mark_job_failed(job, error_message=str(err))
+            raise
+
+    def run_daily_pipeline(
+        self,
+        *,
+        code: str,
+        start_date: date,
+        end_date: date,
+    ) -> dict[str, dict[str, int] | int]:
+        rebuilt_job = self.create_job(
+            job_type="rebuild_daily_features",
+            payload={
+                "code": code,
+                "start_date": start_date.isoformat(),
+                "end_date": end_date.isoformat(),
+            },
+        )
+        rebuilt_result = self.execute_job_with_retry(
+            job=rebuilt_job,
+            operation=lambda: self.rebuild_daily_features(
+                code=code,
+                start_date=start_date,
+                end_date=end_date,
+            ),
+        )
+
+        event_job = self.create_job(
+            job_type="recompute_event_stats",
+            payload={
+                "code": code,
+                "start_date": start_date.isoformat(),
+                "end_date": end_date.isoformat(),
+            },
+        )
+        event_result = self.execute_job_with_retry(
+            job=event_job,
+            operation=lambda: self.recompute_event_stats(
+                code=code,
+                start_date=start_date,
+                end_date=end_date,
+                event_ids=None,
+            ),
+        )
+
+        distribution_job = self.create_job(
+            job_type="recompute_distribution_stats",
+            payload={
+                "code": code,
+                "start_date": start_date.isoformat(),
+                "end_date": end_date.isoformat(),
+            },
+        )
+        distribution_result = self.execute_job_with_retry(
+            job=distribution_job,
+            operation=lambda: self.recompute_distribution_stats(
+                code=code,
+                start_date=start_date,
+                end_date=end_date,
+                metric_ids=None,
+            ),
+        )
+
+        return {
+            "rebuild_daily_features": rebuilt_result,
+            "recompute_event_stats": event_result,
+            "recompute_distribution_stats": distribution_result,
+            "jobs": 3,
+        }
