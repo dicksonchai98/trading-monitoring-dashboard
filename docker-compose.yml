@@ -86,6 +86,21 @@ services:
       DATABASE_URL: ${DATABASE_URL_DOCKER:-postgresql+psycopg://postgres:981025060598Cc!@host.docker.internal:5432/trading_dashboard}
       REDIS_URL: ${REDIS_URL_DOCKER:-redis://redis:6379/0}
 
+  backend-kbar-analytics-cron-worker:
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile
+    command: python -m workers.kbar_analytics_cron_worker
+    env_file:
+      - ./.env
+    depends_on:
+      - redis
+    environment:
+      KBAR_ANALYTICS_CRON_ENABLED: ${KBAR_ANALYTICS_CRON_ENABLED:-1}
+      KBAR_ANALYTICS_CRON_INTERVAL_SECONDS: ${KBAR_ANALYTICS_CRON_INTERVAL_SECONDS:-86400}
+      KBAR_ANALYTICS_CRON_WINDOW_DAYS: ${KBAR_ANALYTICS_CRON_WINDOW_DAYS:-30}
+      KBAR_ANALYTICS_CRON_CODE: ${KBAR_ANALYTICS_CRON_CODE:-TXF}
+
   frontend:
     build:
       context: ./apps/frontend
