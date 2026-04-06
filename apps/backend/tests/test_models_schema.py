@@ -47,6 +47,10 @@ def test_kbar_analytics_table_names() -> None:
     assert AnalyticsJobModel.__tablename__ == "analytics_jobs"
 
 
+def test_kbar_analytics_job_has_retry_counter() -> None:
+    assert "retry_count" in AnalyticsJobModel.__table__.columns
+
+
 def test_bidask_metric_1s_model_table_name() -> None:
     assert BidAskMetric1sModel.__tablename__ == "bidask_metrics_1s"
 

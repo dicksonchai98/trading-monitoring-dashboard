@@ -225,17 +225,17 @@ def rebuild_daily_features(
         job_type="rebuild_daily_features", payload=payload.model_dump(exclude_none=True)
     )
     try:
-        service.mark_job_running(job)
-        result = service.rebuild_daily_features(
-            code=payload.code,
-            start_date=payload.start_date,
-            end_date=payload.end_date,
+        result = service.execute_job_with_retry(
+            job=job,
+            operation=lambda: service.rebuild_daily_features(
+                code=payload.code,
+                start_date=payload.start_date,
+                end_date=payload.end_date,
+            ),
         )
-        service.mark_job_success(job)
         session.commit()
         return {"job_id": job.job_id, "status": job.status, "result": result}
     except Exception as err:
-        service.mark_job_failed(job, error_message=str(err))
         session.commit()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(err)) from err
 
@@ -256,22 +256,21 @@ def recompute_event_stats(
         job_type="recompute_event_stats", payload=payload.model_dump(exclude_none=True)
     )
     try:
-        service.mark_job_running(job)
-        result = service.recompute_event_stats(
-            code=payload.code,
-            start_date=payload.start_date,
-            end_date=payload.end_date,
-            event_ids=payload.event_ids,
+        result = service.execute_job_with_retry(
+            job=job,
+            operation=lambda: service.recompute_event_stats(
+                code=payload.code,
+                start_date=payload.start_date,
+                end_date=payload.end_date,
+                event_ids=payload.event_ids,
+            ),
         )
-        service.mark_job_success(job)
         session.commit()
         return {"job_id": job.job_id, "status": job.status, "result": result}
     except KeyError as err:
-        service.mark_job_failed(job, error_message=str(err))
         session.commit()
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(err)) from err
     except Exception as err:
-        service.mark_job_failed(job, error_message=str(err))
         session.commit()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(err)) from err
 
@@ -292,21 +291,20 @@ def recompute_distribution_stats(
         job_type="recompute_distribution_stats", payload=payload.model_dump(exclude_none=True)
     )
     try:
-        service.mark_job_running(job)
-        result = service.recompute_distribution_stats(
-            code=payload.code,
-            start_date=payload.start_date,
-            end_date=payload.end_date,
-            metric_ids=payload.metric_ids,
+        result = service.execute_job_with_retry(
+            job=job,
+            operation=lambda: service.recompute_distribution_stats(
+                code=payload.code,
+                start_date=payload.start_date,
+                end_date=payload.end_date,
+                metric_ids=payload.metric_ids,
+            ),
         )
-        service.mark_job_success(job)
         session.commit()
         return {"job_id": job.job_id, "status": job.status, "result": result}
     except KeyError as err:
-        service.mark_job_failed(job, error_message=str(err))
         session.commit()
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(err)) from err
     except Exception as err:
-        service.mark_job_failed(job, error_message=str(err))
         session.commit()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(err)) from err

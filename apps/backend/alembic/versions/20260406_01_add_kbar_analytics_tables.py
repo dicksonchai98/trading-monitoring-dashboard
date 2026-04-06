@@ -176,6 +176,7 @@ def upgrade() -> None:
             sa.Column("job_type", sa.String(length=64), nullable=False),
             sa.Column("payload", sa.JSON(), nullable=False),
             sa.Column("status", sa.String(length=32), nullable=False),
+            sa.Column("retry_count", sa.Integer(), nullable=False, server_default=sa.text("0")),
             sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
             sa.Column("started_at", sa.DateTime(timezone=True), nullable=True),
             sa.Column("finished_at", sa.DateTime(timezone=True), nullable=True),
