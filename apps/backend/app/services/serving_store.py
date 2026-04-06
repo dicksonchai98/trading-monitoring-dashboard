@@ -19,6 +19,7 @@ from app.config import (
     SERVING_ENV,
 )
 from app.models.kbar_1m import Kbar1mModel
+from app.models.market_summary_1m import MarketSummary1mModel
 from app.state import get_serving_redis_client
 from app.stream_processing.runner import build_state_key, trade_date_for
 
@@ -249,6 +250,75 @@ def fetch_metric_today_range(code: str, time_range: TimeRange) -> list[dict[str,
             continue
         result.append(normalize_metric_sample(data))
     return result
+
+
+def normalize_market_summary_latest(payload: dict[str, Any]) -> dict[str, Any]:
+    result = dict(payload)
+    event_ts = payload.get("event_ts")
+    if event_ts:
+        result["event_ts"] = _to_epoch_ms(_parse_iso(str(event_ts)))
+    minute_ts = payload.get("minute_ts")
+    if minute_ts:
+        result["minute_ts"] = _to_epoch_ms(_parse_iso(str(minute_ts)))
+    return result
+
+
+def fetch_market_summary_latest(code: str) -> dict[str, Any] | None:
+    redis_client = get_serving_redis_client()
+    trade_date = trade_date_for(datetime.now(tz=TZ_TAIPEI))
+    key = build_state_key(SERVING_ENV, code, trade_date, "market_summary:latest")
+    raw = redis_client.get(key)
+    if raw is None:
+        return None
+    payload = raw.decode("utf-8") if isinstance(raw, bytes) else str(raw)
+    try:
+        data = json.loads(payload)
+    except json.JSONDecodeError:
+        return None
+    return normalize_market_summary_latest(data)
+
+
+def fetch_market_summary_today_range(code: str, time_range: TimeRange) -> list[dict[str, Any]]:
+    redis_client = get_serving_redis_client()
+    trade_date = trade_date_for(time_range.end)
+    key = build_state_key(SERVING_ENV, code, trade_date, "market_summary:zset")
+    start_score = int(time_range.start.timestamp())
+    end_score = int(time_range.end.timestamp())
+    entries = redis_client.zrangebyscore(key, start_score, end_score)
+    result: list[dict[str, Any]] = []
+    for entry in entries or []:
+        payload = entry.decode("utf-8") if isinstance(entry, bytes) else str(entry)
+        try:
+            data = json.loads(payload)
+        except json.JSONDecodeError:
+            continue
+        result.append(normalize_market_summary_latest(data))
+    return result
+
+
+def fetch_market_summary_history(
+    session: Session, code: str, time_range: TimeRange
+) -> list[dict[str, Any]]:
+    stmt = (
+        select(MarketSummary1mModel)
+        .where(MarketSummary1mModel.market_code == code)
+        .where(MarketSummary1mModel.minute_ts >= time_range.start)
+        .where(MarketSummary1mModel.minute_ts <= time_range.end)
+        .order_by(MarketSummary1mModel.minute_ts.asc())
+    )
+    rows = session.execute(stmt).scalars().all()
+    return [
+        {
+            "code": row.market_code,
+            "trade_date": row.trade_date.isoformat(),
+            "minute_ts": _to_epoch_ms(row.minute_ts),
+            "index_value": row.index_value,
+            "cumulative_turnover": row.cumulative_turnover,
+            "completion_ratio": row.completion_ratio,
+            "estimated_turnover": row.estimated_turnover,
+        }
+        for row in rows
+    ]
 
 
 def default_kbar_window() -> timedelta:

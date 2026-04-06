@@ -40,18 +40,36 @@ from app.config import (
     LATEST_STATE_GROUP,
     LATEST_STATE_READ_COUNT,
     LATEST_STATE_TTL_SECONDS,
+    MARKET_ADJUSTMENT_FACTOR,
+    MARKET_BLOCK_MS,
+    MARKET_CLAIM_COUNT,
+    MARKET_CLAIM_IDLE_MS,
+    MARKET_CODE,
+    MARKET_CONSUMER_NAME,
+    MARKET_DB_SINK_BATCH_SIZE,
+    MARKET_DB_SINK_DEAD_LETTER_MAXLEN,
+    MARKET_DB_SINK_MAX_RETRIES,
+    MARKET_DB_SINK_RETRY_BACKOFF_SECONDS,
+    MARKET_GROUP,
+    MARKET_READ_COUNT,
+    MARKET_STATE_TTL_SECONDS,
+    MARKET_SUMMARY_ENV,
+    MARKET_TRADING_END,
+    MARKET_TRADING_START,
     REDIS_URL,
     get_stripe_settings,
 )
 from app.db.session import SessionLocal
 from app.latest_state.runner import LatestStateRunner
 from app.market_ingestion.runner import MarketIngestionRunner
+from app.market_summary.runner import MarketSummaryRunner
 from app.models.batch_job import BatchJobModel
 from app.models.bidask_metric_1s import BidAskMetric1sModel
 from app.models.billing_event import BillingEventModel
 from app.models.email_delivery_log import EmailDeliveryLogModel
 from app.models.email_outbox import EmailOutboxModel
 from app.models.kbar_1m import Kbar1mModel
+from app.models.market_summary_1m import MarketSummary1mModel
 from app.models.otp_challenge import OtpChallengeModel
 from app.models.otp_verification_token import OtpVerificationTokenModel
 from app.models.refresh_denylist import RefreshTokenDenylistModel
@@ -112,6 +130,7 @@ serving_rate_limiter = SimpleRateLimiter()
 ingestor_runner: MarketIngestionRunner | None = None
 aggregator_runner: StreamProcessingRunner | None = None
 latest_state_runner: LatestStateRunner | None = None
+market_summary_runner: MarketSummaryRunner | None = None
 serving_redis_client = None
 email_outbox_dispatcher: EmailOutboxDispatcher | None = None
 email_webhook_service = EmailWebhookService(
@@ -284,6 +303,40 @@ def build_latest_state_runner() -> LatestStateRunner:
     return latest_state_runner
 
 
+def build_market_summary_runner() -> MarketSummaryRunner:
+    global market_summary_runner
+    if market_summary_runner is not None:
+        return market_summary_runner
+    try:
+        import redis
+    except Exception as err:  # pragma: no cover - depends on runtime dependency
+        raise RuntimeError("market-summary dependencies unavailable: install redis") from err
+
+    market_summary_runner = MarketSummaryRunner(
+        redis_client=redis.from_url(REDIS_URL),
+        session_factory=SessionLocal,
+        metrics=metrics,
+        env=MARKET_SUMMARY_ENV,
+        code=MARKET_CODE,
+        group=MARKET_GROUP,
+        consumer=MARKET_CONSUMER_NAME,
+        read_count=MARKET_READ_COUNT,
+        block_ms=MARKET_BLOCK_MS,
+        claim_idle_ms=MARKET_CLAIM_IDLE_MS,
+        claim_count=MARKET_CLAIM_COUNT,
+        ttl_seconds=MARKET_STATE_TTL_SECONDS,
+        trading_start=MARKET_TRADING_START,
+        trading_end=MARKET_TRADING_END,
+        adjustment_factor=MARKET_ADJUSTMENT_FACTOR,
+        db_sink_batch_size=MARKET_DB_SINK_BATCH_SIZE,
+        db_sink_retry_backoff_seconds=MARKET_DB_SINK_RETRY_BACKOFF_SECONDS,
+        db_sink_max_retries=MARKET_DB_SINK_MAX_RETRIES,
+        db_sink_dead_letter_maxlen=MARKET_DB_SINK_DEAD_LETTER_MAXLEN,
+    )
+    logger.info("market-summary runner created")
+    return market_summary_runner
+
+
 def get_serving_redis_client():
     global serving_redis_client
     if serving_redis_client is not None:
@@ -326,6 +379,7 @@ def reset_state_for_tests() -> None:
         session.execute(delete(BidAskMetric1sModel))
         session.execute(delete(BillingEventModel))
         session.execute(delete(Kbar1mModel))
+        session.execute(delete(MarketSummary1mModel))
         session.execute(delete(SubscriptionModel))
         session.execute(delete(RefreshTokenDenylistModel))
         session.execute(delete(UserModel))

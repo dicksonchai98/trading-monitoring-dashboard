@@ -8,6 +8,7 @@ from app.models.email_delivery_log import EmailDeliveryLogModel
 from app.models.email_outbox import EmailOutboxModel
 from app.models.kbar_1m import Kbar1mModel
 from app.models.market_open_interest_daily import MarketOpenInterestDailyModel
+from app.models.market_summary_1m import MarketSummary1mModel
 from app.models.otp_challenge import OtpChallengeModel
 from app.models.otp_verification_token import OtpVerificationTokenModel
 from app.models.refresh_denylist import RefreshTokenDenylistModel
@@ -24,6 +25,7 @@ __all__ = [
     "BatchJobModel",
     "CrawlerRawPayloadModel",
     "MarketOpenInterestDailyModel",
+    "MarketSummary1mModel",
     "OtpChallengeModel",
     "OtpVerificationTokenModel",
     "EmailOutboxModel",

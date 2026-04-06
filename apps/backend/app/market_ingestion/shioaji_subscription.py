@@ -86,6 +86,22 @@ def resolve_contract(api: Any, code: str) -> Any:
     )
 
 
+def resolve_market_contract(api: Any, code: str) -> Any:
+    contracts = getattr(api, "Contracts", None)
+    if contracts is None:
+        raise RuntimeError("unable to resolve market contract: contracts unavailable")
+    for attr in ("Indexs", "Indices", "Stocks", "Futures"):
+        bucket = getattr(contracts, attr, None)
+        if bucket is None:
+            continue
+        contract = _resolve_from_stocks(bucket, code)
+        if contract is None:
+            contract = _resolve_from_futures(bucket, code)
+        if contract is not None:
+            return contract
+    raise RuntimeError(f"unable to resolve market contract code={code}")
+
+
 def subscribe_topics(api: Any, contract: Any, quote_types: Iterable[str] | None = None) -> None:
     if contract is None:
         raise RuntimeError("resolved futures contract is empty; cannot subscribe topics")
@@ -126,3 +142,9 @@ def subscribe_spot_ticks(api: Any, symbols: Iterable[str]) -> int:
         quote.subscribe(contract, quote_type=_quote_type("tick"), version=_quote_version_v1())
         subscribed += 1
     return subscribed
+
+
+def subscribe_market_topic(api: Any, contract: Any) -> None:
+    if contract is None:
+        raise RuntimeError("resolved market contract is empty; cannot subscribe topic")
+    api.quote.subscribe(contract, quote_type=_quote_type("tick"), version=_quote_version_v1())
