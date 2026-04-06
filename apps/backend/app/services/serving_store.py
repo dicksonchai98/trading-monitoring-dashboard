@@ -19,6 +19,7 @@ from app.config import (
     SERVING_ENV,
 )
 from app.models.kbar_1m import Kbar1mModel
+from app.models.quote_feature_1m import QuoteFeature1mModel
 from app.state import get_serving_redis_client
 from app.stream_processing.runner import build_state_key, trade_date_for
 
@@ -160,6 +161,22 @@ def normalize_metric_sample(payload: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
+def normalize_quote_latest(payload: dict[str, Any]) -> dict[str, Any]:
+    result = dict(payload)
+    event_ts = payload.get("event_ts")
+    if event_ts:
+        result["ts"] = _to_epoch_ms(_parse_iso(str(event_ts)))
+    return result
+
+
+def normalize_quote_sample(payload: dict[str, Any]) -> dict[str, Any]:
+    result = dict(payload)
+    event_ts = payload.get("event_ts")
+    if event_ts:
+        result["ts"] = _to_epoch_ms(_parse_iso(str(event_ts)))
+    return result
+
+
 def fetch_current_kbar(code: str) -> dict[str, Any] | None:
     redis_client = get_serving_redis_client()
     trade_date = trade_date_for(datetime.now(tz=TZ_TAIPEI))
@@ -249,6 +266,95 @@ def fetch_metric_today_range(code: str, time_range: TimeRange) -> list[dict[str,
             continue
         result.append(normalize_metric_sample(data))
     return result
+
+
+def fetch_quote_latest(code: str) -> dict[str, Any] | None:
+    redis_client = get_serving_redis_client()
+    trade_date = trade_date_for(datetime.now(tz=TZ_TAIPEI))
+    key = build_state_key(SERVING_ENV, code, trade_date, "quote_features:latest")
+    raw = redis_client.get(key)
+    if raw is None:
+        return None
+    payload = raw.decode("utf-8") if isinstance(raw, bytes) else str(raw)
+    try:
+        data = json.loads(payload)
+    except json.JSONDecodeError:
+        return None
+    return normalize_quote_latest(data)
+
+
+def fetch_quote_today_range(code: str, time_range: TimeRange) -> list[dict[str, Any]]:
+    redis_client = get_serving_redis_client()
+    trade_date = trade_date_for(time_range.end)
+    key = build_state_key(SERVING_ENV, code, trade_date, "quote_features:zset")
+    start_score = int(time_range.start.timestamp())
+    end_score = int(time_range.end.timestamp())
+    entries = redis_client.zrangebyscore(key, start_score, end_score)
+    result: list[dict[str, Any]] = []
+    for entry in entries or []:
+        payload = entry.decode("utf-8") if isinstance(entry, bytes) else str(entry)
+        try:
+            data = json.loads(payload)
+        except json.JSONDecodeError:
+            continue
+        result.append(normalize_quote_sample(data))
+    return result
+
+
+def fetch_quote_history(session: Session, code: str, time_range: TimeRange) -> list[dict[str, Any]]:
+    stmt = (
+        select(QuoteFeature1mModel)
+        .where(QuoteFeature1mModel.code == code)
+        .where(QuoteFeature1mModel.minute_ts >= time_range.start)
+        .where(QuoteFeature1mModel.minute_ts <= time_range.end)
+        .order_by(QuoteFeature1mModel.minute_ts.asc())
+    )
+    rows = session.execute(stmt).scalars().all()
+    return [
+        {
+            "code": row.code,
+            "trade_date": row.trade_date.isoformat(),
+            "minute_ts": _to_epoch_ms(row.minute_ts),
+            "main_chip": row.main_chip,
+            "main_chip_day_high": row.main_chip_day_high,
+            "main_chip_day_low": row.main_chip_day_low,
+            "main_chip_strength": row.main_chip_strength,
+            "long_short_force": row.long_short_force,
+            "long_short_force_day_high": row.long_short_force_day_high,
+            "long_short_force_day_low": row.long_short_force_day_low,
+            "long_short_force_strength": row.long_short_force_strength,
+        }
+        for row in rows
+    ]
+
+
+def fetch_quote_aggregates(session: Session, code: str, time_range: TimeRange) -> dict[str, Any]:
+    rows = fetch_quote_history(session, code, time_range)
+    if not rows:
+        return {
+            "code": code,
+            "count": 0,
+            "main_chip": {"min": None, "max": None, "avg": None, "last": None},
+            "long_short_force": {"min": None, "max": None, "avg": None, "last": None},
+        }
+    main = [float(item["main_chip"]) for item in rows]
+    force = [float(item["long_short_force"]) for item in rows]
+    return {
+        "code": code,
+        "count": len(rows),
+        "main_chip": {
+            "min": min(main),
+            "max": max(main),
+            "avg": sum(main) / len(main),
+            "last": main[-1],
+        },
+        "long_short_force": {
+            "min": min(force),
+            "max": max(force),
+            "avg": sum(force) / len(force),
+            "last": force[-1],
+        },
+    }
 
 
 def default_kbar_window() -> timedelta:

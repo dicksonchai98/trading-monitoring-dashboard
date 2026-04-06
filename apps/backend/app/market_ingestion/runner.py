@@ -103,6 +103,9 @@ class MarketIngestionRunner:
         def on_bidask(_exchange: Any, bidask: Any) -> None:
             self._on_futures_quote("bidask", bidask)
 
+        def on_quote(_exchange: Any, quote: Any) -> None:
+            self._on_futures_quote("quote", quote)
+
         def on_spot_tick(_exchange: Any, tick: Any) -> None:
             self._on_spot_quote(tick)
 
@@ -111,6 +114,7 @@ class MarketIngestionRunner:
 
         self._client.set_on_tick_fop_v1_callback(on_futures_tick)
         self._client.set_on_bidask_fop_v1_callback(on_bidask)
+        self._client.set_on_quote_fop_v1_callback(on_quote)
         self._client.set_on_tick_stk_v1_callback(on_spot_tick)
         self._client.set_on_event_callback(on_event)
 

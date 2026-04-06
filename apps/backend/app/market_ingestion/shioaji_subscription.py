@@ -11,9 +11,16 @@ def _quote_type(value: str) -> Any:
     try:
         import shioaji as sj  # type: ignore
 
-        if value == "tick":
-            return sj.constant.QuoteType.Tick
-        return sj.constant.QuoteType.BidAsk
+        mapping = {
+            "tick": "Tick",
+            "bidask": "BidAsk",
+            "quote": "Quote",
+        }
+        attr = mapping.get(value, "BidAsk")
+        quote_type = getattr(sj.constant.QuoteType, attr, None)
+        if quote_type is not None:
+            return quote_type
+        return value
     except Exception:
         return value
 
@@ -91,7 +98,7 @@ def subscribe_topics(api: Any, contract: Any, quote_types: Iterable[str] | None 
         raise RuntimeError("resolved futures contract is empty; cannot subscribe topics")
     quote = api.quote
     types = list(quote_types) if quote_types is not None else ["tick", "bidask"]
-    allowed = {"tick", "bidask"}
+    allowed = {"tick", "bidask", "quote"}
     seen: set[str] = set()
     for value in types:
         normalized = value.strip().lower()

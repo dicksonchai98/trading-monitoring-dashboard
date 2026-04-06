@@ -25,6 +25,10 @@ from app.services.serving_store import (
     fetch_kbar_today_range,
     fetch_metric_latest,
     fetch_metric_today_range,
+    fetch_quote_aggregates,
+    fetch_quote_history,
+    fetch_quote_latest,
+    fetch_quote_today_range,
     resolve_default_code,
     resolve_time_range,
 )
@@ -190,6 +194,98 @@ def bidask_today(
         ) from err
 
 
+@router.get("/quote/latest")
+def quote_latest(
+    code: str | None = None,
+    __: None = Depends(require_authenticated),
+    ___: None = Depends(enforce_serving_rate_limit),
+    ____: None = Depends(record_serving_latency),
+) -> dict[str, Any]:
+    metrics.inc("serving_rest_requests_total")
+    try:
+        data = fetch_quote_latest(resolve_default_code(code))
+    except Exception as err:
+        metrics.inc("serving_redis_errors_total")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="redis_unavailable"
+        ) from err
+    if data is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="quote_not_found")
+    return data
+
+
+@router.get("/quote/today")
+def quote_today(
+    code: str | None = None,
+    from_ms: int | None = None,
+    to_ms: int | None = None,
+    from_: str | None = None,
+    to: str | None = None,
+    __: None = Depends(require_authenticated),
+    ___: None = Depends(enforce_serving_rate_limit),
+    ____: None = Depends(record_serving_latency),
+) -> list[dict[str, Any]]:
+    metrics.inc("serving_rest_requests_total")
+    time_range = resolve_time_range(from_ms, to_ms, from_, to, default_metric_window())
+    try:
+        return fetch_quote_today_range(resolve_default_code(code), time_range)
+    except Exception as err:
+        metrics.inc("serving_redis_errors_total")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="redis_unavailable"
+        ) from err
+
+
+@router.get("/quote/history")
+def quote_history(
+    code: str | None = None,
+    from_: str | None = None,
+    to: str | None = None,
+    from_ms: int | None = None,
+    to_ms: int | None = None,
+    session=Depends(get_db_session),
+    __: None = Depends(require_authenticated),
+    ___: None = Depends(enforce_serving_rate_limit),
+    ____: None = Depends(record_serving_latency),
+) -> list[dict[str, Any]]:
+    metrics.inc("serving_rest_requests_total")
+    if not ((from_ms is not None and to_ms is not None) or (from_ and to)):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="missing_range")
+    time_range = resolve_time_range(from_ms, to_ms, from_, to, default_metric_window())
+    try:
+        return fetch_quote_history(session, resolve_default_code(code), time_range)
+    except Exception as err:
+        metrics.inc("serving_db_errors_total")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="db_unavailable"
+        ) from err
+
+
+@router.get("/quote/aggregates")
+def quote_aggregates(
+    code: str | None = None,
+    from_: str | None = None,
+    to: str | None = None,
+    from_ms: int | None = None,
+    to_ms: int | None = None,
+    session=Depends(get_db_session),
+    __: None = Depends(require_authenticated),
+    ___: None = Depends(enforce_serving_rate_limit),
+    ____: None = Depends(record_serving_latency),
+) -> dict[str, Any]:
+    metrics.inc("serving_rest_requests_total")
+    if not ((from_ms is not None and to_ms is not None) or (from_ and to)):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="missing_range")
+    time_range = resolve_time_range(from_ms, to_ms, from_, to, default_metric_window())
+    try:
+        return fetch_quote_aggregates(session, resolve_default_code(code), time_range)
+    except Exception as err:
+        metrics.inc("serving_db_errors_total")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="db_unavailable"
+        ) from err
+
+
 @router.get("/stream/sse")
 async def stream_sse(
     request: Request,
@@ -207,6 +303,7 @@ async def stream_sse(
     async def event_stream():
         last_kbar: dict[str, Any] | None = None
         last_metric: dict[str, Any] | None = None
+        last_quote: dict[str, Any] | None = None
         last_heartbeat = 0.0
         poll_interval = max(SERVING_POLL_INTERVAL_MS / 1000, 0.05)
         try:
@@ -216,6 +313,7 @@ async def stream_sse(
                 try:
                     current_k = fetch_current_kbar(instrument)
                     metric_latest = fetch_metric_latest(instrument)
+                    quote_latest_state = fetch_quote_latest(instrument)
                 except Exception:
                     metrics.inc("serving_redis_errors_total")
                     break
@@ -229,6 +327,11 @@ async def stream_sse(
                     last_metric = metric_latest
                     metrics.inc("serving_sse_push_total")
                     yield _sse_message("metric_latest", metric_latest)
+
+                if quote_latest_state and quote_latest_state != last_quote:
+                    last_quote = quote_latest_state
+                    metrics.inc("serving_sse_push_total")
+                    yield _sse_message("quote_latest", quote_latest_state)
 
                 now = asyncio.get_running_loop().time()
                 if now - last_heartbeat >= SERVING_HEARTBEAT_SECONDS:

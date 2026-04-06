@@ -61,6 +61,15 @@ def test_subscribe_honors_quote_types() -> None:
     assert all(kind != "bidask" for kind, _, _ in api.quote.subscriptions)
 
 
+def test_subscribe_supports_quote_type() -> None:
+    contract = object()
+    api = FakeAPI(FakeFutures({"MTX": contract}))
+    subscribe_topics(api, contract, ["quote"])
+    assert any(
+        kind == "quote" and target is contract for kind, target, _ in api.quote.subscriptions
+    )
+
+
 def test_subscribe_bidask_does_not_force_v1_version() -> None:
     contract = object()
     api = FakeAPI(FakeFutures({"MTX": contract}))

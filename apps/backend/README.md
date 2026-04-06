@@ -76,6 +76,7 @@ Runbook:
 - Split process entrypoints:
   - `python -m workers.stream_processing_tick_worker`
   - `python -m workers.stream_processing_bidask_worker`
+  - `python -m workers.quote_worker`
   - `python -m workers.latest_state_worker`
 - API process should not run aggregator loops; set `AGGREGATOR_ENABLED=false` for API service.
 - In docker-compose:
@@ -86,7 +87,7 @@ Runbook:
   - `backend-latest-state-worker` runs spot latest-state processing.
 
 Quick runbook:
-- Start (split workers): `docker compose up -d redis backend-api backend-tick-worker backend-bidask-worker backend-latest-state-worker`
+- Start (split workers): `docker compose up -d redis backend-api backend-tick-worker backend-bidask-worker backend-latest-state-worker backend-quote-worker`
 - Check status: `docker compose ps`
 - Restart one worker: `docker compose restart backend-tick-worker`
 - Stop one worker without API impact: `docker compose stop backend-bidask-worker`

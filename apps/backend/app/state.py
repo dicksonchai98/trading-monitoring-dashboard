@@ -40,6 +40,13 @@ from app.config import (
     LATEST_STATE_GROUP,
     LATEST_STATE_READ_COUNT,
     LATEST_STATE_TTL_SECONDS,
+    QUOTE_WORKER_CONSUMER_NAME,
+    QUOTE_WORKER_DB_FLUSH_ENABLED,
+    QUOTE_WORKER_GROUP,
+    QUOTE_WORKER_REDIS_RETRY_ATTEMPTS,
+    QUOTE_WORKER_REDIS_RETRY_BACKOFF_MS,
+    QUOTE_WORKER_STREAM_MAXLEN,
+    QUOTE_WORKER_TARGET_CODE,
     REDIS_URL,
     get_stripe_settings,
 )
@@ -54,9 +61,11 @@ from app.models.email_outbox import EmailOutboxModel
 from app.models.kbar_1m import Kbar1mModel
 from app.models.otp_challenge import OtpChallengeModel
 from app.models.otp_verification_token import OtpVerificationTokenModel
+from app.models.quote_feature_1m import QuoteFeature1mModel
 from app.models.refresh_denylist import RefreshTokenDenylistModel
 from app.models.subscription import SubscriptionModel
 from app.models.user import UserModel
+from app.quote_processing.runner import QuoteWorkerRunner
 from app.repositories.billing_event_repository import BillingEventRepository
 from app.repositories.email_delivery_log_repository import EmailDeliveryLogRepository
 from app.repositories.email_outbox_repository import EmailOutboxRepository
@@ -284,6 +293,27 @@ def build_latest_state_runner() -> LatestStateRunner:
     return latest_state_runner
 
 
+def build_quote_worker_runner() -> QuoteWorkerRunner:
+    try:
+        import redis
+    except Exception as err:  # pragma: no cover - depends on runtime dependency
+        raise RuntimeError("quote-worker dependencies unavailable: install redis") from err
+
+    return QuoteWorkerRunner(
+        redis_client=redis.from_url(REDIS_URL),
+        session_factory=SessionLocal,
+        metrics=metrics,
+        env=AGGREGATOR_ENV,
+        code=QUOTE_WORKER_TARGET_CODE,
+        group=QUOTE_WORKER_GROUP,
+        consumer=QUOTE_WORKER_CONSUMER_NAME,
+        stream_maxlen=QUOTE_WORKER_STREAM_MAXLEN,
+        redis_retry_attempts=QUOTE_WORKER_REDIS_RETRY_ATTEMPTS,
+        redis_retry_backoff_ms=QUOTE_WORKER_REDIS_RETRY_BACKOFF_MS,
+        db_flush_enabled=QUOTE_WORKER_DB_FLUSH_ENABLED,
+    )
+
+
 def get_serving_redis_client():
     global serving_redis_client
     if serving_redis_client is not None:
@@ -326,6 +356,7 @@ def reset_state_for_tests() -> None:
         session.execute(delete(BidAskMetric1sModel))
         session.execute(delete(BillingEventModel))
         session.execute(delete(Kbar1mModel))
+        session.execute(delete(QuoteFeature1mModel))
         session.execute(delete(SubscriptionModel))
         session.execute(delete(RefreshTokenDenylistModel))
         session.execute(delete(UserModel))
