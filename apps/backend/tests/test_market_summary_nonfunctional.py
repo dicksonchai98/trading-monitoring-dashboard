@@ -12,6 +12,7 @@ from app.services.metrics import Metrics
 class FakeRedis:
     def __init__(self) -> None:
         self.streams: dict[str, list[tuple[str, dict[str, str]]]] = {}
+        self.hashes: dict[str, dict[str, str]] = {}
         self.strings: dict[str, str] = {}
         self.zsets: dict[str, list[tuple[int, str]]] = {}
         self.expirations: dict[str, int] = {}
@@ -71,6 +72,9 @@ class FakeRedis:
 
     def expire(self, key, ttl):
         self.expirations[key] = ttl
+
+    def hgetall(self, key):
+        return self.hashes.get(key, {})
 
 
 def _market_fields(

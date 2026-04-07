@@ -101,6 +101,10 @@ AGGREGATOR_SERIES_FIELDS = _env_list(
         "ask_total_vol",
         "imbalance",
         "ratio",
+        "main_force_big_order",
+        "main_force_big_order_day_high",
+        "main_force_big_order_day_low",
+        "main_force_big_order_strength",
         "delta_1s",
         "delta_bid_total_vol_1s",
         "delta_ask_total_vol_1s",
@@ -142,6 +146,8 @@ MARKET_STATE_TTL_SECONDS = _env_int("MARKET_STATE_TTL_SECONDS", 86400)
 MARKET_TRADING_START = os.getenv("MARKET_TRADING_START", "09:00")
 MARKET_TRADING_END = os.getenv("MARKET_TRADING_END", "13:30")
 MARKET_ADJUSTMENT_FACTOR = float(os.getenv("MARKET_ADJUSTMENT_FACTOR", "1.0"))
+MARKET_SPREAD_FUTURES_CODE = os.getenv("MARKET_SPREAD_FUTURES_CODE", AGGREGATOR_CODE)
+MARKET_SPREAD_FRESHNESS_SECONDS = float(os.getenv("MARKET_SPREAD_FRESHNESS_SECONDS", "5"))
 MARKET_DB_SINK_BATCH_SIZE = _env_int("MARKET_DB_SINK_BATCH_SIZE", 100)
 MARKET_DB_SINK_MAX_RETRIES = _env_int("MARKET_DB_SINK_MAX_RETRIES", 5)
 MARKET_DB_SINK_RETRY_BACKOFF_SECONDS = float(

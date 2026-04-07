@@ -46,6 +46,20 @@ def test_market_summary_1m_model_table_name() -> None:
     assert MarketSummary1mModel.__tablename__ == "market_summary_1m"
 
 
+def test_kbar_and_market_summary_models_include_extension_columns() -> None:
+    kbar_columns = Kbar1mModel.__table__.columns.keys()
+    market_columns = MarketSummary1mModel.__table__.columns.keys()
+    assert "amplitude" in kbar_columns
+    assert "amplitude_pct" in kbar_columns
+    assert "futures_code" in market_columns
+    assert "futures_price" in market_columns
+    assert "spread" in market_columns
+    assert "spread_day_high" in market_columns
+    assert "spread_day_low" in market_columns
+    assert "spread_strength" in market_columns
+    assert "spread_status" in market_columns
+
+
 def test_batch_job_status_column_allows_longest_status_value() -> None:
     assert BatchJobModel.__table__.c.status.type.length >= len(JobStatus.PARTIALLY_COMPLETED.value)
 

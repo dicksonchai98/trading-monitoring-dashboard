@@ -59,6 +59,8 @@ from app.config import (
     MARKET_DB_SINK_RETRY_BACKOFF_SECONDS,
     MARKET_GROUP,
     MARKET_READ_COUNT,
+    MARKET_SPREAD_FRESHNESS_SECONDS,
+    MARKET_SPREAD_FUTURES_CODE,
     MARKET_STATE_TTL_SECONDS,
     MARKET_SUMMARY_ENV,
     MARKET_TRADING_END,
@@ -310,6 +312,42 @@ def build_latest_state_runner() -> LatestStateRunner:
     )
     logger.info("latest-state runner created")
     return latest_state_runner
+
+
+def build_market_summary_runner() -> MarketSummaryRunner:
+    global market_summary_runner
+    if market_summary_runner is not None:
+        return market_summary_runner
+    try:
+        import redis
+    except Exception as err:  # pragma: no cover - depends on runtime dependency
+        raise RuntimeError("market-summary dependencies unavailable: install redis") from err
+
+    market_summary_runner = MarketSummaryRunner(
+        redis_client=redis.from_url(REDIS_URL),
+        session_factory=SessionLocal,
+        metrics=metrics,
+        env=MARKET_SUMMARY_ENV,
+        code=MARKET_CODE,
+        group=MARKET_GROUP,
+        consumer=MARKET_CONSUMER_NAME,
+        read_count=MARKET_READ_COUNT,
+        block_ms=MARKET_BLOCK_MS,
+        claim_idle_ms=MARKET_CLAIM_IDLE_MS,
+        claim_count=MARKET_CLAIM_COUNT,
+        ttl_seconds=MARKET_STATE_TTL_SECONDS,
+        trading_start=MARKET_TRADING_START,
+        trading_end=MARKET_TRADING_END,
+        adjustment_factor=MARKET_ADJUSTMENT_FACTOR,
+        futures_code=MARKET_SPREAD_FUTURES_CODE,
+        spread_freshness_seconds=MARKET_SPREAD_FRESHNESS_SECONDS,
+        db_sink_batch_size=MARKET_DB_SINK_BATCH_SIZE,
+        db_sink_retry_backoff_seconds=MARKET_DB_SINK_RETRY_BACKOFF_SECONDS,
+        db_sink_max_retries=MARKET_DB_SINK_MAX_RETRIES,
+        db_sink_dead_letter_maxlen=MARKET_DB_SINK_DEAD_LETTER_MAXLEN,
+    )
+    logger.info("market-summary runner created")
+    return market_summary_runner
 
 
 def get_serving_redis_client():

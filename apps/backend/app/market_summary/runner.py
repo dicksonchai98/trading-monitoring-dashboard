@@ -7,13 +7,14 @@ import time
 from collections.abc import Callable
 from contextlib import suppress
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from datetime import time as dt_time
 from typing import Any
 
 from sqlalchemy.exc import IntegrityError
 from zoneinfo import ZoneInfo
 
+from app.config import AGGREGATOR_CODE
 from app.stream_processing.runner import build_state_key, trade_date_for, unix_seconds
 
 logger = logging.getLogger(__name__)
@@ -32,6 +33,13 @@ class MarketSummarySnapshot:
     completion_ratio: float
     estimated_turnover: float | None
     adjustment_factor: float
+    futures_code: str
+    futures_price: float | None
+    spread: float | None
+    spread_day_high: float | None
+    spread_day_low: float | None
+    spread_strength: float | None
+    spread_status: str
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -44,6 +52,13 @@ class MarketSummarySnapshot:
             "completion_ratio": self.completion_ratio,
             "estimated_turnover": self.estimated_turnover,
             "adjustment_factor": self.adjustment_factor,
+            "futures_code": self.futures_code,
+            "futures_price": self.futures_price,
+            "spread": self.spread,
+            "spread_day_high": self.spread_day_high,
+            "spread_day_low": self.spread_day_low,
+            "spread_strength": self.spread_strength,
+            "spread_status": self.spread_status,
         }
 
 
@@ -108,6 +123,8 @@ class MarketSummaryRunner:
         trading_start: str = "09:00",
         trading_end: str = "13:30",
         adjustment_factor: float = 1.0,
+        futures_code: str = AGGREGATOR_CODE,
+        spread_freshness_seconds: float = 5.0,
         db_sink_batch_size: int = 100,
         db_sink_retry_backoff_seconds: float = 0.5,
         db_sink_max_retries: int = 5,
@@ -128,6 +145,8 @@ class MarketSummaryRunner:
         self._session_start = parse_hhmm(trading_start, "09:00")
         self._session_end = parse_hhmm(trading_end, "13:30")
         self._adjustment_factor = float(adjustment_factor)
+        self._futures_code = str(futures_code).strip() or AGGREGATOR_CODE
+        self._spread_freshness_seconds = max(0.0, float(spread_freshness_seconds))
         self._db_sink_batch_size = max(1, db_sink_batch_size)
         self._db_sink_retry_backoff_seconds = max(0.0, db_sink_retry_backoff_seconds)
         self._db_sink_max_retries = max(1, db_sink_max_retries)
@@ -143,6 +162,9 @@ class MarketSummaryRunner:
         self._db_queue: list[MarketSummarySnapshot] = []
         self._db_pending_batch: list[MarketSummarySnapshot] = []
         self._db_pending_retries = 0
+        self._spread_trade_date: date | None = None
+        self._spread_day_high: float | None = None
+        self._spread_day_low: float | None = None
 
     async def start(self) -> None:
         self.ensure_consumer_group()
@@ -299,6 +321,29 @@ class MarketSummaryRunner:
         estimated: float | None = None
         if ratio > 0:
             estimated = cumulative_turnover / ratio * self._adjustment_factor
+        futures_price, futures_event_ts = self._read_futures_latest(event_ts)
+        spread_status = "ok"
+        spread: float | None = None
+        spread_day_high: float | None = None
+        spread_day_low: float | None = None
+        spread_strength: float | None = None
+        if (
+            futures_price is None
+            or futures_event_ts is None
+            or (event_ts - futures_event_ts) > timedelta(seconds=self._spread_freshness_seconds)
+        ):
+            spread_status = "stale_or_missing_futures"
+            self._metrics.inc("market_spread_stale_total")
+        else:
+            spread = futures_price - index_value
+            spread_day_high, spread_day_low = self._update_spread_day_bounds(
+                trade_date_for(event_ts), spread
+            )
+            if spread_day_high == spread_day_low:
+                spread_strength = 0.5
+            else:
+                spread_strength = (spread - spread_day_low) / (spread_day_high - spread_day_low)
+            spread_strength = max(0.0, min(float(spread_strength), 1.0))
         minute_ts = event_ts.replace(second=0, microsecond=0)
         return MarketSummarySnapshot(
             code=code,
@@ -310,7 +355,49 @@ class MarketSummaryRunner:
             completion_ratio=ratio,
             estimated_turnover=estimated,
             adjustment_factor=self._adjustment_factor,
+            futures_code=self._futures_code,
+            futures_price=futures_price,
+            spread=spread,
+            spread_day_high=spread_day_high,
+            spread_day_low=spread_day_low,
+            spread_strength=spread_strength,
+            spread_status=spread_status,
         )
+
+    def _update_spread_day_bounds(self, trade_date: date, spread: float) -> tuple[float, float]:
+        if self._spread_trade_date != trade_date:
+            self._spread_trade_date = trade_date
+            self._spread_day_high = spread
+            self._spread_day_low = spread
+        else:
+            if self._spread_day_high is None or self._spread_day_low is None:
+                self._spread_day_high = spread
+                self._spread_day_low = spread
+            self._spread_day_high = max(self._spread_day_high, spread)
+            self._spread_day_low = min(self._spread_day_low, spread)
+        return float(self._spread_day_high), float(self._spread_day_low)
+
+    def _read_futures_latest(
+        self, market_event_ts: datetime
+    ) -> tuple[float | None, datetime | None]:
+        trade_date = trade_date_for(market_event_ts)
+        key = build_state_key(self._env, self._futures_code, trade_date, "k:current")
+        raw = self._redis.hgetall(key)
+        if not raw:
+            return None, None
+        decoded = {(_decode(k)): (_decode(v)) for k, v in raw.items()}
+        close_raw = decoded.get("close")
+        if close_raw is None:
+            return None, None
+        try:
+            futures_price = float(close_raw)
+        except (TypeError, ValueError):
+            self._metrics.inc("market_spread_compute_fail_total")
+            return None, None
+        futures_event_ts = parse_event_ts(decoded.get("event_ts", ""))
+        if futures_event_ts is None:
+            futures_event_ts = parse_event_ts(decoded.get("minute_ts", ""))
+        return futures_price, futures_event_ts
 
     def _completion_ratio(self, event_ts: datetime) -> float:
         start = datetime.combine(event_ts.date(), self._session_start, tzinfo=TZ_TAIPEI)
@@ -408,6 +495,13 @@ class MarketSummaryRunner:
                     cumulative_turnover=row.cumulative_turnover,
                     completion_ratio=row.completion_ratio,
                     estimated_turnover=row.estimated_turnover,
+                    futures_code=row.futures_code,
+                    futures_price=row.futures_price,
+                    spread=row.spread,
+                    spread_day_high=row.spread_day_high,
+                    spread_day_low=row.spread_day_low,
+                    spread_strength=row.spread_strength,
+                    spread_status=row.spread_status,
                     payload=json.dumps(row.to_dict(), ensure_ascii=True),
                 )
                 for row in rows

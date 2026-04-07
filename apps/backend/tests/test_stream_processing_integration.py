@@ -159,6 +159,8 @@ def test_stream_processing_writes_redis_state() -> None:
     )
 
     assert current_key in redis.hashes
+    assert "amplitude" in redis.hashes[current_key]
+    assert "amplitude_pct" in redis.hashes[current_key]
     assert zset_key in redis.zsets
     assert len(redis.zsets[zset_key]) == 1
     assert metrics_key in redis.strings
@@ -190,6 +192,8 @@ def test_stream_processing_persists_kbars_to_postgres() -> None:
         rows = session.query(Kbar1mModel).all()
         assert len(rows) == 1
         assert rows[0].code == "TXFC6"
+        assert rows[0].amplitude == 0
+        assert rows[0].amplitude_pct == 0
 
 
 def test_stream_processing_persists_bidask_to_postgres() -> None:
@@ -202,7 +206,14 @@ def test_stream_processing_persists_bidask_to_postgres() -> None:
         build_event_fields(
             "bidask",
             "2026-03-05T09:31:02+08:00",
-            {"bid": 100, "ask": 102, "bid_size": 5, "ask_size": 7},
+            {
+                "bid": 100,
+                "ask": 102,
+                "bid_size": 5,
+                "ask_size": 7,
+                "bid_total_vol": 120,
+                "ask_total_vol": 100,
+            },
             code="TXFC6",
         ),
     )
@@ -216,6 +227,7 @@ def test_stream_processing_persists_bidask_to_postgres() -> None:
         assert rows[0].code == "TXFC6"
         assert rows[0].bid == 100
         assert rows[0].ask == 102
+        assert "main_force_big_order" in rows[0].metric_payload
 
 
 def test_tick_db_sink_retries_without_dropping_batch() -> None:

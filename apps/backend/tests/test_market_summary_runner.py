@@ -15,6 +15,7 @@ from app.stream_processing.runner import build_state_key
 class FakeRedis:
     def __init__(self) -> None:
         self.streams: dict[str, list[tuple[str, dict[str, str]]]] = {}
+        self.hashes: dict[str, dict[str, str]] = {}
         self.strings: dict[str, str] = {}
         self.zsets: dict[str, list[tuple[int, str]]] = {}
         self.expirations: dict[str, int] = {}
@@ -70,6 +71,9 @@ class FakeRedis:
 
     def expire(self, key, ttl):
         self.expirations[key] = ttl
+
+    def hgetall(self, key):
+        return self.hashes.get(key, {})
 
 
 def _market_fields(
@@ -141,6 +145,26 @@ def test_market_summary_rollover_persists_minute_snapshot() -> None:
         rows = session.query(MarketSummary1mModel).all()
         assert len(rows) >= 1
         assert rows[0].market_code == "TSE001"
+
+
+def test_market_summary_computes_spread_when_futures_latest_available() -> None:
+    redis = FakeRedis()
+    runner = _build_runner(redis)
+    trade_date = datetime.fromisoformat("2026-04-05").date()
+    futures_key = build_state_key("dev", "MTX", trade_date, "k:current")
+    redis.hashes[futures_key] = {
+        "close": "20535.5",
+        "event_ts": "2026-04-06T10:30:00+08:00",
+    }
+    stream_key = "dev:stream:market:TSE001"
+    redis.xadd(stream_key, _market_fields("2026-04-06T10:30:01+08:00", index_value=20500.12))
+
+    assert runner.consume_once() == 1
+
+    latest_key = build_state_key("dev", "TSE001", trade_date, "market_summary:latest")
+    payload = redis.strings[latest_key]
+    assert '"spread_status": "ok"' in payload
+    assert '"futures_price": 20535.5' in payload
 
 
 def test_market_summary_db_sink_dead_letter_on_retry_exhausted() -> None:
