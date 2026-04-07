@@ -142,9 +142,15 @@ def test_stream_processing_writes_redis_state() -> None:
             "bidask", "2026-03-05T09:31:02+08:00", {"bid": 100, "ask": 102}, code="TXFC6"
         ),
     )
+    redis.xadd(
+        bidask_stream,
+        build_event_fields(
+            "bidask", "2026-03-05T09:31:03+08:00", {"bid": 101, "ask": 103}, code="TXFC6"
+        ),
+    )
 
     assert runner.consume_tick_once() == 2
-    assert runner.consume_bidask_once() == 1
+    assert runner.consume_bidask_once() == 2
 
     trade_date = "2026-03-04"
     current_key = build_state_key(
@@ -217,8 +223,24 @@ def test_stream_processing_persists_bidask_to_postgres() -> None:
             code="TXFC6",
         ),
     )
+    redis.xadd(
+        bidask_stream,
+        build_event_fields(
+            "bidask",
+            "2026-03-05T09:31:03+08:00",
+            {
+                "bid": 101,
+                "ask": 103,
+                "bid_size": 6,
+                "ask_size": 8,
+                "bid_total_vol": 121,
+                "ask_total_vol": 101,
+            },
+            code="TXFC6",
+        ),
+    )
 
-    assert runner.consume_bidask_once() == 1
+    assert runner.consume_bidask_once() == 2
     assert runner.flush_db_sinks_once() == 1
 
     with SessionLocal() as session:
@@ -228,6 +250,64 @@ def test_stream_processing_persists_bidask_to_postgres() -> None:
         assert rows[0].bid == 100
         assert rows[0].ask == 102
         assert "main_force_big_order" in rows[0].metric_payload
+
+
+def test_bidask_same_second_events_persist_single_second_sample() -> None:
+    redis = FakeRedis()
+    runner = build_runner(redis)
+
+    bidask_stream = "dev:stream:bidask:MTX"
+    redis.xadd(
+        bidask_stream,
+        build_event_fields(
+            "bidask",
+            "2026-03-05T09:31:02+08:00",
+            {
+                "bid": 100,
+                "ask": 102,
+                "bid_total_vol": 120,
+                "ask_total_vol": 100,
+            },
+            code="TXFC6",
+        ),
+    )
+    redis.xadd(
+        bidask_stream,
+        build_event_fields(
+            "bidask",
+            "2026-03-05T09:31:02.800000+08:00",
+            {
+                "bid": 105,
+                "ask": 106,
+                "bid_total_vol": 130,
+                "ask_total_vol": 99,
+            },
+            code="TXFC6",
+        ),
+    )
+    redis.xadd(
+        bidask_stream,
+        build_event_fields(
+            "bidask",
+            "2026-03-05T09:31:03+08:00",
+            {
+                "bid": 107,
+                "ask": 108,
+                "bid_total_vol": 131,
+                "ask_total_vol": 98,
+            },
+            code="TXFC6",
+        ),
+    )
+
+    assert runner.consume_bidask_once() == 3
+    assert runner.flush_db_sinks_once() == 1
+
+    with SessionLocal() as session:
+        rows = session.query(BidAskMetric1sModel).order_by(BidAskMetric1sModel.event_ts.asc()).all()
+        assert len(rows) == 1
+        assert rows[0].bid == 105
+        assert rows[0].ask == 106
 
 
 def test_tick_db_sink_retries_without_dropping_batch() -> None:

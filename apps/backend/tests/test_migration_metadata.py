@@ -68,5 +68,10 @@ def test_tick_bidask_spread_extension_migration_file_exists() -> None:
     assert path.exists()
 
 
+def test_bidask_event_second_identity_migration_file_exists() -> None:
+    path = Path("alembic/versions/20260407_01_add_bidask_event_second_identity.py")
+    assert path.exists()
+
+
 def test_otp_email_ops_doc_exists() -> None:
     assert Path("docs/otp-email-ops.md").exists()
