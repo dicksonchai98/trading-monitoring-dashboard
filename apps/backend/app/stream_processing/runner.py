@@ -208,39 +208,18 @@ class BidAskStateMachine:
     def __init__(self, registry: MetricsRegistry) -> None:
         self.registry = registry
         self.latest: dict[str, Any] | None = None
-        self.last_sample_second: int | None = None
-        self.last_sample: dict[str, Any] | None = None
+        self._latest_by_second: dict[int, dict[str, Any]] = {}
+        self._last_emitted_second: int | None = None
+        self._last_emitted_series: dict[str, Any] | None = None
+        self._last_emitted_full: dict[str, Any] | None = None
         self._trade_date: date | None = None
         self._main_force_day_high: float | None = None
         self._main_force_day_low: float | None = None
 
     def update_latest(self, event_ts: datetime, payload: dict[str, Any]) -> dict[str, Any]:
         metrics = self.registry.compute(payload)
-        trade_date = trade_date_for(event_ts)
-        main_force = metrics.get("imbalance")
-        if main_force is not None:
-            main_force_value = float(main_force)
-            if self._trade_date != trade_date:
-                self._trade_date = trade_date
-                self._main_force_day_high = main_force_value
-                self._main_force_day_low = main_force_value
-            else:
-                if self._main_force_day_high is None or self._main_force_day_low is None:
-                    self._main_force_day_high = main_force_value
-                    self._main_force_day_low = main_force_value
-                self._main_force_day_high = max(self._main_force_day_high, main_force_value)
-                self._main_force_day_low = min(self._main_force_day_low, main_force_value)
-            day_high = float(self._main_force_day_high)
-            day_low = float(self._main_force_day_low)
-            if day_high == day_low:
-                strength = 0.5
-            else:
-                strength = (main_force_value - day_low) / (day_high - day_low)
-            metrics["main_force_big_order"] = main_force_value
-            metrics["main_force_big_order_day_high"] = day_high
-            metrics["main_force_big_order_day_low"] = day_low
-            metrics["main_force_big_order_strength"] = max(0.0, min(float(strength), 1.0))
         metrics["event_ts"] = event_ts.isoformat()
+        self._latest_by_second[unix_seconds(event_ts)] = dict(metrics)
         self.latest = metrics
         return metrics
 
@@ -286,10 +265,98 @@ class BidAskStateMachine:
                     field="ask_total_vol",
                 )
             on_sample(second, sample)
-            self.last_sample = sample
-            self.last_sample_second = second
+            self._last_emitted_series = sample
+            self._last_emitted_second = second
             samples_written += 1
         return samples_written
+
+    def emit_samples_up_to(
+        self, max_second: int, series_fields: set[str]
+    ) -> list[tuple[int, dict[str, Any], dict[str, Any]]]:
+        if max_second < 0:
+            return []
+        if self._last_emitted_second is None:
+            if not self._latest_by_second:
+                return []
+            start_second = min(self._latest_by_second.keys())
+        else:
+            start_second = self._last_emitted_second + 1
+        if start_second > max_second:
+            return []
+
+        emitted: list[tuple[int, dict[str, Any], dict[str, Any]]] = []
+        for second in range(start_second, max_second + 1):
+            source = self._latest_by_second.pop(second, None)
+            if source is None:
+                if self._last_emitted_full is None:
+                    continue
+                full = dict(self._last_emitted_full)
+            else:
+                full = dict(source)
+
+            sample_dt = datetime.fromtimestamp(second, tz=TZ_TAIPEI)
+            full["event_ts"] = sample_dt.isoformat()
+            self._apply_main_force_fields(full, sample_dt)
+
+            series_sample = {k: v for k, v in full.items() if k in series_fields}
+            series_sample["ts"] = second
+            self._apply_series_deltas(series_sample, series_fields)
+
+            emitted.append((second, full, series_sample))
+            self._last_emitted_full = dict(full)
+            self._last_emitted_series = dict(series_sample)
+            self._last_emitted_second = second
+
+        return emitted
+
+    def _apply_main_force_fields(self, metrics: dict[str, Any], event_ts: datetime) -> None:
+        trade_date = trade_date_for(event_ts)
+        main_force = metrics.get("imbalance")
+        if main_force is None:
+            return
+        main_force_value = float(main_force)
+        if self._trade_date != trade_date:
+            self._trade_date = trade_date
+            self._main_force_day_high = main_force_value
+            self._main_force_day_low = main_force_value
+        else:
+            if self._main_force_day_high is None or self._main_force_day_low is None:
+                self._main_force_day_high = main_force_value
+                self._main_force_day_low = main_force_value
+            self._main_force_day_high = max(self._main_force_day_high, main_force_value)
+            self._main_force_day_low = min(self._main_force_day_low, main_force_value)
+        day_high = float(self._main_force_day_high)
+        day_low = float(self._main_force_day_low)
+        if day_high == day_low:
+            strength = 0.5
+        else:
+            strength = (main_force_value - day_low) / (day_high - day_low)
+        metrics["main_force_big_order"] = main_force_value
+        metrics["main_force_big_order_day_high"] = day_high
+        metrics["main_force_big_order_day_low"] = day_low
+        metrics["main_force_big_order_strength"] = max(0.0, min(float(strength), 1.0))
+
+    def _apply_series_deltas(self, sample: dict[str, Any], series_fields: set[str]) -> None:
+        previous = self._last_emitted_series
+        if previous is None:
+            return
+        if "delta_1s" in series_fields:
+            if "mid" in sample and "mid" in previous:
+                sample["delta_1s"] = sample["mid"] - previous["mid"]
+            else:
+                sample["delta_1s"] = 0
+        if "delta_bid_total_vol_1s" in series_fields:
+            sample["delta_bid_total_vol_1s"] = self._compute_delta(
+                sample=sample,
+                previous=previous,
+                field="bid_total_vol",
+            )
+        if "delta_ask_total_vol_1s" in series_fields:
+            sample["delta_ask_total_vol_1s"] = self._compute_delta(
+                sample=sample,
+                previous=previous,
+                field="ask_total_vol",
+            )
 
     @staticmethod
     def _compute_delta(sample: dict[str, Any], previous: dict[str, Any], field: str) -> float:
@@ -503,13 +570,15 @@ class StreamProcessingRunner:
         processed = 0
         for stream_key in stream_keys:
             for entry_id, fields in self._claim_pending(stream_key, group, consumer):
-                if handler(entry_id, fields):
-                    self._redis.xack(stream_key, group, entry_id)
-                    processed += 1
+                if not handler(entry_id, fields):
+                    return processed
+                self._redis.xack(stream_key, group, entry_id)
+                processed += 1
             for entry_id, fields in self._read_new(stream_key, group, consumer):
-                if handler(entry_id, fields):
-                    self._redis.xack(stream_key, group, entry_id)
-                    processed += 1
+                if not handler(entry_id, fields):
+                    return processed
+                self._redis.xack(stream_key, group, entry_id)
+                processed += 1
         return processed
 
     def _claim_pending(
@@ -645,20 +714,25 @@ class StreamProcessingRunner:
             bidask_state = self._bidask_states.setdefault(
                 code, BidAskStateMachine(MetricsRegistry())
             )
-            latest = bidask_state.update_latest(event_ts, payload)
-            self._write_latest_metrics(latest, event_ts, code)
-            self._enqueue_bidask_persistence(code=code, event_ts=event_ts, metrics=latest)
-            samples = bidask_state.sample_series(
-                event_ts=event_ts,
+            bidask_state.update_latest(event_ts, payload)
+            samples = bidask_state.emit_samples_up_to(
+                max_second=unix_seconds(event_ts) - 1,
                 series_fields=self._series_fields,
-                on_sample=lambda second, sample: self._write_metric_sample(second, sample, code),
             )
+            for second, latest, series_sample in samples:
+                sample_ts = datetime.fromtimestamp(second, tz=TZ_TAIPEI)
+                self._write_latest_metrics(latest, sample_ts, code)
+                self._write_metric_sample(second, series_sample, code)
+                self._enqueue_bidask_persistence(code=code, event_ts=sample_ts, metrics=latest)
             if samples:
                 self._metrics.inc("sampling_rate")
             self._metrics.inc("consume_rate")
             self._metrics.set_gauge("stream_lag", self._stream_lag_ms(event_ts))
             self._metrics.set_gauge("write_latency", int((time.perf_counter() - start) * 1000))
             return True
+        except asyncio.QueueFull:
+            self._metrics.inc("bidask_db_queue_full_total")
+            return False
         except Exception:
             self._metrics.inc("write_errors")
             self._metrics.inc("bidask_main_force_compute_fail_total")
@@ -673,13 +747,15 @@ class StreamProcessingRunner:
             for code, state in self._bidask_states.items():
                 if state.latest is None:
                     continue
-                samples = state.sample_series(
-                    event_ts=now,
+                samples = state.emit_samples_up_to(
+                    max_second=unix_seconds(now) - 1,
                     series_fields=self._series_fields,
-                    on_sample=lambda second, sample, code=code: self._write_metric_sample(
-                        second, sample, code
-                    ),
                 )
+                for second, latest, series_sample in samples:
+                    sample_ts = datetime.fromtimestamp(second, tz=TZ_TAIPEI)
+                    self._write_latest_metrics(latest, sample_ts, code)
+                    self._write_metric_sample(second, series_sample, code)
+                    self._enqueue_bidask_persistence(code=code, event_ts=sample_ts, metrics=latest)
                 if samples:
                     self._metrics.inc("sampling_rate")
         except Exception:
@@ -729,10 +805,12 @@ class StreamProcessingRunner:
         self, code: str, event_ts: datetime, metrics: dict[str, Any]
     ) -> None:
         trade_date = trade_date_for(event_ts)
+        event_second = event_ts.replace(microsecond=0)
         payload = {
             "code": code,
             "trade_date": trade_date,
             "event_ts": event_ts,
+            "event_second": event_second,
             "bid": metrics.get("bid"),
             "ask": metrics.get("ask"),
             "spread": metrics.get("spread"),
@@ -887,22 +965,41 @@ class StreamProcessingRunner:
         from app.models.bidask_metric_1s import BidAskMetric1sModel
 
         with self._session_factory() as session:
-            records = [
-                BidAskMetric1sModel(
-                    code=row["code"],
-                    trade_date=row["trade_date"],
-                    event_ts=row["event_ts"],
-                    bid=row["bid"],
-                    ask=row["ask"],
-                    spread=row["spread"],
-                    mid=row["mid"],
-                    bid_size=row["bid_size"],
-                    ask_size=row["ask_size"],
-                    metric_payload=json.dumps(row["metric_payload"], ensure_ascii=True),
+            for row in rows:
+                existing = (
+                    session.query(BidAskMetric1sModel)
+                    .filter(BidAskMetric1sModel.code == row["code"])
+                    .filter(BidAskMetric1sModel.event_second == row["event_second"])
+                    .one_or_none()
                 )
-                for row in rows
-            ]
-            self._persist_records_with_duplicate_tolerance(session, records)
+                if existing is None:
+                    session.add(
+                        BidAskMetric1sModel(
+                            code=row["code"],
+                            trade_date=row["trade_date"],
+                            event_ts=row["event_ts"],
+                            event_second=row["event_second"],
+                            bid=row["bid"],
+                            ask=row["ask"],
+                            spread=row["spread"],
+                            mid=row["mid"],
+                            bid_size=row["bid_size"],
+                            ask_size=row["ask_size"],
+                            metric_payload=json.dumps(row["metric_payload"], ensure_ascii=True),
+                        )
+                    )
+                    continue
+                existing.trade_date = row["trade_date"]
+                existing.event_ts = row["event_ts"]
+                existing.event_second = row["event_second"]
+                existing.bid = row["bid"]
+                existing.ask = row["ask"]
+                existing.spread = row["spread"]
+                existing.mid = row["mid"]
+                existing.bid_size = row["bid_size"]
+                existing.ask_size = row["ask_size"]
+                existing.metric_payload = json.dumps(row["metric_payload"], ensure_ascii=True)
+            session.commit()
 
     def _quarantine_tick_batch(self, batch: list[KBar], err: Exception) -> None:
         logger.error(
