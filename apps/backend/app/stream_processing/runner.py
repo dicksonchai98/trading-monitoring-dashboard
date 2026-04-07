@@ -84,8 +84,12 @@ class KBar:
     low: float
     close: float
     volume: float
+    event_ts: datetime
 
     def to_dict(self) -> dict[str, Any]:
+        amplitude = self.high - self.low
+        if self.open <= 0:
+            raise ValueError("invalid_open_for_amplitude")
         return {
             "code": self.code,
             "trade_date": self.trade_date.isoformat(),
@@ -95,6 +99,9 @@ class KBar:
             "low": self.low,
             "close": self.close,
             "volume": self.volume,
+            "event_ts": self.event_ts.isoformat(),
+            "amplitude": amplitude,
+            "amplitude_pct": amplitude / self.open,
         }
 
 
@@ -121,6 +128,7 @@ class TickStateMachine:
                 low=price,
                 close=price,
                 volume=volume,
+                event_ts=event_ts,
             )
             return None, False
 
@@ -132,6 +140,7 @@ class TickStateMachine:
             self.current.low = min(self.current.low, price)
             self.current.close = price
             self.current.volume += volume
+            self.current.event_ts = event_ts
             return None, False
 
         archived = self.current
@@ -144,6 +153,7 @@ class TickStateMachine:
             low=price,
             close=price,
             volume=volume,
+            event_ts=event_ts,
         )
         return archived, False
 
@@ -200,9 +210,36 @@ class BidAskStateMachine:
         self.latest: dict[str, Any] | None = None
         self.last_sample_second: int | None = None
         self.last_sample: dict[str, Any] | None = None
+        self._trade_date: date | None = None
+        self._main_force_day_high: float | None = None
+        self._main_force_day_low: float | None = None
 
     def update_latest(self, event_ts: datetime, payload: dict[str, Any]) -> dict[str, Any]:
         metrics = self.registry.compute(payload)
+        trade_date = trade_date_for(event_ts)
+        main_force = metrics.get("imbalance")
+        if main_force is not None:
+            main_force_value = float(main_force)
+            if self._trade_date != trade_date:
+                self._trade_date = trade_date
+                self._main_force_day_high = main_force_value
+                self._main_force_day_low = main_force_value
+            else:
+                if self._main_force_day_high is None or self._main_force_day_low is None:
+                    self._main_force_day_high = main_force_value
+                    self._main_force_day_low = main_force_value
+                self._main_force_day_high = max(self._main_force_day_high, main_force_value)
+                self._main_force_day_low = min(self._main_force_day_low, main_force_value)
+            day_high = float(self._main_force_day_high)
+            day_low = float(self._main_force_day_low)
+            if day_high == day_low:
+                strength = 0.5
+            else:
+                strength = (main_force_value - day_low) / (day_high - day_low)
+            metrics["main_force_big_order"] = main_force_value
+            metrics["main_force_big_order_day_high"] = day_high
+            metrics["main_force_big_order_day_low"] = day_low
+            metrics["main_force_big_order_strength"] = max(0.0, min(float(strength), 1.0))
         metrics["event_ts"] = event_ts.isoformat()
         self.latest = metrics
         return metrics
@@ -587,6 +624,7 @@ class StreamProcessingRunner:
             return True
         except Exception:
             self._metrics.inc("write_errors")
+            self._metrics.inc("tick_amplitude_compute_fail_total")
             logger.exception("tick entry processing failed entry_id=%s", entry_id)
             return False
 
@@ -623,6 +661,7 @@ class StreamProcessingRunner:
             return True
         except Exception:
             self._metrics.inc("write_errors")
+            self._metrics.inc("bidask_main_force_compute_fail_total")
             logger.exception("bidask entry processing failed entry_id=%s", entry_id)
             return False
 
@@ -837,6 +876,8 @@ class StreamProcessingRunner:
                     low=bar.low,
                     close=bar.close,
                     volume=bar.volume,
+                    amplitude=bar.high - bar.low,
+                    amplitude_pct=(bar.high - bar.low) / bar.open,
                 )
                 for bar in bars
             ]

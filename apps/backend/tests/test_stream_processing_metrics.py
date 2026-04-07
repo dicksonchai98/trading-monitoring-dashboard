@@ -42,13 +42,21 @@ def test_bidask_sampling_computes_per_second_volume_deltas() -> None:
     }
 
     t0 = datetime.fromisoformat("2026-03-05T09:31:00+08:00")
-    state.update_latest(t0, {"bid_total_vol": 120, "ask_total_vol": 100})
+    latest0 = state.update_latest(t0, {"bid_total_vol": 120, "ask_total_vol": 100})
+    assert latest0["main_force_big_order"] == 20
+    assert latest0["main_force_big_order_day_high"] == 20
+    assert latest0["main_force_big_order_day_low"] == 20
+    assert latest0["main_force_big_order_strength"] == 0.5
     assert state.sample_series(t0, series_fields, on_sample) == 1
     assert "delta_bid_total_vol_1s" not in samples[0]
     assert "delta_ask_total_vol_1s" not in samples[0]
 
     t1 = datetime.fromisoformat("2026-03-05T09:31:01+08:00")
-    state.update_latest(t1, {"bid_total_vol": 128, "ask_total_vol": 97})
+    latest1 = state.update_latest(t1, {"bid_total_vol": 128, "ask_total_vol": 97})
+    assert latest1["main_force_big_order"] == 31
+    assert latest1["main_force_big_order_day_high"] == 31
+    assert latest1["main_force_big_order_day_low"] == 20
+    assert latest1["main_force_big_order_strength"] == 1.0
     assert state.sample_series(t1, series_fields, on_sample) == 1
     assert samples[1]["delta_bid_total_vol_1s"] == 8
     assert samples[1]["delta_ask_total_vol_1s"] == -3
