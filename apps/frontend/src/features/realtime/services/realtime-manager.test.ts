@@ -45,6 +45,27 @@ describe("realtime-manager", () => {
     expect(state.lastHeartbeatTs).toBe(1774233600999);
   });
 
+  it("writes metric_latest main_force_big_order into the TXF store key", () => {
+    applyServingSseEvent("kbar_current", {
+      code: "TXF",
+      trade_date: "2026-04-08",
+      minute_ts: 1775600400000,
+      open: 22300,
+      high: 22310,
+      low: 22290,
+      close: 22305,
+      volume: 12,
+    });
+
+    applyServingSseEvent("metric_latest", {
+      main_force_big_order: 9876,
+      ts: 1775600405000,
+    });
+
+    const state = useRealtimeStore.getState();
+    expect(state.metricLatestByCode.TXF?.main_force_big_order).toBe(9876);
+  });
+
   it("ignores invalid payloads without mutating store", () => {
     applyServingSseEvent("kbar_current", { code: "MTX" });
     applyServingSseEvent("heartbeat", { ts: "bad" });

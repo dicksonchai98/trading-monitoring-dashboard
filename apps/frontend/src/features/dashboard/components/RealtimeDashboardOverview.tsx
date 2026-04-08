@@ -19,10 +19,10 @@ import {
   BreadthDistributionChart,
   BidAskPressureChart,
   EstimatedVolumeCompareChart,
-  OrderFlowChart,
   ProgramActivityChart,
   VolumeLadderChart,
 } from "@/features/dashboard/components/PanelCharts";
+import { OrderFlowCard } from "@/features/dashboard/components/OrderFlowCard";
 
 interface ParticipantSignalDatum {
   day: string;
@@ -126,14 +126,7 @@ export function RealtimeDashboardOverview(): JSX.Element {
       <DashboardMetricPanels />
 
       <BentoGridSection title="MARKET OVERVIEW">
-        <PanelCard
-          title="Order Flow"
-          note="Tracks near-month transaction imbalance and directional participation shifts."
-          span={4}
-          units={2}
-        >
-          <OrderFlowChart />
-        </PanelCard>
+        <OrderFlowCard />
         <PanelCard title="Volume Ladder" span={4} meta="5m buckets">
           <VolumeLadderChart />
         </PanelCard>
