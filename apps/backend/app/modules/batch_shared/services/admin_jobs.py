@@ -31,3 +31,6 @@ class BatchJobAdminService:
         )
         self.queue.enqueue(worker_type=worker_type, job_id=job.id)
         return job
+
+    def ensure_enqueued(self, *, worker_type: str, job_id: int) -> None:
+        self.queue.enqueue_if_missing(worker_type=worker_type, job_id=job_id)

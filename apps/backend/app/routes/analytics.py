@@ -222,7 +222,8 @@ def rebuild_daily_features(
     _validate_job_range(payload)
     service = KbarAnalyticsService(session)
     job = service.create_job(
-        job_type="rebuild_daily_features", payload=payload.model_dump(exclude_none=True)
+        job_type="rebuild_daily_features",
+        payload=payload.model_dump(mode="json", exclude_none=True),
     )
     try:
         result = service.execute_job_with_retry(
@@ -253,7 +254,7 @@ def recompute_event_stats(
         )
     service = KbarAnalyticsService(session)
     job = service.create_job(
-        job_type="recompute_event_stats", payload=payload.model_dump(exclude_none=True)
+        job_type="recompute_event_stats", payload=payload.model_dump(mode="json", exclude_none=True)
     )
     try:
         result = service.execute_job_with_retry(
@@ -288,7 +289,8 @@ def recompute_distribution_stats(
         )
     service = KbarAnalyticsService(session)
     job = service.create_job(
-        job_type="recompute_distribution_stats", payload=payload.model_dump(exclude_none=True)
+        job_type="recompute_distribution_stats",
+        payload=payload.model_dump(mode="json", exclude_none=True),
     )
     try:
         result = service.execute_job_with_retry(
