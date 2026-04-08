@@ -134,3 +134,37 @@ def test_market_quote_is_enqueued_to_market_stream() -> None:
     queued = runner._futures_pipeline.queue.get_nowait()
     assert queued.stream_key == "dev:stream:market:TSE001"
     assert queued.event.quote_type == "market"
+
+
+def test_market_quote_dict_payload_is_enqueued_to_canonical_market_stream() -> None:
+    runner = MarketIngestionRunner(
+        shioaji_client=ShioajiClient(
+            api=_FakeAPI(),
+            api_key="k",
+            secret_key="s",
+            simulation=True,
+        ),
+        redis_client=_FakeRedis(),
+        metrics=Metrics(),
+        queue_maxsize=8,
+        stream_maxlen=100,
+        retry_attempts=2,
+        retry_backoff_ms=10,
+    )
+    runner._market_enabled = True
+    runner._market_code = "TSE001"
+
+    quote_payload = {
+        "Code": "001",
+        "Date": "2026/04/08",
+        "Time": "10:00:00.000000",
+        "Close": 34560.5,
+        "AmountSum": 123456789.0,
+    }
+    runner._on_market_quote(quote_payload)
+
+    queued = runner._futures_pipeline.queue.get_nowait()
+    assert queued.stream_key == "dev:stream:market:TSE001"
+    assert queued.event.code == "TSE001"
+    assert queued.event.payload["index_value"] == 34560.5
+    assert queued.event.payload["cumulative_turnover"] == 123456789.0

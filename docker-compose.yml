@@ -10,6 +10,8 @@ services:
       - redis
     ports:
       - "8000:8000"
+    volumes:
+      - ./infra/config:/app/infra/config:ro
     environment:
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-xxx}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-xxx}

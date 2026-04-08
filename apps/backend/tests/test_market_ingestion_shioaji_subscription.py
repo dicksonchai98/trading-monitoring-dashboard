@@ -22,6 +22,16 @@ class FakeQuote:
         self.subscriptions.append((normalized, contract, version))
 
 
+class FallbackQuote(FakeQuote):
+    def subscribe(self, contract, quote_type, version=None) -> None:
+        normalized = str(quote_type).lower()
+        if "." in normalized:
+            normalized = normalized.split(".")[-1]
+        if normalized == "quote":
+            raise RuntimeError("Quote type not supported")
+        self.subscriptions.append((normalized, contract, version))
+
+
 class FakeFutures(dict):
     pass
 
@@ -36,6 +46,14 @@ class FakeContracts:
         self.Futures = futures
         self.Stocks = stocks or {}
         self.Indexs = indices or {}
+
+
+class GetOnlyBucket:
+    def __init__(self, mapping: dict[str, object]) -> None:
+        self._mapping = mapping
+
+    def get(self, key: str) -> object | None:
+        return self._mapping.get(key)
 
 
 class FakeAPI:
@@ -134,9 +152,32 @@ def test_resolve_market_contract_prefers_index_bucket() -> None:
     assert resolve_market_contract(api, "TSE001") is idx_contract
 
 
-def test_subscribe_market_topic_subscribes_tick_v1() -> None:
+def test_resolve_market_contract_accepts_tse_prefixed_code_for_numeric_index_bucket() -> None:
+    idx_contract = object()
+    api = FakeAPI(FakeFutures({}), indices={"001": idx_contract})
+    assert resolve_market_contract(api, "TSE001") is idx_contract
+
+
+def test_resolve_market_contract_with_get_only_bucket() -> None:
+    idx_contract = object()
+    api = FakeAPI(FakeFutures({}), indices={})
+    api.Contracts.Indexs = GetOnlyBucket({"001": idx_contract})
+    assert resolve_market_contract(api, "TSE001") is idx_contract
+
+
+def test_subscribe_market_topic_subscribes_quote_v1() -> None:
     idx_contract = object()
     api = FakeAPI(FakeFutures({}), indices={"TSE001": idx_contract})
+    subscribe_market_topic(api, idx_contract)
+    assert any(
+        kind == "quote" and target is idx_contract for kind, target, _ in api.quote.subscriptions
+    )
+
+
+def test_subscribe_market_topic_falls_back_to_tick_when_quote_not_supported() -> None:
+    idx_contract = object()
+    api = FakeAPI(FakeFutures({}), indices={"TSE001": idx_contract})
+    api.quote = FallbackQuote()
     subscribe_market_topic(api, idx_contract)
     assert any(
         kind == "tick" and target is idx_contract for kind, target, _ in api.quote.subscriptions

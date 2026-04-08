@@ -35,6 +35,12 @@ def _quote_version_v1() -> Any:
 
 
 def _resolve_from_futures(futures: Any, code: str) -> Any:
+    getter = getattr(futures, "get", None)
+    if callable(getter):
+        with suppress(Exception):
+            contract = getter(code)
+            if contract is not None:
+                return contract
     if hasattr(futures, "__getitem__"):
         with suppress(Exception):
             contract = futures[code]
@@ -47,6 +53,12 @@ def _resolve_from_futures(futures: Any, code: str) -> Any:
 
 
 def _resolve_from_stocks(stocks: Any, code: str) -> Any:
+    getter = getattr(stocks, "get", None)
+    if callable(getter):
+        with suppress(Exception):
+            contract = getter(code)
+            if contract is not None:
+                return contract
     if hasattr(stocks, "__getitem__"):
         with suppress(Exception):
             contract = stocks[code]
@@ -97,16 +109,24 @@ def resolve_market_contract(api: Any, code: str) -> Any:
     contracts = getattr(api, "Contracts", None)
     if contracts is None:
         raise RuntimeError("unable to resolve market contract: contracts unavailable")
+    normalized = str(code or "").strip()
     for attr in ("Indexs", "Indices", "Stocks", "Futures"):
         bucket = getattr(contracts, attr, None)
         if bucket is None:
             continue
-        contract = _resolve_from_stocks(bucket, code)
+        contract = _resolve_from_stocks(bucket, normalized)
         if contract is None:
-            contract = _resolve_from_futures(bucket, code)
+            contract = _resolve_from_futures(bucket, normalized)
+        # Shioaji Indexs can expose TWSE market index as "001" while config uses "TSE001".
+        if contract is None and attr in {"Indexs", "Indices"}:
+            suffix_digits = "".join(ch for ch in normalized if ch.isdigit())
+            if suffix_digits:
+                contract = _resolve_from_stocks(bucket, suffix_digits)
+                if contract is None:
+                    contract = _resolve_from_futures(bucket, suffix_digits)
         if contract is not None:
             return contract
-    raise RuntimeError(f"unable to resolve market contract code={code}")
+    raise RuntimeError(f"unable to resolve market contract code={normalized}")
 
 
 def subscribe_topics(api: Any, contract: Any, quote_types: Iterable[str] | None = None) -> None:
@@ -154,4 +174,8 @@ def subscribe_spot_ticks(api: Any, symbols: Iterable[str]) -> int:
 def subscribe_market_topic(api: Any, contract: Any) -> None:
     if contract is None:
         raise RuntimeError("resolved market contract is empty; cannot subscribe topic")
-    api.quote.subscribe(contract, quote_type=_quote_type("tick"), version=_quote_version_v1())
+    quote = api.quote
+    try:
+        quote.subscribe(contract, quote_type=_quote_type("quote"), version=_quote_version_v1())
+    except Exception:
+        quote.subscribe(contract, quote_type=_quote_type("tick"), version=_quote_version_v1())
