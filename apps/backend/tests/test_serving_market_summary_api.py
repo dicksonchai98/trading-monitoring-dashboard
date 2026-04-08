@@ -125,8 +125,8 @@ def test_sse_disconnect_isolated_per_connection(monkeypatch: pytest.MonkeyPatch)
     async def _run() -> None:
         req_drop = _FakeSSERequest(host="10.0.0.1", disconnect_after_checks=1)
         req_alive = _FakeSSERequest(host="10.0.0.2", disconnect_after_checks=100)
-        response_drop = await stream_sse(req_drop)
-        response_alive = await stream_sse(req_alive)
+        response_drop = await stream_sse(req_drop, code="TSE001")
+        response_alive = await stream_sse(req_alive, code="TSE001")
         drop_iter = response_drop.body_iterator
         alive_iter = response_alive.body_iterator
 

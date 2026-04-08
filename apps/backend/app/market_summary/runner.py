@@ -11,6 +11,7 @@ from datetime import date, datetime, timedelta
 from datetime import time as dt_time
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from zoneinfo import ZoneInfo
 
@@ -32,6 +33,9 @@ class MarketSummarySnapshot:
     cumulative_turnover: float
     completion_ratio: float
     estimated_turnover: float | None
+    yesterday_estimated_turnover: float | None
+    estimated_turnover_diff: float | None
+    estimated_turnover_ratio: float | None
     adjustment_factor: float
     futures_code: str
     futures_price: float | None
@@ -51,6 +55,9 @@ class MarketSummarySnapshot:
             "cumulative_turnover": self.cumulative_turnover,
             "completion_ratio": self.completion_ratio,
             "estimated_turnover": self.estimated_turnover,
+            "yesterday_estimated_turnover": self.yesterday_estimated_turnover,
+            "estimated_turnover_diff": self.estimated_turnover_diff,
+            "estimated_turnover_ratio": self.estimated_turnover_ratio,
             "adjustment_factor": self.adjustment_factor,
             "futures_code": self.futures_code,
             "futures_price": self.futures_price,
@@ -76,10 +83,24 @@ def _parse_json(value: str) -> Any:
 
 
 def parse_event_ts(event_ts: str) -> datetime | None:
-    try:
-        parsed = datetime.fromisoformat(event_ts.replace("Z", "+00:00"))
-    except ValueError:
+    text = event_ts.strip()
+    if not text:
         return None
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        parsed = None
+        for fmt in (
+            "%Y/%m/%d %H:%M:%S.%f",
+            "%Y/%m/%d %H:%M:%S",
+            "%Y-%m-%d %H:%M:%S.%f",
+            "%Y-%m-%d %H:%M:%S",
+        ):
+            with suppress(ValueError):
+                parsed = datetime.strptime(text, fmt)
+                break
+        if parsed is None:
+            return None
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=TZ_TAIPEI)
     return parsed.astimezone(TZ_TAIPEI)
@@ -165,6 +186,8 @@ class MarketSummaryRunner:
         self._spread_trade_date: date | None = None
         self._spread_day_high: float | None = None
         self._spread_day_low: float | None = None
+        self._comparison_trade_date: date | None = None
+        self._yesterday_estimated_by_minute_of_day: dict[int, float] = {}
 
     async def start(self) -> None:
         self.ensure_consumer_group()
@@ -317,10 +340,27 @@ class MarketSummaryRunner:
         index_value: float,
         cumulative_turnover: float,
     ) -> MarketSummarySnapshot:
+        trade_date = trade_date_for(event_ts)
+        self._refresh_previous_day_estimated_cache(trade_date, code)
         ratio = self._completion_ratio(event_ts)
         estimated: float | None = None
         if ratio > 0:
             estimated = cumulative_turnover / ratio * self._adjustment_factor
+        minute_ts = event_ts.replace(second=0, microsecond=0)
+        minute_of_day = self._minute_of_day(minute_ts)
+        yesterday_estimated = self._yesterday_estimated_by_minute_of_day.get(minute_of_day)
+        estimated_diff = (
+            estimated - yesterday_estimated
+            if estimated is not None and yesterday_estimated is not None
+            else None
+        )
+        estimated_ratio = (
+            estimated / yesterday_estimated
+            if estimated is not None
+            and yesterday_estimated is not None
+            and yesterday_estimated != 0
+            else None
+        )
         futures_price, futures_event_ts = self._read_futures_latest(event_ts)
         spread_status = "ok"
         spread: float | None = None
@@ -336,24 +376,24 @@ class MarketSummaryRunner:
             self._metrics.inc("market_spread_stale_total")
         else:
             spread = futures_price - index_value
-            spread_day_high, spread_day_low = self._update_spread_day_bounds(
-                trade_date_for(event_ts), spread
-            )
+            spread_day_high, spread_day_low = self._update_spread_day_bounds(trade_date, spread)
             if spread_day_high == spread_day_low:
                 spread_strength = 0.5
             else:
                 spread_strength = (spread - spread_day_low) / (spread_day_high - spread_day_low)
             spread_strength = max(0.0, min(float(spread_strength), 1.0))
-        minute_ts = event_ts.replace(second=0, microsecond=0)
         return MarketSummarySnapshot(
             code=code,
-            trade_date=trade_date_for(event_ts),
+            trade_date=trade_date,
             minute_ts=minute_ts,
             event_ts=event_ts,
             index_value=index_value,
             cumulative_turnover=cumulative_turnover,
             completion_ratio=ratio,
             estimated_turnover=estimated,
+            yesterday_estimated_turnover=yesterday_estimated,
+            estimated_turnover_diff=estimated_diff,
+            estimated_turnover_ratio=estimated_ratio,
             adjustment_factor=self._adjustment_factor,
             futures_code=self._futures_code,
             futures_price=futures_price,
@@ -363,6 +403,48 @@ class MarketSummaryRunner:
             spread_strength=spread_strength,
             spread_status=spread_status,
         )
+
+    @staticmethod
+    def _minute_of_day(ts: datetime) -> int:
+        return ts.hour * 60 + ts.minute
+
+    def _refresh_previous_day_estimated_cache(self, trade_date: date, code: str) -> None:
+        if self._comparison_trade_date == trade_date:
+            return
+        self._comparison_trade_date = trade_date
+        self._yesterday_estimated_by_minute_of_day = self._load_previous_day_estimated_cache(
+            trade_date, code
+        )
+
+    def _load_previous_day_estimated_cache(self, trade_date: date, code: str) -> dict[int, float]:
+        from app.models.market_summary_1m import MarketSummary1mModel
+
+        with self._session_factory() as session:
+            previous_trade_date = session.execute(
+                select(MarketSummary1mModel.trade_date)
+                .where(MarketSummary1mModel.market_code == code)
+                .where(MarketSummary1mModel.trade_date < trade_date)
+                .order_by(MarketSummary1mModel.trade_date.desc())
+                .limit(1)
+            ).scalar_one_or_none()
+            if previous_trade_date is None:
+                return {}
+
+            rows = session.execute(
+                select(
+                    MarketSummary1mModel.minute_ts,
+                    MarketSummary1mModel.estimated_turnover,
+                )
+                .where(MarketSummary1mModel.market_code == code)
+                .where(MarketSummary1mModel.trade_date == previous_trade_date)
+            ).all()
+
+        result: dict[int, float] = {}
+        for minute_ts, estimated_turnover in rows:
+            if minute_ts is None or estimated_turnover is None:
+                continue
+            result[self._minute_of_day(minute_ts)] = float(estimated_turnover)
+        return result
 
     def _update_spread_day_bounds(self, trade_date: date, spread: float) -> tuple[float, float]:
         if self._spread_trade_date != trade_date:
@@ -495,6 +577,9 @@ class MarketSummaryRunner:
                     cumulative_turnover=row.cumulative_turnover,
                     completion_ratio=row.completion_ratio,
                     estimated_turnover=row.estimated_turnover,
+                    yesterday_estimated_turnover=row.yesterday_estimated_turnover,
+                    estimated_turnover_diff=row.estimated_turnover_diff,
+                    estimated_turnover_ratio=row.estimated_turnover_ratio,
                     futures_code=row.futures_code,
                     futures_price=row.futures_price,
                     spread=row.spread,

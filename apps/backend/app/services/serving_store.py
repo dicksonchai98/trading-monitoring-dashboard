@@ -240,6 +240,61 @@ def fetch_kbar_history(session: Session, code: str, time_range: TimeRange) -> li
     ]
 
 
+def fetch_kbar_daily_amplitude(session: Session, code: str, days: int) -> list[dict[str, Any]]:
+    today = datetime.now(tz=TZ_TAIPEI).date()
+    trade_dates_stmt = (
+        select(Kbar1mModel.trade_date)
+        .where(Kbar1mModel.code == code)
+        .where(Kbar1mModel.trade_date < today)
+        .group_by(Kbar1mModel.trade_date)
+        .order_by(Kbar1mModel.trade_date.desc())
+        .limit(days)
+    )
+    trade_dates = [row[0] for row in session.execute(trade_dates_stmt).all()]
+    if not trade_dates:
+        return []
+
+    rows_stmt = (
+        select(
+            Kbar1mModel.trade_date,
+            Kbar1mModel.minute_ts,
+            Kbar1mModel.open,
+            Kbar1mModel.high,
+            Kbar1mModel.low,
+            Kbar1mModel.close,
+        )
+        .where(Kbar1mModel.code == code)
+        .where(Kbar1mModel.trade_date.in_(trade_dates))
+        .order_by(Kbar1mModel.trade_date.desc(), Kbar1mModel.minute_ts.asc())
+    )
+    rows = session.execute(rows_stmt).all()
+    by_date: dict[Any, list[Any]] = {}
+    for row in rows:
+        by_date.setdefault(row.trade_date, []).append(row)
+
+    result: list[dict[str, Any]] = []
+    for trade_date in trade_dates:
+        day_rows = by_date.get(trade_date, [])
+        if not day_rows:
+            continue
+        day_open = float(day_rows[0].open)
+        day_close = float(day_rows[-1].close)
+        day_high = max(float(row.high) for row in day_rows)
+        day_low = min(float(row.low) for row in day_rows)
+        result.append(
+            {
+                "code": code,
+                "trade_date": trade_date.isoformat(),
+                "open": day_open,
+                "high": day_high,
+                "low": day_low,
+                "close": day_close,
+                "day_amplitude": day_high - day_low,
+            }
+        )
+    return result
+
+
 def fetch_metric_latest(code: str) -> dict[str, Any] | None:
     redis_client = get_serving_redis_client()
     trade_date = trade_date_for(datetime.now(tz=TZ_TAIPEI))
@@ -337,6 +392,9 @@ def fetch_market_summary_history(
             "cumulative_turnover": row.cumulative_turnover,
             "completion_ratio": row.completion_ratio,
             "estimated_turnover": row.estimated_turnover,
+            "yesterday_estimated_turnover": row.yesterday_estimated_turnover,
+            "estimated_turnover_diff": row.estimated_turnover_diff,
+            "estimated_turnover_ratio": row.estimated_turnover_ratio,
             "futures_code": row.futures_code,
             "futures_price": row.futures_price,
             "spread": row.spread,

@@ -85,11 +85,22 @@ class KBar:
     close: float
     volume: float
     event_ts: datetime
+    day_open: float | None = None
+    day_high: float | None = None
+    day_low: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
         amplitude = self.high - self.low
         if self.open <= 0:
             raise ValueError("invalid_open_for_amplitude")
+        day_open = self.day_open
+        day_high = self.day_high
+        day_low = self.day_low
+        day_amplitude: float | None = None
+        day_amplitude_pct: float | None = None
+        if day_open is not None and day_high is not None and day_low is not None and day_open > 0:
+            day_amplitude = day_high - day_low
+            day_amplitude_pct = day_amplitude / day_open
         return {
             "code": self.code,
             "trade_date": self.trade_date.isoformat(),
@@ -102,12 +113,21 @@ class KBar:
             "event_ts": self.event_ts.isoformat(),
             "amplitude": amplitude,
             "amplitude_pct": amplitude / self.open,
+            "day_open": day_open,
+            "day_high": day_high,
+            "day_low": day_low,
+            "day_amplitude": day_amplitude,
+            "day_amplitude_pct": day_amplitude_pct,
         }
 
 
 class TickStateMachine:
     def __init__(self) -> None:
         self.current: KBar | None = None
+        self._trade_date: date | None = None
+        self._day_open: float | None = None
+        self._day_high: float | None = None
+        self._day_low: float | None = None
 
     def apply_tick(
         self, code: str, event_ts: datetime, payload: dict[str, Any]
@@ -118,10 +138,12 @@ class TickStateMachine:
             return None, True
 
         minute_ts = event_ts.replace(second=0, microsecond=0)
+        trade_date = trade_date_for(event_ts)
         if self.current is None:
+            self._reset_day_state(trade_date, price)
             self.current = KBar(
                 code=code,
-                trade_date=trade_date_for(event_ts),
+                trade_date=trade_date,
                 minute_ts=minute_ts,
                 open=price,
                 high=price,
@@ -129,24 +151,31 @@ class TickStateMachine:
                 close=price,
                 volume=volume,
                 event_ts=event_ts,
+                day_open=self._day_open,
+                day_high=self._day_high,
+                day_low=self._day_low,
             )
             return None, False
 
         if minute_ts < self.current.minute_ts:
             return None, True
 
+        self._update_day_state(trade_date, price)
         if minute_ts == self.current.minute_ts:
             self.current.high = max(self.current.high, price)
             self.current.low = min(self.current.low, price)
             self.current.close = price
             self.current.volume += volume
             self.current.event_ts = event_ts
+            self.current.day_open = self._day_open
+            self.current.day_high = self._day_high
+            self.current.day_low = self._day_low
             return None, False
 
         archived = self.current
         self.current = KBar(
             code=code,
-            trade_date=trade_date_for(event_ts),
+            trade_date=trade_date,
             minute_ts=minute_ts,
             open=price,
             high=price,
@@ -154,8 +183,30 @@ class TickStateMachine:
             close=price,
             volume=volume,
             event_ts=event_ts,
+            day_open=self._day_open,
+            day_high=self._day_high,
+            day_low=self._day_low,
         )
         return archived, False
+
+    def _reset_day_state(self, trade_date: date, price: float) -> None:
+        self._trade_date = trade_date
+        self._day_open = price
+        self._day_high = price
+        self._day_low = price
+
+    def _update_day_state(self, trade_date: date, price: float) -> None:
+        if self._trade_date != trade_date:
+            self._reset_day_state(trade_date, price)
+            return
+        if self._day_open is None:
+            self._day_open = price
+        if self._day_high is None or self._day_low is None:
+            self._day_high = price
+            self._day_low = price
+            return
+        self._day_high = max(self._day_high, price)
+        self._day_low = min(self._day_low, price)
 
 
 class MetricsRegistry:
