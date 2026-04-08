@@ -5,7 +5,7 @@ import { useRealtimeStore } from "@/features/realtime/store/realtime.store";
 import { useAuthStore } from "@/lib/store/auth-store";
 
 vi.mock("@/features/dashboard/api/market-overview", () => ({
-  DEFAULT_ORDER_FLOW_CODE: "TXF",
+  DEFAULT_ORDER_FLOW_CODE: "TXFD6",
   getOrderFlowBaseline: vi.fn(),
 }));
 
@@ -42,11 +42,11 @@ describe("useMarketOverviewTimeline", () => {
     vi.clearAllMocks();
   });
 
-  it("builds baseline series from today's TXF kbar and bidask responses", async () => {
+  it("builds baseline series from today's TXFD6 kbar and bidask responses", async () => {
     getOrderFlowBaselineMock.mockResolvedValueOnce({
       kbarToday: [
         {
-          code: "TXF",
+          code: "TXFD6",
           trade_date: "2026-04-08",
           minute_ts: minute0,
           open: 22300,
@@ -56,7 +56,7 @@ describe("useMarketOverviewTimeline", () => {
           volume: 12,
         },
         {
-          code: "TXF",
+          code: "TXFD6",
           trade_date: "2026-04-08",
           minute_ts: minute1,
           open: 22305,
@@ -76,8 +76,8 @@ describe("useMarketOverviewTimeline", () => {
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    expect(getOrderFlowBaselineMock).toHaveBeenCalledWith("token", "TXF");
-    expect(DEFAULT_ORDER_FLOW_CODE).toBe("TXF");
+    expect(getOrderFlowBaselineMock).toHaveBeenCalledWith("token", "TXFD6");
+    expect(DEFAULT_ORDER_FLOW_CODE).toBe("TXFD6");
     expect(result.current.error).toBeNull();
     expect(result.current.series).toEqual([
       {
@@ -99,7 +99,7 @@ describe("useMarketOverviewTimeline", () => {
     getOrderFlowBaselineMock.mockResolvedValueOnce({
       kbarToday: [
         {
-          code: "TXF",
+          code: "TXFD6",
           trade_date: "2026-04-08",
           minute_ts: minute0,
           open: 22300,
@@ -109,7 +109,7 @@ describe("useMarketOverviewTimeline", () => {
           volume: 12,
         },
         {
-          code: "TXF",
+          code: "TXFD6",
           trade_date: "2026-04-08",
           minute_ts: minute1,
           open: 22305,
@@ -131,7 +131,7 @@ describe("useMarketOverviewTimeline", () => {
 
     act(() => {
       useRealtimeStore.getState().upsertKbarCurrent({
-        code: "TXF",
+        code: "TXFD6",
         trade_date: "2026-04-08",
         minute_ts: minute1,
         open: 22305,
@@ -140,7 +140,7 @@ describe("useMarketOverviewTimeline", () => {
         close: 22340,
         volume: 30,
       });
-      useRealtimeStore.getState().upsertMetricLatest("TXF", {
+      useRealtimeStore.getState().upsertMetricLatest("TXFD6", {
         main_force_big_order: 999,
         ts: minute1 + 5000,
       });
@@ -168,7 +168,7 @@ describe("useMarketOverviewTimeline", () => {
     getOrderFlowBaselineMock.mockResolvedValueOnce({
       kbarToday: [
         {
-          code: "TXF",
+          code: "TXFD6",
           trade_date: "2026-04-08",
           minute_ts: minute0,
           open: 22300,
@@ -188,7 +188,7 @@ describe("useMarketOverviewTimeline", () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     act(() => {
-      useRealtimeStore.getState().upsertMetricLatest("TXF", {
+      useRealtimeStore.getState().upsertMetricLatest("TXFD6", {
         main_force_big_order: 555,
         ts: minute1 + 3000,
       });
@@ -205,7 +205,7 @@ describe("useMarketOverviewTimeline", () => {
 
     act(() => {
       useRealtimeStore.getState().upsertKbarCurrent({
-        code: "TXF",
+        code: "TXFD6",
         trade_date: "2026-04-08",
         minute_ts: minute1,
         open: 22312,

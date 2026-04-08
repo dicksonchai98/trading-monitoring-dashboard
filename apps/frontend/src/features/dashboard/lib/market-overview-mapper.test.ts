@@ -18,7 +18,7 @@ describe("market-overview-mapper", () => {
     const series = buildOrderFlowSeries(
       [
         {
-          code: "TXF",
+          code: "TXFD6",
           trade_date: "2026-04-08",
           minute_ts: minute0,
           open: 22300,
@@ -28,7 +28,7 @@ describe("market-overview-mapper", () => {
           volume: 12,
         },
         {
-          code: "TXF",
+          code: "TXFD6",
           trade_date: "2026-04-08",
           minute_ts: minute1,
           open: 22305,
@@ -64,7 +64,7 @@ describe("market-overview-mapper", () => {
     const series = buildOrderFlowSeries(
       [
         {
-          code: "TXF",
+          code: "TXFD6",
           trade_date: "2026-04-08",
           minute_ts: minute0,
           open: 22300,

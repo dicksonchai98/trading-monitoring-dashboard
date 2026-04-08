@@ -1,7 +1,7 @@
 import type { JSX } from "react";
 import { PanelCard } from "@/components/ui/panel-card";
 import { OrderFlowChart } from "@/features/dashboard/components/PanelCharts";
-import { useMarketOverviewTimeline } from "@/features/dashboard/hooks/use-market-overview-timeline";
+import type { OrderFlowSeriesPoint } from "@/features/dashboard/lib/market-overview-mapper";
 
 function OrderFlowState({ text }: { text: string }): JSX.Element {
   return (
@@ -11,8 +11,13 @@ function OrderFlowState({ text }: { text: string }): JSX.Element {
   );
 }
 
-export function OrderFlowCard(): JSX.Element {
-  const { series, loading, error } = useMarketOverviewTimeline();
+interface OrderFlowCardProps {
+  series: OrderFlowSeriesPoint[];
+  loading: boolean;
+  error: string | null;
+}
+
+export function OrderFlowCard({ series, loading, error }: OrderFlowCardProps): JSX.Element {
 
   return (
     <PanelCard
@@ -23,7 +28,7 @@ export function OrderFlowCard(): JSX.Element {
       data-testid="order-flow-card"
     >
       {loading ? (
-        <OrderFlowState text="Loading TXF order flow..." />
+        <OrderFlowState text="Loading TXFD6 order flow..." />
       ) : error ? (
         <OrderFlowState text="Unable to load order flow data." />
       ) : (

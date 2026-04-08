@@ -77,8 +77,8 @@ function EmptyState({ text }: { text: string }): JSX.Element {
 
 export function RealtimeSseChartsSection(): JSX.Element {
   const { connectionStatus } = useRealtimeConnection();
-  const kbar = useKbarCurrent("TXF");
-  const metric = useMetricLatest("TXF");
+  const kbar = useKbarCurrent("TXFD6");
+  const metric = useMetricLatest("TXFD6");
 
   const [closeSeries, setCloseSeries] = useState<SeriesPoint[]>([]);
   const [spreadSeries, setSpreadSeries] = useState<SpreadPoint[]>([]);
@@ -139,7 +139,7 @@ export function RealtimeSseChartsSection(): JSX.Element {
       actions={<Badge variant={statusBadgeVariant(connectionStatus)}>{connectionStatus.toUpperCase()}</Badge>}
     >
       <PanelCard
-        title="Near-Month Close (TXF)"
+        title="Near-Month Close (TXFD6)"
         meta={latestPrice ? `Latest ${latestPrice}` : "Waiting for ticks"}
         span={4}
         units={2}

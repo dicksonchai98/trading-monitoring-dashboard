@@ -17,6 +17,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import type { EstimatedVolumeSeriesPoint } from "@/features/dashboard/lib/estimated-volume-mapper";
 import type { OrderFlowSeriesPoint } from "@/features/dashboard/lib/market-overview-mapper";
 
 const axisTick = { fill: "hsl(var(--subtle-foreground))", fontSize: 11 };
@@ -75,6 +76,25 @@ function toOrderFlowMarketData(data: OrderFlowSeriesPoint[]): MarketOverviewDatu
       chipDelta: point.chipDelta,
     })),
   );
+}
+
+function withTickPriceSeries(
+  data: MarketOverviewDatum[],
+  tickSeries?: OrderFlowSeriesPoint[],
+): MarketOverviewDatum[] {
+  if (!tickSeries || tickSeries.length === 0) {
+    return data;
+  }
+
+  const priceByTime = new Map<string, number>();
+  for (const point of tickSeries) {
+    priceByTime.set(point.time, point.indexPrice);
+  }
+
+  return data.map((item) => ({
+    ...item,
+    indexPrice: priceByTime.get(item.time) ?? item.indexPrice,
+  }));
 }
 
 const SESSION_MINUTES = 271;
@@ -226,25 +246,55 @@ export function OrderFlowChart({
 }: {
   data?: OrderFlowSeriesPoint[];
 }): JSX.Element {
-  return <MarketOverviewHybridChart data={toOrderFlowMarketData(data)} priceLabel="TXF Near Month" testId="order-flow-chart" />;
+  return <MarketOverviewHybridChart data={toOrderFlowMarketData(data)} priceLabel="TXFD6 Near Month" testId="order-flow-chart" />;
 }
 
 const volumeLadderData = generateMarketOverviewData(22420, 6.8, 3, 6);
 
-export function VolumeLadderChart(): JSX.Element {
-  return <MarketOverviewHybridChart data={volumeLadderData} priceLabel="TXF Near Month" testId="volume-ladder-chart" />;
+export function VolumeLadderChart({
+  tickSeries,
+}: {
+  tickSeries?: OrderFlowSeriesPoint[];
+}): JSX.Element {
+  return (
+    <MarketOverviewHybridChart
+      data={withTickPriceSeries(volumeLadderData, tickSeries)}
+      priceLabel="TXFD6 Near Month"
+      testId="volume-ladder-chart"
+    />
+  );
 }
 
 const pressureData = generateMarketOverviewData(1210, 1.8, 7, 2);
 
-export function BidAskPressureChart(): JSX.Element {
-  return <MarketOverviewHybridChart data={pressureData} priceLabel="TAIEX Electronics" testId="bid-ask-pressure-chart" />;
+export function BidAskPressureChart({
+  tickSeries,
+}: {
+  tickSeries?: OrderFlowSeriesPoint[];
+}): JSX.Element {
+  return (
+    <MarketOverviewHybridChart
+      data={withTickPriceSeries(pressureData, tickSeries)}
+      priceLabel="TAIEX Electronics"
+      testId="bid-ask-pressure-chart"
+    />
+  );
 }
 
 const programActivityData = generateMarketOverviewData(2085, 2.4, 11, 9);
 
-export function ProgramActivityChart(): JSX.Element {
-  return <MarketOverviewHybridChart data={programActivityData} priceLabel="TAIEX Finance" testId="program-activity-chart" />;
+export function ProgramActivityChart({
+  tickSeries,
+}: {
+  tickSeries?: OrderFlowSeriesPoint[];
+}): JSX.Element {
+  return (
+    <MarketOverviewHybridChart
+      data={withTickPriceSeries(programActivityData, tickSeries)}
+      priceLabel="TAIEX Finance"
+      testId="program-activity-chart"
+    />
+  );
 }
 
 interface BreadthDistributionDatum {
@@ -344,16 +394,7 @@ export function BreadthDistributionChart(): JSX.Element {
   );
 }
 
-interface EstimatedVolumeDatum {
-  minute: number;
-  time: string;
-  yesterdayEstimated: number;
-  todayEstimated: number;
-  positiveDiff: number;
-  negativeDiff: number;
-}
-
-const estimatedVolumeData: EstimatedVolumeDatum[] = Array.from(
+const estimatedVolumeFallbackData: EstimatedVolumeSeriesPoint[] = Array.from(
   { length: 28 },
   (_, index) => {
     const minute = index * 10;
@@ -372,7 +413,8 @@ const estimatedVolumeData: EstimatedVolumeDatum[] = Array.from(
       Math.cos((index + 1) * 0.24) * 470;
 
     return {
-      minute,
+      minuteOfDay: 9 * 60 + minute,
+      minuteTs: minute * 60_000,
       time,
       yesterdayEstimated: Math.max(0, Math.round(baseYesterday)),
       todayEstimated: Math.max(0, Math.round(baseToday)),
@@ -389,24 +431,28 @@ const estimatedVolumeData: EstimatedVolumeDatum[] = Array.from(
   };
 });
 
-export function EstimatedVolumeCompareChart(): JSX.Element {
+export function EstimatedVolumeCompareChart({
+  data = estimatedVolumeFallbackData,
+}: {
+  data?: EstimatedVolumeSeriesPoint[];
+}): JSX.Element {
   return (
     <ChartShell testId="estimated-volume-compare-chart">
       <ResponsiveContainer width="100%" height="100%" minHeight={180} minWidth={0}>
-        <ComposedChart data={estimatedVolumeData} margin={{ top: 8, right: 10, bottom: 0, left: -6 }}>
+        <ComposedChart data={data} margin={{ top: 8, right: 10, bottom: 0, left: -6 }}>
           <CartesianGrid vertical={false} stroke="hsl(var(--border-strong))" strokeDasharray="3 3" />
           <XAxis
             axisLine={false}
-            dataKey="minute"
+            dataKey="minuteOfDay"
             tick={axisTick}
             tickFormatter={(value) => {
-              const matched = estimatedVolumeData.find((item) => item.minute === value);
+              const matched = data.find((item) => item.minuteOfDay === value);
               return matched?.time ?? "";
             }}
             tickLine={false}
             type="number"
-            domain={[0, 270]}
-            ticks={[0, 60, 120, 180, 240]}
+            domain={[9 * 60, 13 * 60 + 30]}
+            ticks={[9 * 60, 10 * 60, 11 * 60, 12 * 60, 13 * 60]}
           />
           <YAxis
             yAxisId="volume"
@@ -438,7 +484,7 @@ export function EstimatedVolumeCompareChart(): JSX.Element {
               return [normalized, name];
             }}
             labelFormatter={(value) => {
-              const matched = estimatedVolumeData.find((item) => item.minute === value);
+              const matched = data.find((item) => item.minuteOfDay === value);
               return `時間 ${matched?.time ?? value}`;
             }}
           />
