@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 import logging
-import time
+from datetime import datetime, timezone
 
 from app.config import (
     KBAR_ANALYTICS_CRON_CODE,
@@ -14,6 +14,7 @@ from app.config import (
 )
 from app.db.session import SessionLocal
 from app.modules.kbar_analytics.cron import run_daily_pipeline_once
+from apscheduler.schedulers.blocking import BlockingScheduler
 
 logger = logging.getLogger(__name__)
 
@@ -26,14 +27,33 @@ def run_once() -> dict[str, dict[str, int] | int]:
     )
 
 
+def _run_once_job() -> None:
+    try:
+        result = run_once()
+        logger.info("kbar analytics cron cycle completed: %s", result)
+    except Exception:
+        logger.exception("kbar analytics cron cycle failed")
+
+
+def build_scheduler() -> BlockingScheduler:
+    interval_seconds = max(1, KBAR_ANALYTICS_CRON_INTERVAL_SECONDS)
+    scheduler = BlockingScheduler(timezone="UTC")
+    scheduler.add_job(
+        _run_once_job,
+        "interval",
+        id="kbar_analytics_daily_pipeline",
+        seconds=interval_seconds,
+        coalesce=True,
+        max_instances=1,
+        misfire_grace_time=interval_seconds,
+        next_run_time=datetime.now(tz=timezone.utc),
+    )
+    return scheduler
+
+
 def run_forever() -> None:
-    while True:
-        try:
-            result = run_once()
-            logger.info("kbar analytics cron cycle completed: %s", result)
-        except Exception:
-            logger.exception("kbar analytics cron cycle failed")
-        time.sleep(max(1, KBAR_ANALYTICS_CRON_INTERVAL_SECONDS))
+    scheduler = build_scheduler()
+    scheduler.start()
 
 
 def main() -> None:

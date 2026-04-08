@@ -11,3 +11,4 @@ redis>=5.0.0
 redis>=5.0.0
 shioaji>=1.2.0
 PyYAML>=6.0.0
+APScheduler>=3.10.4
