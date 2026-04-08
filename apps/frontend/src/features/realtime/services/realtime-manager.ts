@@ -1,6 +1,7 @@
 import {
   HeartbeatSchema,
   KbarCurrentSchema,
+  MarketSummaryLatestSchema,
   MetricLatestSchema,
 } from "@/features/realtime/schemas/serving-event.schema";
 import { useRealtimeStore } from "@/features/realtime/store/realtime.store";
@@ -8,7 +9,7 @@ import type { ServingSseEventName } from "@/features/realtime/types/realtime.typ
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api";
 const STREAM_PATH = "/v1/stream/sse";
-const DEFAULT_STREAM_CODE = "TXF";
+const DEFAULT_STREAM_CODE = "TXFD6";
 
 interface StreamHttpError extends Error {
   status: number;
@@ -20,15 +21,17 @@ interface ParsedFrame {
 }
 
 export function splitSseBuffer(buffer: string): { frames: string[]; rest: string } {
+  // Normalize newlines so frame boundary parsing works for both LF and CRLF streams.
+  const normalizedBuffer = buffer.replace(/\r\n/g, "\n");
   const frames: string[] = [];
   let cursor = 0;
 
   while (true) {
-    const boundary = buffer.indexOf("\n\n", cursor);
+    const boundary = normalizedBuffer.indexOf("\n\n", cursor);
     if (boundary === -1) {
       break;
     }
-    const frame = buffer.slice(cursor, boundary).trim();
+    const frame = normalizedBuffer.slice(cursor, boundary).trim();
     if (frame) {
       frames.push(frame);
     }
@@ -37,7 +40,7 @@ export function splitSseBuffer(buffer: string): { frames: string[]; rest: string
 
   return {
     frames,
-    rest: buffer.slice(cursor),
+    rest: normalizedBuffer.slice(cursor),
   };
 }
 
@@ -88,6 +91,17 @@ export function applyServingSseEvent(eventName: string, data: unknown): void {
         ? ((data as { code: string }).code || fallbackCode)
         : fallbackCode;
     store.upsertMetricLatest(payloadCode, parsed.data);
+    return;
+  }
+
+  if (eventName === "market_summary_latest") {
+    const parsed = MarketSummaryLatestSchema.safeParse(data);
+    if (!parsed.success) {
+      return;
+    }
+    const fallbackCode = DEFAULT_STREAM_CODE;
+    const payloadCode = parsed.data.market_code || parsed.data.code || fallbackCode;
+    store.upsertMarketSummaryLatest(payloadCode, parsed.data);
     return;
   }
 
@@ -195,13 +209,14 @@ class RealtimeManager {
     const response = await fetch(
       `${API_BASE_URL}${STREAM_PATH}?code=${encodeURIComponent(DEFAULT_STREAM_CODE)}`,
       {
-      method: "GET",
-      signal,
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "text/event-stream",
+        method: "GET",
+        signal,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "text/event-stream",
+        },
       },
-    });
+    );
 
     if (!response.ok) {
       const err = new Error(`sse_http_${response.status}`) as StreamHttpError;

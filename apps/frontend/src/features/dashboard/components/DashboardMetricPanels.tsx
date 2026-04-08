@@ -1,4 +1,4 @@
-import type { CSSProperties, JSX } from "react";
+import { useEffect, useState, type CSSProperties, type JSX } from "react";
 import type { PieProps, PieSectorDataItem } from "recharts";
 import {
   Area,
@@ -15,6 +15,9 @@ import {
 import metricsConfig from "../../../../test.json";
 import { BentoGridSection } from "@/components/ui/bento-grid";
 import { Card } from "@/components/ui/card";
+import { useKbarCurrent } from "@/features/realtime/hooks/use-kbar-current";
+import { useMarketSummaryLatest } from "@/features/realtime/hooks/use-market-summary-latest";
+import { useMetricLatest } from "@/features/realtime/hooks/use-metric-latest";
 import { PanelCard } from "@/components/ui/panel-card";
 
 interface MetricPanelConfig {
@@ -52,11 +55,8 @@ const KLINE_DOWN_COLOR = "#22c55e";
 
 const NEEDLE_BASE_RADIUS_PX = 4;
 const gaugeValues = [74, 66, 58, 82, 63];
-const coreMetrics = [
-  { label: "振幅", value: "1.82%" },
-  { label: "預估量", value: "24.6K" },
-  { label: "價差", value: "12" },
-];
+const GROUPED_INTEGER_FORMATTER = new Intl.NumberFormat("en-US");
+const coreMetricLabels = ["振幅", "預估量", "價差"] as const;
 const contributionMetrics = [
   { label: "臺積電貢獻點數", value: "+84" },
   { label: "權值前20貢獻點數", value: "+176" },
@@ -110,12 +110,60 @@ function buildOtcIntradaySeries(): Array<{
 
 const otcIndexSeries = buildOtcIntradaySeries();
 const gapKlineData: GapKlineDatum[] = [
-  { symbol: "臺積電", prevClose: 966, open: 978, high: 990, low: 962, close: 985, current: 988 },
-  { symbol: "臺達電", prevClose: 352, open: 347, high: 356, low: 342, close: 345, current: 344 },
-  { symbol: "鴻海", prevClose: 204, open: 209, high: 214, low: 201, close: 212, current: 211 },
-  { symbol: "聯發科", prevClose: 1260, open: 1238, high: 1276, low: 1228, close: 1268, current: 1272 },
-  { symbol: "櫃買指數", prevClose: 262.1, open: 263.4, high: 265.2, low: 261.3, close: 264.6, current: 264.2 },
-  { symbol: "日經指數", prevClose: 39280, open: 39540, high: 39810, low: 39180, close: 39720, current: 39660 },
+  {
+    symbol: "臺積電",
+    prevClose: 966,
+    open: 978,
+    high: 990,
+    low: 962,
+    close: 985,
+    current: 988,
+  },
+  {
+    symbol: "臺達電",
+    prevClose: 352,
+    open: 347,
+    high: 356,
+    low: 342,
+    close: 345,
+    current: 344,
+  },
+  {
+    symbol: "鴻海",
+    prevClose: 204,
+    open: 209,
+    high: 214,
+    low: 201,
+    close: 212,
+    current: 211,
+  },
+  {
+    symbol: "聯發科",
+    prevClose: 1260,
+    open: 1238,
+    high: 1276,
+    low: 1228,
+    close: 1268,
+    current: 1272,
+  },
+  {
+    symbol: "櫃買指數",
+    prevClose: 262.1,
+    open: 263.4,
+    high: 265.2,
+    low: 261.3,
+    close: 264.6,
+    current: 264.2,
+  },
+  {
+    symbol: "日經指數",
+    prevClose: 39280,
+    open: 39540,
+    high: 39810,
+    low: 39180,
+    close: 39720,
+    current: 39660,
+  },
 ];
 
 export function getHalfGaugeGeometry(): HalfGaugeGeometry {
@@ -142,6 +190,88 @@ export function getNeedleStyle(
 
 function getMetricConfigs(): MetricPanelConfig[] {
   return metricsConfig as MetricPanelConfig[];
+}
+
+function useStickyLatestNumber(
+  value: number | null | undefined,
+): number | null {
+  const [latest, setLatest] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (typeof value === "number" && Number.isFinite(value)) {
+      setLatest(value);
+    }
+  }, [value]);
+
+  return latest;
+}
+
+function formatFixed2(value: number): string {
+  return value.toFixed(2);
+}
+
+function formatGroupedInteger(value: number): string {
+  return GROUPED_INTEGER_FORMATTER.format(Math.trunc(value));
+}
+
+function formatPercentage(value: number): string {
+  return `${(value * 100).toFixed(1)}%`;
+}
+
+function formatCoreMetricValue(
+  label: (typeof coreMetricLabels)[number],
+  value: number | null,
+): string {
+  if (value === null) {
+    return "--";
+  }
+  if (label === "預估量") {
+    return formatGroupedInteger(value);
+  }
+  return formatFixed2(value);
+}
+
+function MainForceHalfGauge({
+  percent,
+}: {
+  percent: number | null;
+}): JSX.Element {
+  const value = percent === null ? 0 : Math.max(0, Math.min(100, percent));
+  const data: GaugeSegment[] = [
+    { name: "active", value, fill: "#22c55e" },
+    { name: "rest", value: 100 - value, fill: "rgba(148, 163, 184, 0.25)" },
+  ];
+
+  return (
+    <div
+      className="flex min-h-0 flex-1 flex-col justify-center overflow-hidden"
+      data-testid="live-metrics-main-force-gauge"
+    >
+      <div className="mx-auto w-full max-w-[240px]">
+        <div className="flex justify-center">
+          <PieChart width={240} height={132}>
+            <Pie
+              data={data}
+              dataKey="value"
+              startAngle={180}
+              endAngle={0}
+              cx={120}
+              cy={120}
+              innerRadius={66}
+              outerRadius={96}
+              stroke="none"
+              isAnimationActive
+              animationDuration={320}
+            >
+              {data.map((entry) => (
+                <Cell key={entry.name} fill={entry.fill} />
+              ))}
+            </Pie>
+          </PieChart>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function Needle({
@@ -211,8 +341,14 @@ function HalfPie({
   );
 }
 
-export function MetricNeedleChart({ index }: { index: number }): JSX.Element {
-  const value = gaugeValues[index] ?? 50;
+export function MetricNeedleChart({
+  index,
+  liveValue,
+}: {
+  index: number;
+  liveValue?: number | null;
+}): JSX.Element {
+  const value = liveValue ?? gaugeValues[index] ?? 50;
   const geometry = getHalfGaugeGeometry();
   const chartData: GaugeSegment[] = [
     { name: "active", value, fill: "hsl(var(--primary))" },
@@ -283,7 +419,9 @@ function MetricMiniPanel({
     >
       <div className="space-y-0.5 text-center">
         <p className="truncate text-[10px] text-muted-foreground">{title}</p>
-        <p className="text-sm font-semibold tracking-tight text-foreground">{value}</p>
+        <p className="text-sm font-semibold tracking-tight text-foreground">
+          {value}
+        </p>
       </div>
     </Card>
   );
@@ -320,7 +458,11 @@ function OtcIndexLinePanel(): JSX.Element {
               ticks={[0]}
               width={26}
             />
-            <ReferenceLine y={0} stroke="hsl(var(--border-strong))" strokeDasharray="3 3" />
+            <ReferenceLine
+              y={0}
+              stroke="hsl(var(--border-strong))"
+              strokeDasharray="3 3"
+            />
             <Area
               dataKey="upChange"
               dot={false}
@@ -374,12 +516,21 @@ function GapKlinePanelChart(): JSX.Element {
   const bodyWidth = Math.min(34, step * 0.56);
 
   const yScale = (valuePct: number): number =>
-    margin.top + ((paddedMax - valuePct) / (paddedMax - paddedMin)) * plotHeight;
+    margin.top +
+    ((paddedMax - valuePct) / (paddedMax - paddedMin)) * plotHeight;
 
   return (
-    <div className="mt-[var(--panel-gap)] flex min-h-0 flex-1 flex-col" data-testid="live-metrics-gap-kline-chart">
+    <div
+      className="mt-[var(--panel-gap)] flex min-h-0 flex-1 flex-col"
+      data-testid="live-metrics-gap-kline-chart"
+    >
       <div data-testid="panel-chart" className="h-full w-full">
-        <svg className="h-full w-full" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Six symbols gap candlestick overview">
+        <svg
+          className="h-full w-full"
+          viewBox={`0 0 ${width} ${height}`}
+          role="img"
+          aria-label="Six symbols gap candlestick overview"
+        >
           <rect x={0} y={0} width={width} height={height} fill="transparent" />
           {Array.from({ length: tickCount }).map((_, index) => {
             const ratio = index / (tickCount - 1);
@@ -388,7 +539,14 @@ function GapKlinePanelChart(): JSX.Element {
 
             return (
               <g key={`grid-${index}`}>
-                <line x1={margin.left} x2={width - margin.right} y1={y} y2={y} stroke="hsl(var(--border-strong))" strokeDasharray="3 3" />
+                <line
+                  x1={margin.left}
+                  x2={width - margin.right}
+                  y1={y}
+                  y2={y}
+                  stroke="hsl(var(--border-strong))"
+                  strokeDasharray="3 3"
+                />
                 <text
                   x={margin.left - 8}
                   y={y + 4}
@@ -411,11 +569,19 @@ function GapKlinePanelChart(): JSX.Element {
             const bodyY = Math.min(openY, closeY);
             const bodyHeight = Math.max(2, Math.abs(closeY - openY));
             const fill = isUp ? KLINE_UP_COLOR : KLINE_DOWN_COLOR;
-            const gapPct = ((item.open - item.prevClose) / item.prevClose) * 100;
+            const gapPct =
+              ((item.open - item.prevClose) / item.prevClose) * 100;
 
             return (
               <g key={item.symbol}>
-                <line x1={centerX} x2={centerX} y1={highY} y2={lowY} stroke={fill} strokeWidth={1.6} />
+                <line
+                  x1={centerX}
+                  x2={centerX}
+                  y1={highY}
+                  y2={lowY}
+                  stroke={fill}
+                  strokeWidth={1.6}
+                />
                 <rect
                   x={centerX - bodyWidth / 2}
                   y={bodyY}
@@ -455,14 +621,44 @@ export function DashboardMetricPanels(): JSX.Element {
   const needlePanels = getMetricConfigs().filter(
     (panel) => panel.key === "piechart with needle",
   );
+  const kbar = useKbarCurrent("TXFD6");
+  const metric = useMetricLatest("TXFD6");
+  const marketSummary = useMarketSummaryLatest("TXFD6");
+  const stickyDayAmplitude = useStickyLatestNumber(kbar?.day_amplitude);
+  const stickyEstimatedTurnover = useStickyLatestNumber(
+    marketSummary?.estimated_turnover,
+  );
+  const stickySpread = useStickyLatestNumber(marketSummary?.spread);
+  const stickyMainForceStrength = useStickyLatestNumber(
+    metric?.main_force_big_order_strength,
+  );
   let gaugeIndex = 0;
+  const coreMetrics = [
+    {
+      label: "振幅",
+      value: formatCoreMetricValue("振幅", stickyDayAmplitude),
+    },
+    {
+      label: "預估量",
+      value: formatCoreMetricValue("預估量", stickyEstimatedTurnover),
+    },
+    {
+      label: "價差",
+      value: formatCoreMetricValue("價差", stickySpread),
+    },
+  ];
 
   return (
     <BentoGridSection
       title="LIVE METRICS"
       gridClassName="h-full auto-rows-fr lg:grid-cols-12"
     >
-      {needlePanels.map((panel) => {
+      {needlePanels.map((panel, index) => {
+        const mainForcePercent =
+          stickyMainForceStrength === null
+            ? null
+            : stickyMainForceStrength * 100;
+        const isMainForceCard = index === 0;
         return (
           <PanelCard
             key={panel.label}
@@ -473,7 +669,21 @@ export function DashboardMetricPanels(): JSX.Element {
             contentClassName="pt-[var(--panel-gap)]"
             data-testid="dashboard-metric-panel"
           >
-            <MetricNeedleChart index={gaugeIndex++} />
+            {isMainForceCard ? (
+              <MainForceHalfGauge percent={mainForcePercent} />
+            ) : (
+              <MetricNeedleChart index={gaugeIndex++} />
+            )}
+            {isMainForceCard ? (
+              <p
+                className="mt-0 text-center text-[10px] font-semibold leading-none text-muted-foreground"
+                data-testid="live-metrics-main-force-strength"
+              >
+                {stickyMainForceStrength === null
+                  ? "--"
+                  : formatPercentage(stickyMainForceStrength)}
+              </p>
+            ) : null}
           </PanelCard>
         );
       })}
