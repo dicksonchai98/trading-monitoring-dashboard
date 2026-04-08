@@ -38,6 +38,31 @@ def test_main_once_runs_single_cycle(monkeypatch) -> None:
     assert called["count"] == 1
 
 
+def test_build_scheduler_uses_interval_trigger(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    class _FakeScheduler:
+        def __init__(self, *_, **__):
+            return None
+
+        def add_job(self, func, trigger, **kwargs):
+            captured["func"] = func
+            captured["trigger"] = trigger
+            captured.update(kwargs)
+
+    monkeypatch.setattr(kbar_analytics_cron_worker, "BlockingScheduler", _FakeScheduler)
+    monkeypatch.setattr(kbar_analytics_cron_worker, "KBAR_ANALYTICS_CRON_INTERVAL_SECONDS", 120)
+
+    kbar_analytics_cron_worker.build_scheduler()
+
+    assert captured["trigger"] == "interval"
+    assert captured["id"] == "kbar_analytics_daily_pipeline"
+    assert captured["seconds"] == 120
+    assert captured["coalesce"] is True
+    assert captured["max_instances"] == 1
+    assert captured["misfire_grace_time"] == 120
+
+
 def test_cron_helper_window_uses_inclusive_range(monkeypatch) -> None:
     from app.modules.kbar_analytics import cron as cron_module
 
