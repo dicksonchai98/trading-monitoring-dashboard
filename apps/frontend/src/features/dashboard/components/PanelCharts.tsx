@@ -17,6 +17,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import type { OrderFlowSeriesPoint } from "@/features/dashboard/lib/market-overview-mapper";
 
 const axisTick = { fill: "hsl(var(--subtle-foreground))", fontSize: 11 };
 const tooltipStyle = {
@@ -64,6 +65,16 @@ function withSignedBars(data: MarketOverviewPoint[]): MarketOverviewDatum[] {
     buyVolume: point.chipDelta > 0 ? point.chipDelta : 0,
     sellVolume: point.chipDelta < 0 ? point.chipDelta : 0,
   }));
+}
+
+function toOrderFlowMarketData(data: OrderFlowSeriesPoint[]): MarketOverviewDatum[] {
+  return withSignedBars(
+    data.map((point) => ({
+      time: point.time,
+      indexPrice: point.indexPrice,
+      chipDelta: point.chipDelta,
+    })),
+  );
 }
 
 const SESSION_MINUTES = 271;
@@ -203,9 +214,19 @@ function MarketOverviewHybridChart({
 }
 
 const orderFlowData = generateMarketOverviewData(22380, 7.2, 0, 1);
+const orderFlowFallbackSeries: OrderFlowSeriesPoint[] = orderFlowData.map((point, index) => ({
+  minuteTs: index * 60_000,
+  time: point.time,
+  indexPrice: point.indexPrice,
+  chipDelta: point.chipDelta,
+}));
 
-export function OrderFlowChart(): JSX.Element {
-  return <MarketOverviewHybridChart data={orderFlowData} priceLabel="TAIEX Spot" testId="order-flow-chart" />;
+export function OrderFlowChart({
+  data = orderFlowFallbackSeries,
+}: {
+  data?: OrderFlowSeriesPoint[];
+}): JSX.Element {
+  return <MarketOverviewHybridChart data={toOrderFlowMarketData(data)} priceLabel="TXF Near Month" testId="order-flow-chart" />;
 }
 
 const volumeLadderData = generateMarketOverviewData(22420, 6.8, 3, 6);

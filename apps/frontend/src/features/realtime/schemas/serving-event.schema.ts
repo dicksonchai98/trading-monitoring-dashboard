@@ -18,6 +18,7 @@ export const MetricLatestSchema = z.object({
   spread: z.number().optional(),
   bid_size: z.number().optional(),
   ask_size: z.number().optional(),
+  main_force_big_order: z.number().optional(),
   event_ts: z.string().optional(),
   ts: z.number().optional(),
 });
