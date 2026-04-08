@@ -1,0 +1,520 @@
+
+> frontend@0.1.0 test
+> vitest run
+
+
+[1m[46m RUN [49m[22m [36mv3.2.4 [39m[90mC:/Users/dickson/AppData/Local/Temp/vibe-kanban/worktrees/7131-tick-bidask/trading-monitoring-dashboard/apps/frontend[39m
+
+ [32m✓[39m src/features/dashboard/lib/market-overview-mapper.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 18[2mms[22m[39m
+ [32m✓[39m src/features/realtime/services/realtime-manager.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 32[2mms[22m[39m
+[90mstderr[2m | src/features/dashboard/hooks/use-market-overview-timeline.test.tsx[2m > [22m[2museMarketOverviewTimeline[2m > [22m[2mbuilds baseline series from today's TXF kbar and bidask responses
+[22m[39mAn update to TestComponent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to TestComponent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to TestComponent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to TestComponent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to TestComponent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to TestComponent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to TestComponent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+[90mstderr[2m | src/features/dashboard/hooks/use-market-overview-timeline.test.tsx[2m > [22m[2museMarketOverviewTimeline[2m > [22m[2mpatches the current minute without recomputing the whole series
+[22m[39mAn update to TestComponent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to TestComponent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to TestComponent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to TestComponent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to TestComponent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to TestComponent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to TestComponent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to TestComponent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to TestComponent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+[90mstderr[2m | src/features/dashboard/hooks/use-market-overview-timeline.test.tsx[2m > [22m[2museMarketOverviewTimeline[2m > [22m[2mretains metric chipDelta when metric arrives before the first kbar for a new minute
+[22m[39mAn update to TestComponent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to TestComponent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to TestComponent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to TestComponent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to TestComponent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to TestComponent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to TestComponent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to TestComponent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to TestComponent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+[90mstderr[2m | src/features/dashboard/hooks/use-market-overview-timeline.test.tsx[2m > [22m[2museMarketOverviewTimeline[2m > [22m[2mskips baseline fetch when the user is a visitor
+[22m[39mAn update to TestComponent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+[90mstderr[2m | src/features/dashboard/hooks/use-market-overview-timeline.test.tsx[2m > [22m[2museMarketOverviewTimeline[2m > [22m[2mskips baseline fetch when the user is a visitor
+[22m[39mAn update to TestComponent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to TestComponent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to TestComponent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+An update to TestComponent inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+ [32m✓[39m src/features/dashboard/hooks/use-market-overview-timeline.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[33m 387[2mms[22m[39m
+ [32m✓[39m src/features/subscription/pages/SubscriptionPage.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[33m 1496[2mms[22m[39m
+   [33m[2m✓[22m[39m SubscriptionPage[2m > [22muses the shared page layout header and bento grid content layout [33m 734[2mms[22m[39m
+   [33m[2m✓[22m[39m SubscriptionPage[2m > [22mstretches the plan cards to fill the visible content area without relying on oversized fixed heights [33m 348[2mms[22m[39m
+ [32m✓[39m src/features/auth/pages/LoginPage.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[33m 2739[2mms[22m[39m
+   [33m[2m✓[22m[39m LoginPage[2m > [22mrenders login mode by default and switches to register mode [33m 981[2mms[22m[39m
+   [33m[2m✓[22m[39m LoginPage[2m > [22mshows backend error messages when auth fails [33m 431[2mms[22m[39m
+   [33m[2m✓[22m[39m LoginPage[2m > [22msubmits register with email verification and redirects to dashboard by default [33m 618[2mms[22m[39m
+   [33m[2m✓[22m[39m LoginPage[2m > [22mlocks resend and shows 60-second cooldown hint after sending otp [33m 344[2mms[22m[39m
+ [32m✓[39m src/lib/api/client.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 45[2mms[22m[39m
+[90mstdout[2m | src/components/ui/sidebar.test.tsx[2m > [22m[2mSidebar[2m > [22m[2mpins user info to the bottom section and keeps the toggle button near the header
+[22m[39mvisitor
+
+[90mstdout[2m | src/components/ui/sidebar.test.tsx[2m > [22m[2mSidebar[2m > [22m[2mshows a login link when the user is not authenticated
+[22m[39mvisitor
+
+[90mstdout[2m | src/components/ui/sidebar.test.tsx[2m > [22m[2mSidebar[2m > [22m[2mshows account and role from the current auth session when authenticated
+[22m[39madmin
+
+[90mstdout[2m | src/components/ui/sidebar.test.tsx[2m > [22m[2mSidebar[2m > [22m[2mopens settings modal with font, theme, billing portal and logout controls
+[22m[39mmember
+member
+member
+
+[90mstdout[2m | src/components/ui/sidebar.test.tsx[2m > [22m[2mSidebar[2m > [22m[2mdoes not show settings trigger when user is not authenticated
+[22m[39mvisitor
+
+ [32m✓[39m src/components/ui/sidebar.test.tsx [2m([22m[2m5 tests[22m[2m)[22m[33m 1533[2mms[22m[39m
+   [33m[2m✓[22m[39m Sidebar[2m > [22mpins user info to the bottom section and keeps the toggle button near the header [33m 681[2mms[22m[39m
+   [33m[2m✓[22m[39m Sidebar[2m > [22mopens settings modal with font, theme, billing portal and logout controls [33m 406[2mms[22m[39m
+ [32m✓[39m src/features/subscription/pages/CheckoutResultPage.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[33m 1130[2mms[22m[39m
+   [33m[2m✓[22m[39m CheckoutResultPage[2m > [22muses query session_id for success page verification and syncs billing status [33m 853[2mms[22m[39m
+ [32m✓[39m src/lib/guards/GuardedRoute.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[32m 215[2mms[22m[39m
+ [32m✓[39m src/features/dashboard/api/market-overview.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 32[2mms[22m[39m
+[90mstdout[2m | src/app/layout/AppShell.test.tsx[2m > [22m[2mAppShell[2m > [22m[2mrenders sidebar and main canvas regions
+[22m[39mvisitor
+
+[90mstdout[2m | src/app/layout/AppShell.test.tsx[2m > [22m[2mAppShell[2m > [22m[2mtoggles the sidebar collapsed state
+[22m[39mvisitor
+visitor
+visitor
+visitor
+
+ [32m✓[39m src/app/layout/AppShell.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[33m 1440[2mms[22m[39m
+   [33m[2m✓[22m[39m AppShell[2m > [22mrenders sidebar and main canvas regions [33m 759[2mms[22m[39m
+   [33m[2m✓[22m[39m AppShell[2m > [22mtoggles the sidebar collapsed state [33m 676[2mms[22m[39m
+[90mstderr[2m | src/features/dashboard/components/OrderFlowCard.test.tsx[2m > [22m[2mOrderFlowCard[2m > [22m[2mrenders the chart with the supplied series when loading is complete
+[22m[39mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(180) or use aspect(undefined) to control the
+       height and width.
+
+ [32m✓[39m src/features/dashboard/components/OrderFlowCard.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[33m 335[2mms[22m[39m
+[90mstderr[2m | src/features/dashboard/pages/RealtimeDashboardPage.test.tsx[2m > [22m[2mRealtimeDashboardPage[2m > [22m[2mrenders existing dashboard sections and the new SSE chart section at the bottom
+[22m[39mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+The width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(180) or use aspect(undefined) to control the
+       height and width.
+The width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(180) or use aspect(undefined) to control the
+       height and width.
+The width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(180) or use aspect(undefined) to control the
+       height and width.
+The width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(180) or use aspect(undefined) to control the
+       height and width.
+The width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(180) or use aspect(undefined) to control the
+       height and width.
+The width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+
+ [32m✓[39m src/features/dashboard/pages/RealtimeDashboardPage.test.tsx [2m([22m[2m1 test[22m[2m)[22m[33m 2108[2mms[22m[39m
+   [33m[2m✓[22m[39m RealtimeDashboardPage[2m > [22mrenders existing dashboard sections and the new SSE chart section at the bottom [33m 2101[2mms[22m[39m
+ [32m✓[39m src/components/ui/panel-header.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[33m 661[2mms[22m[39m
+   [33m[2m✓[22m[39m PanelHeader[2m > [22mshows note content when the info icon is hovered or focused [33m 439[2mms[22m[39m
+ [32m✓[39m src/features/dashboard/pages/HistoricalDataLoaderPage.test.tsx [2m([22m[2m1 test[22m[2m)[22m[33m 652[2mms[22m[39m
+   [33m[2m✓[22m[39m HistoricalDataLoaderPage[2m > [22mrenders load controls and status panel [33m 646[2mms[22m[39m
+ [32m✓[39m src/components/ui/page-header.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[33m 474[2mms[22m[39m
+   [33m[2m✓[22m[39m PageHeader[2m > [22mrenders title and context line [33m 424[2mms[22m[39m
+[90mstderr[2m | src/features/dashboard/pages/HistoricalAmplitudeDistributionPage.test.tsx[2m > [22m[2mHistoricalAmplitudeDistributionPage[2m > [22m[2mrenders histogram page and controls
+[22m[39mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the
+       height and width.
+
+ [32m✓[39m src/features/dashboard/pages/HistoricalAmplitudeDistributionPage.test.tsx [2m([22m[2m1 test[22m[2m)[22m[33m 866[2mms[22m[39m
+   [33m[2m✓[22m[39m HistoricalAmplitudeDistributionPage[2m > [22mrenders histogram page and controls [33m 859[2mms[22m[39m
+ [32m✓[39m src/components/ui/panel-card.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[33m 842[2mms[22m[39m
+   [33m[2m✓[22m[39m PanelCard[2m > [22mrenders a panel card with title, optional note trigger, and grid span classes [33m 707[2mms[22m[39m
+ [32m✓[39m src/components/ui/page-layout.test.tsx [2m([22m[2m1 test[22m[2m)[22m[33m 527[2mms[22m[39m
+   [33m[2m✓[22m[39m PageLayout[2m > [22mrenders a shared page header and body container [33m 521[2mms[22m[39m
+ [32m✓[39m src/components/ui/bento-grid.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[32m 245[2mms[22m[39m
+[90mstderr[2m | src/features/dashboard/pages/HistoricalDataAnalysisPage.test.tsx[2m > [22m[2mHistoricalDataAnalysisPage[2m > [22m[2mrenders the historical analysis title and historical signals grid
+[22m[39mThe width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(120) or use aspect(undefined) to control the
+       height and width.
+The width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(120) or use aspect(undefined) to control the
+       height and width.
+The width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(120) or use aspect(undefined) to control the
+       height and width.
+The width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(120) or use aspect(undefined) to control the
+       height and width.
+The width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(120) or use aspect(undefined) to control the
+       height and width.
+The width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(120) or use aspect(undefined) to control the
+       height and width.
+The width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(120) or use aspect(undefined) to control the
+       height and width.
+The width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(120) or use aspect(undefined) to control the
+       height and width.
+The width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(120) or use aspect(undefined) to control the
+       height and width.
+The width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(120) or use aspect(undefined) to control the
+       height and width.
+The width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(120) or use aspect(undefined) to control the
+       height and width.
+The width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(120) or use aspect(undefined) to control the
+       height and width.
+The width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(120) or use aspect(undefined) to control the
+       height and width.
+The width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(120) or use aspect(undefined) to control the
+       height and width.
+
+ [32m✓[39m src/features/dashboard/pages/HistoricalDataAnalysisPage.test.tsx [2m([22m[2m1 test[22m[2m)[22m[33m 1042[2mms[22m[39m
+   [33m[2m✓[22m[39m HistoricalDataAnalysisPage[2m > [22mrenders the historical analysis title and historical signals grid [33m 1034[2mms[22m[39m
+ [32m✓[39m src/features/admin/pages/AdminAuditPage.test.tsx [2m([22m[2m1 test[22m[2m)[22m[33m 521[2mms[22m[39m
+   [33m[2m✓[22m[39m AdminAuditPage[2m > [22muses the shared page layout header [33m 514[2mms[22m[39m
+ [32m✓[39m src/components/ui/badge.test.tsx [2m([22m[2m1 test[22m[2m)[22m[32m 182[2mms[22m[39m
+ [32m✓[39m src/features/dashboard/pages/MarketThermometerPage.test.tsx [2m([22m[2m1 test[22m[2m)[22m[33m 892[2mms[22m[39m
+   [33m[2m✓[22m[39m MarketThermometerPage[2m > [22mrenders market thermometer heading and 50 stock panels [33m 884[2mms[22m[39m
+ [31m❯[39m src/features/dashboard/components/DashboardMetricPanels.test.ts [2m([22m[2m2 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[32m 40[2mms[22m[39m
+[31m   [31m×[31m DashboardMetricPanels geometry[2m > [22muses a bottom-centered pivot for the half gauge[39m[32m 36[2mms[22m[39m
+[31m     → expected 60 to be 108 // Object.is equality[39m
+   [32m✓[39m DashboardMetricPanels geometry[2m > [22mrotates the needle around the same half-gauge center[32m 1[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m src/features/dashboard/components/DashboardMetricPanels.test.ts[2m > [22mDashboardMetricPanels geometry[2m > [22muses a bottom-centered pivot for the half gauge
+[31m[1mAssertionError[22m: expected 60 to be 108 // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 108[39m
+[31m+ 60[39m
+
+[36m [2m❯[22m src/features/dashboard/components/DashboardMetricPanels.test.ts:[2m11:29[22m[39m
+    [90m  9| [39m
+    [90m 10| [39m    [34mexpect[39m(geometry[33m.[39mwidth)[33m.[39m[34mtoBe[39m([34m144[39m)[33m;[39m
+    [90m 11| [39m    [34mexpect[39m(geometry[33m.[39mheight)[33m.[39m[34mtoBe[39m([34m108[39m)[33m;[39m
+    [90m   | [39m                            [31m^[39m
+    [90m 12| [39m    [34mexpect[39m(geometry[33m.[39mcx)[33m.[39m[34mtoBe[39m([34m72[39m)[33m;[39m
+    [90m 13| [39m    [34mexpect[39m(geometry[33m.[39mcy)[33m.[39m[34mtoBe[39m([34m82[39m)[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m24 passed[39m[22m[90m (25)[39m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m62 passed[39m[22m[90m (63)[39m
+[2m   Start at [22m 12:12:34
+[2m   Duration [22m 51.66s[2m (transform 8.20s, setup 16.82s, collect 129.89s, tests 18.45s, environment 108.56s, prepare 22.05s)[22m
+
