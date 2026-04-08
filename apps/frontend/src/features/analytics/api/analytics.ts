@@ -64,6 +64,21 @@ function parseOrThrow<T>(schema: ZodType<T>, payload: unknown): T {
   return parsed.data;
 }
 
+function normalizeRegistryPayload(payload: unknown, key: "events" | "metrics"): unknown {
+  if (!payload || typeof payload !== "object") {
+    return payload;
+  }
+
+  const record = payload as Record<string, unknown>;
+  if (Array.isArray(record[key])) {
+    return payload;
+  }
+  if (Array.isArray(record.items)) {
+    return { [key]: record.items };
+  }
+  return payload;
+}
+
 function normalizeAnalyticsError(error: unknown): never {
   if (error instanceof ApiError) {
     throw error;
@@ -73,13 +88,17 @@ function normalizeAnalyticsError(error: unknown): never {
 
 export function getAnalyticsEvents(token: string | null): Promise<AnalyticsEventsRegistryResponse> {
   return getJson<unknown>("/analytics/events", { headers: authHeaders(token) })
-    .then((payload) => parseOrThrow(AnalyticsEventsRegistryResponseSchema, payload))
+    .then((payload) =>
+      parseOrThrow(AnalyticsEventsRegistryResponseSchema, normalizeRegistryPayload(payload, "events")),
+    )
     .catch(normalizeAnalyticsError);
 }
 
 export function getAnalyticsMetrics(token: string | null): Promise<AnalyticsMetricsRegistryResponse> {
   return getJson<unknown>("/analytics/metrics", { headers: authHeaders(token) })
-    .then((payload) => parseOrThrow(AnalyticsMetricsRegistryResponseSchema, payload))
+    .then((payload) =>
+      parseOrThrow(AnalyticsMetricsRegistryResponseSchema, normalizeRegistryPayload(payload, "metrics")),
+    )
     .catch(normalizeAnalyticsError);
 }
 

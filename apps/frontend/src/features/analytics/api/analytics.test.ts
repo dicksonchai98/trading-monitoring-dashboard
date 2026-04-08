@@ -1,5 +1,5 @@
 import { ApiError } from "@/lib/api/client";
-import { getAnalyticsEvents } from "@/features/analytics/api/analytics";
+import { getAnalyticsEvents, getAnalyticsMetrics } from "@/features/analytics/api/analytics";
 
 describe("analytics api parsing and normalization", () => {
   const fetchMock = vi.fn<typeof fetch>();
@@ -39,5 +39,31 @@ describe("analytics api parsing and normalization", () => {
       code: "forbidden",
       status: 403,
     } satisfies Partial<ApiError>);
+  });
+
+  it("accepts events registry payload with items key", async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ items: [{ id: "event_a", label: "Event A" }] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await expect(getAnalyticsEvents("token")).resolves.toEqual({
+      events: [{ id: "event_a", label: "Event A" }],
+    });
+  });
+
+  it("accepts metrics registry payload with items key", async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ items: [{ id: "metric_a", label: "Metric A" }] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await expect(getAnalyticsMetrics("token")).resolves.toEqual({
+      metrics: [{ id: "metric_a", label: "Metric A" }],
+    });
   });
 });
