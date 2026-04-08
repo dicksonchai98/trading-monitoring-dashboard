@@ -11,7 +11,7 @@ _SYMBOL_PATTERN = re.compile(r"^\d{4}$")
 def parse_spot_symbols(content: str) -> list[str]:
     symbols: list[str] = []
     for raw_line in content.splitlines():
-        line = raw_line.strip()
+        line = raw_line.lstrip("\ufeff").strip()
         if not line or line.startswith("#"):
             continue
         symbols.append(line)

@@ -116,7 +116,12 @@ class MarketIngestionRunner:
         def on_spot_tick(_exchange: Any, tick: Any) -> None:
             self._on_spot_quote(tick)
 
-        def on_market_tick(_exchange: Any, quote: Any) -> None:
+        def on_market_tick(*args: Any) -> None:
+            # Market/index callbacks can differ by SDK version:
+            # some emit (exchange, quote), others emit only quote.
+            if not args:
+                return
+            quote = args[-1]
             self._on_market_quote(quote)
 
         def on_event(resp_code: int, event_code: int, info: str, event: str) -> None:
@@ -195,20 +200,37 @@ class MarketIngestionRunner:
     def _on_market_quote(self, quote: Any) -> None:
         if not self._market_enabled:
             return
-        code = str(getattr(quote, "code", self._market_code) or self._market_code).strip()
-        if not code:
-            code = self._market_code
-        event_ts_obj = getattr(quote, "datetime", datetime.utcnow())
-        isoformat = getattr(event_ts_obj, "isoformat", None)
-        event_ts = isoformat() if callable(isoformat) else str(event_ts_obj)
-        raw_payload = quote.to_dict(raw=True) if hasattr(quote, "to_dict") else dict(vars(quote))
+        raw_payload: dict[str, Any]
+        if isinstance(quote, dict):
+            raw_payload = dict(quote)
+            code_value = raw_payload.get(
+                "symbol",
+                raw_payload.get(
+                    "Symbol",
+                    raw_payload.get("code", raw_payload.get("Code", self._market_code)),
+                ),
+            )
+            event_ts = self._market_event_ts_from_payload(raw_payload)
+        else:
+            raw_payload = (
+                quote.to_dict(raw=True) if hasattr(quote, "to_dict") else dict(vars(quote))
+            )
+            code_value = getattr(quote, "symbol", getattr(quote, "code", self._market_code))
+            event_ts_obj = getattr(quote, "datetime", datetime.utcnow())
+            isoformat = getattr(event_ts_obj, "isoformat", None)
+            event_ts = isoformat() if callable(isoformat) else str(event_ts_obj)
+        code = self._canonical_market_code(code_value)
         payload = {
             "index_value": raw_payload.get(
-                "index_value", raw_payload.get("close", raw_payload.get("price"))
+                "index_value",
+                raw_payload.get("close", raw_payload.get("Close", raw_payload.get("price"))),
             ),
             "cumulative_turnover": raw_payload.get(
                 "cumulative_turnover",
-                raw_payload.get("amount", raw_payload.get("turnover")),
+                raw_payload.get(
+                    "amount",
+                    raw_payload.get("AmountSum", raw_payload.get("turnover")),
+                ),
             ),
             "raw_quote": raw_payload,
         }
@@ -221,6 +243,25 @@ class MarketIngestionRunner:
         )
         stream_key = build_stream_key(INGESTOR_ENV, "market", code)
         self._futures_pipeline.enqueue(stream_key=stream_key, event=event)
+
+    def _canonical_market_code(self, code_value: Any) -> str:
+        configured = str(self._market_code or "").strip().upper()
+        raw = str(code_value or "").strip().upper()
+        if raw in {"001", "TSE001"}:
+            return "TSE001"
+        if configured in {"001", "TSE001"}:
+            return "TSE001"
+        return configured or raw or "TSE001"
+
+    @staticmethod
+    def _market_event_ts_from_payload(raw_payload: dict[str, Any]) -> str:
+        for key in ("datetime", "DateTime", "event_ts", "EventTs", "Time"):
+            value = raw_payload.get(key)
+            if value:
+                if key in {"Time"} and raw_payload.get("Date"):
+                    return f"{raw_payload.get('Date')} {value}"
+                return str(value)
+        return datetime.utcnow().isoformat()
 
     async def start(self) -> None:
         self._loop = asyncio.get_running_loop()
