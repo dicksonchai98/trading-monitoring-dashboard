@@ -2,14 +2,14 @@ from __future__ import annotations
 
 import fnmatch
 from contextlib import suppress
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from app.db.session import SessionLocal
 from app.market_ingestion.writer import RedisWriter
 from app.market_summary.runner import MarketSummaryRunner
 from app.models.market_summary_1m import MarketSummary1mModel
 from app.services.metrics import Metrics
-from app.stream_processing.runner import build_state_key
+from app.stream_processing.runner import build_state_key, trade_date_for
 
 
 class FakeRedis:
@@ -131,6 +131,16 @@ def test_market_summary_consumes_and_writes_redis_state() -> None:
     assert series_key in redis.zsets
 
 
+def test_market_summary_accepts_slash_datetime_event_ts() -> None:
+    redis = FakeRedis()
+    runner = _build_runner(redis)
+    stream_key = "dev:stream:market:TSE001"
+    redis.xadd(stream_key, _market_fields("2026/04/06 10:30:01.000000"))
+
+    assert runner.consume_once() == 1
+    assert any(key.endswith("market_summary:latest") for key in redis.strings)
+
+
 def test_market_summary_rollover_persists_minute_snapshot() -> None:
     redis = FakeRedis()
     runner = _build_runner(redis)
@@ -218,3 +228,48 @@ def test_market_summary_duplicate_conflict_is_tolerated() -> None:
             .all()
         )
         assert len(rows) == 1
+
+
+def test_market_summary_computes_estimated_comparison_from_previous_trade_date() -> None:
+    redis = FakeRedis()
+    runner = _build_runner(redis)
+    event_ts = datetime.fromisoformat("2026-04-08T10:30:00+08:00")
+    current_trade_date = trade_date_for(event_ts)
+    previous_trade_date = current_trade_date - timedelta(days=1)
+
+    with SessionLocal() as session:
+        session.add(
+            MarketSummary1mModel(
+                market_code="TSE001",
+                trade_date=previous_trade_date,
+                minute_ts=datetime.fromisoformat("2026-04-07T10:30:00+08:00"),
+                index_value=20000.0,
+                cumulative_turnover=800.0,
+                completion_ratio=0.5,
+                estimated_turnover=1600.0,
+                yesterday_estimated_turnover=None,
+                estimated_turnover_diff=None,
+                estimated_turnover_ratio=None,
+                futures_code="MTX",
+                futures_price=20001.0,
+                spread=1.0,
+                spread_day_high=2.0,
+                spread_day_low=-1.0,
+                spread_strength=0.6,
+                spread_status="ok",
+                payload="{}",
+            )
+        )
+        session.commit()
+
+    snapshot = runner._build_snapshot(
+        code="TSE001",
+        event_ts=event_ts,
+        index_value=21000.0,
+        cumulative_turnover=1000.0,
+    )
+    assert snapshot.yesterday_estimated_turnover == 1600.0
+    assert snapshot.estimated_turnover is not None
+    assert snapshot.estimated_turnover_diff is not None
+    assert snapshot.estimated_turnover_ratio is not None
+    assert snapshot.estimated_turnover_diff == snapshot.estimated_turnover - 1600.0

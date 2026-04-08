@@ -71,6 +71,9 @@ def test_kbar_and_market_summary_models_include_extension_columns() -> None:
     assert "spread_day_low" in market_columns
     assert "spread_strength" in market_columns
     assert "spread_status" in market_columns
+    assert "yesterday_estimated_turnover" in market_columns
+    assert "estimated_turnover_diff" in market_columns
+    assert "estimated_turnover_ratio" in market_columns
 
 
 def test_batch_job_status_column_allows_longest_status_value() -> None:

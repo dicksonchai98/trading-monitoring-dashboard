@@ -21,6 +21,7 @@ from app.services.serving_store import (
     default_kbar_window,
     default_metric_window,
     fetch_current_kbar,
+    fetch_kbar_daily_amplitude,
     fetch_kbar_history,
     fetch_kbar_today_range,
     fetch_market_summary_history,
@@ -44,6 +45,21 @@ router = APIRouter(prefix="/v1", tags=["serving"])
 def _sse_message(event: str, data: dict[str, Any]) -> bytes:
     payload = json.dumps(data, ensure_ascii=True)
     return f"event: {event}\ndata: {payload}\n\n".encode()
+
+
+def _require_code(code: str | None) -> str:
+    normalized = (code or "").strip()
+    if not normalized:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="missing_code")
+    return normalized
+
+
+def _require_positive_days(days: int) -> int:
+    if days <= 0:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="invalid_days")
+    if days > 365:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="days_too_large")
+    return days
 
 
 @router.get("/health")
@@ -84,14 +100,18 @@ def kbar_today(
     ____: None = Depends(record_serving_latency),
 ) -> list[dict[str, Any]]:
     metrics.inc("serving_rest_requests_total")
+    requested_code = _require_code(code)
     time_range = resolve_time_range(from_ms, to_ms, from_, to, default_kbar_window())
     try:
-        return fetch_kbar_today_range(resolve_default_code(code), time_range)
+        data = fetch_kbar_today_range(requested_code, time_range)
     except Exception as err:
         metrics.inc("serving_redis_errors_total")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="redis_unavailable"
         ) from err
+    if not data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="kbar_not_found")
+    return data
 
 
 @router.get("/kbar/1m/history")
@@ -117,6 +137,30 @@ def kbar_history(
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="db_unavailable"
         ) from err
+
+
+@router.get("/kbar/1m/daily-amplitude")
+def kbar_daily_amplitude(
+    code: str | None = None,
+    n: int = 20,
+    session=Depends(get_db_session),
+    __: None = Depends(require_authenticated),
+    ___: None = Depends(enforce_serving_rate_limit),
+    ____: None = Depends(record_serving_latency),
+) -> list[dict[str, Any]]:
+    metrics.inc("serving_rest_requests_total")
+    requested_code = _require_code(code)
+    requested_days = _require_positive_days(n)
+    try:
+        data = fetch_kbar_daily_amplitude(session, requested_code, requested_days)
+    except Exception as err:
+        metrics.inc("serving_db_errors_total")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="db_unavailable"
+        ) from err
+    if not data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="kbar_not_found")
+    return data
 
 
 @router.get("/kbar/1m/range")
@@ -187,14 +231,18 @@ def bidask_today(
     ____: None = Depends(record_serving_latency),
 ) -> list[dict[str, Any]]:
     metrics.inc("serving_rest_requests_total")
+    requested_code = _require_code(code)
     time_range = resolve_time_range(from_ms, to_ms, from_, to, default_metric_window())
     try:
-        return fetch_metric_today_range(resolve_default_code(code), time_range)
+        data = fetch_metric_today_range(requested_code, time_range)
     except Exception as err:
         metrics.inc("serving_redis_errors_total")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="redis_unavailable"
         ) from err
+    if not data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="metric_not_found")
+    return data
 
 
 @router.get("/quote/latest")
@@ -370,12 +418,13 @@ async def stream_sse(
         "serving_sse_connections_active",
         metrics.counters.get("serving_sse_connections_active", 0) + 1,
     )
-    instrument = resolve_default_code(code)
+    instrument = _require_code(code)
 
     async def event_stream():
         last_kbar: dict[str, Any] | None = None
         last_metric: dict[str, Any] | None = None
-        last_heartbeat = 0.0
+        last_market_summary: dict[str, Any] | None = None
+        last_heartbeat = asyncio.get_running_loop().time()
         poll_interval = max(SERVING_POLL_INTERVAL_MS / 1000, 0.05)
         try:
             while True:
