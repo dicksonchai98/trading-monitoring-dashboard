@@ -2,13 +2,16 @@ import { getOrderFlowBaseline } from "@/features/dashboard/api/market-overview";
 
 describe("getOrderFlowBaseline", () => {
   const fetchMock = vi.fn<typeof fetch>();
+  const FIXED_NOW_MS = Date.parse("2026-04-08T10:15:30+08:00");
 
   beforeEach(() => {
     vi.stubGlobal("fetch", fetchMock);
+    vi.spyOn(Date, "now").mockReturnValue(FIXED_NOW_MS);
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
     vi.clearAllMocks();
   });
 
@@ -33,9 +36,10 @@ describe("getOrderFlowBaseline", () => {
     });
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
+    const expectedFromMs = Date.parse("2026-04-08T09:00:00+08:00");
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
-      expect.stringContaining("/v1/kbar/1m/today?code=TXF"),
+      expect.stringContaining(`/v1/kbar/1m/today?code=TXF&from_ms=${expectedFromMs}&to_ms=${FIXED_NOW_MS}`),
       expect.objectContaining({
         credentials: "include",
         method: "GET",
@@ -46,7 +50,7 @@ describe("getOrderFlowBaseline", () => {
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
-      expect.stringContaining("/v1/metric/bidask/today?code=TXF"),
+      expect.stringContaining(`/v1/metric/bidask/today?code=TXF&from_ms=${expectedFromMs}&to_ms=${FIXED_NOW_MS}`),
       expect.objectContaining({
         credentials: "include",
         method: "GET",

@@ -8,6 +8,7 @@ import type { ServingSseEventName } from "@/features/realtime/types/realtime.typ
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api";
 const STREAM_PATH = "/v1/stream/sse";
+const DEFAULT_STREAM_CODE = "TXF";
 
 interface StreamHttpError extends Error {
   status: number;
@@ -81,9 +82,7 @@ export function applyServingSseEvent(eventName: string, data: unknown): void {
     if (!parsed.success) {
       return;
     }
-    const candidateCode = useRealtimeStore.getState().kbarCurrentByCode;
-    const codes = Object.keys(candidateCode);
-    const fallbackCode = codes.length > 0 ? codes[0] : "MTX";
+    const fallbackCode = DEFAULT_STREAM_CODE;
     const payloadCode =
       typeof (data as { code?: unknown })?.code === "string"
         ? ((data as { code: string }).code || fallbackCode)
@@ -193,7 +192,9 @@ class RealtimeManager {
   }
 
   private async stream(signal: AbortSignal, token: string): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}${STREAM_PATH}`, {
+    const response = await fetch(
+      `${API_BASE_URL}${STREAM_PATH}?code=${encodeURIComponent(DEFAULT_STREAM_CODE)}`,
+      {
       method: "GET",
       signal,
       headers: {

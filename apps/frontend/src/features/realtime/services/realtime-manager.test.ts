@@ -66,6 +66,16 @@ describe("realtime-manager", () => {
     expect(state.metricLatestByCode.TXF?.main_force_big_order).toBe(9876);
   });
 
+  it("routes metric_latest without code to TXF fallback key", () => {
+    applyServingSseEvent("metric_latest", {
+      main_force_big_order: 321,
+      ts: 1775600460000,
+    });
+
+    const state = useRealtimeStore.getState();
+    expect(state.metricLatestByCode.TXF?.main_force_big_order).toBe(321);
+  });
+
   it("ignores invalid payloads without mutating store", () => {
     applyServingSseEvent("kbar_current", { code: "MTX" });
     applyServingSseEvent("heartbeat", { ts: "bad" });

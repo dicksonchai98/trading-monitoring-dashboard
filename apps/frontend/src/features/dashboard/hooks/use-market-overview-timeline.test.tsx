@@ -15,25 +15,29 @@ describe("useMarketOverviewTimeline", () => {
   const getOrderFlowBaselineMock = vi.mocked(getOrderFlowBaseline);
 
   beforeEach(() => {
-    useAuthStore.setState({
-      token: "token",
-      role: "member",
-      entitlement: "none",
-      resolved: true,
-      checkoutSessionId: null,
+    act(() => {
+      useAuthStore.setState({
+        token: "token",
+        role: "member",
+        entitlement: "none",
+        resolved: true,
+        checkoutSessionId: null,
+      });
+      useRealtimeStore.getState().resetRealtime();
     });
-    useRealtimeStore.getState().resetRealtime();
     getOrderFlowBaselineMock.mockReset();
   });
 
   afterEach(() => {
-    useRealtimeStore.getState().resetRealtime();
-    useAuthStore.setState({
-      token: null,
-      role: "visitor",
-      entitlement: "none",
-      resolved: false,
-      checkoutSessionId: null,
+    act(() => {
+      useRealtimeStore.getState().resetRealtime();
+      useAuthStore.setState({
+        token: null,
+        role: "visitor",
+        entitlement: "none",
+        resolved: false,
+        checkoutSessionId: null,
+      });
     });
     vi.clearAllMocks();
   });
@@ -231,12 +235,14 @@ describe("useMarketOverviewTimeline", () => {
   });
 
   it("skips baseline fetch when the user is a visitor", async () => {
-    useAuthStore.setState({
-      token: null,
-      role: "visitor",
-      entitlement: "none",
-      resolved: true,
-      checkoutSessionId: null,
+    act(() => {
+      useAuthStore.setState({
+        token: null,
+        role: "visitor",
+        entitlement: "none",
+        resolved: true,
+        checkoutSessionId: null,
+      });
     });
 
     const { result } = renderHook(() => useMarketOverviewTimeline());
