@@ -1,10 +1,9 @@
 import { useMemo, useState, type JSX } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { getAdminAuditLogs, seedAdminAuditLogs } from "@/features/admin/api/audit";
+import { getAdminAuditLogs } from "@/features/admin/api/audit";
 import type { AdminAuditEventView, AdminAuditResult } from "@/features/admin/api/types";
 import {
   formatAuditTimestamp,
@@ -84,13 +83,6 @@ export function AdminAuditPage(): JSX.Element {
       }),
     enabled: Boolean(token),
   });
-  const seedMutation = useMutation({
-    mutationFn: () => seedAdminAuditLogs(token ?? "", { count: 20, clear_before: true }),
-    onSuccess: async () => {
-      await logsQuery.refetch();
-    },
-  });
-
   const events = useMemo(
     () => normalizeAdminAuditEvents(logsQuery.data?.items ?? logsQuery.data?.events ?? []),
     [logsQuery.data?.events, logsQuery.data?.items],
@@ -128,21 +120,6 @@ export function AdminAuditPage(): JSX.Element {
       <p className="text-sm text-muted-foreground">
         Security and admin operation events with actor, action, path, result, and metadata.
       </p>
-      <div className="flex items-center gap-2">
-        <Button
-          type="button"
-          onClick={() => seedMutation.mutate()}
-          disabled={!token || seedMutation.isPending}
-        >
-          {seedMutation.isPending ? "Seeding..." : "Seed Demo Logs"}
-        </Button>
-        <Button type="button" variant="outline" onClick={() => logsQuery.refetch()} disabled={logsQuery.isFetching}>
-          Refresh
-        </Button>
-        {seedMutation.isError ? (
-          <span className="text-xs text-danger">Seed failed</span>
-        ) : null}
-      </div>
 
       <Card className="space-y-3">
         <p className="text-xs font-semibold text-foreground">Filters</p>
