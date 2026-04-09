@@ -6,7 +6,6 @@ import {
   Cell,
   Pie,
   PieChart,
-  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -18,6 +17,8 @@ import { Card } from "@/components/ui/card";
 import { useKbarCurrent } from "@/features/realtime/hooks/use-kbar-current";
 import { useMarketSummaryLatest } from "@/features/realtime/hooks/use-market-summary-latest";
 import { useMetricLatest } from "@/features/realtime/hooks/use-metric-latest";
+import { useSpotLatestList } from "@/features/realtime/hooks/use-spot-latest-list";
+import { useOtcIndexSeries } from "@/features/dashboard/hooks/use-otc-index-series";
 import { PanelCard } from "@/components/ui/panel-card";
 
 interface MetricPanelConfig {
@@ -42,25 +43,25 @@ interface HalfGaugeGeometry {
 
 interface GapKlineDatum {
   symbol: string;
-  prevClose: number;
   open: number;
   high: number;
   low: number;
   close: number;
-  current: number;
+  changePct: number;
 }
 
 const KLINE_UP_COLOR = "#ef4444";
 const KLINE_DOWN_COLOR = "#22c55e";
+const GAP_K_SYMBOLS = ["2330", "2317", "2454", "2308", "2881", "6505"] as const;
 
 const NEEDLE_BASE_RADIUS_PX = 4;
 const gaugeValues = [74, 66, 58, 82, 63];
 const GROUPED_INTEGER_FORMATTER = new Intl.NumberFormat("en-US");
-const coreMetricLabels = ["振幅", "預估量", "價差"] as const;
+const coreMetricLabels = ["日振幅", "预估成交值", "价差"] as const;
 const contributionMetrics = [
-  { label: "臺積電貢獻點數", value: "+84" },
-  { label: "權值前20貢獻點數", value: "+176" },
-  { label: "上市漲跌家數", value: "612 / 356" },
+  { label: "上涨家数", value: "+84" },
+  { label: "20日净流入", value: "+176" },
+  { label: "多空力道", value: "612 / 356" },
 ];
 function buildOtcIntradaySeries(): Array<{
   time: string;
@@ -109,62 +110,14 @@ function buildOtcIntradaySeries(): Array<{
 }
 
 const otcIndexSeries = buildOtcIntradaySeries();
-const gapKlineData: GapKlineDatum[] = [
-  {
-    symbol: "臺積電",
-    prevClose: 966,
-    open: 978,
-    high: 990,
-    low: 962,
-    close: 985,
-    current: 988,
-  },
-  {
-    symbol: "臺達電",
-    prevClose: 352,
-    open: 347,
-    high: 356,
-    low: 342,
-    close: 345,
-    current: 344,
-  },
-  {
-    symbol: "鴻海",
-    prevClose: 204,
-    open: 209,
-    high: 214,
-    low: 201,
-    close: 212,
-    current: 211,
-  },
-  {
-    symbol: "聯發科",
-    prevClose: 1260,
-    open: 1238,
-    high: 1276,
-    low: 1228,
-    close: 1268,
-    current: 1272,
-  },
-  {
-    symbol: "櫃買指數",
-    prevClose: 262.1,
-    open: 263.4,
-    high: 265.2,
-    low: 261.3,
-    close: 264.6,
-    current: 264.2,
-  },
-  {
-    symbol: "日經指數",
-    prevClose: 39280,
-    open: 39540,
-    high: 39810,
-    low: 39180,
-    close: 39720,
-    current: 39660,
-  },
-];
+const EMPTY_GAP_ROW: GapKlineDatum = {
+  symbol: "",
+  open: 0,
+  high: 0,
+  low: 0,
+  close: 0,
+  changePct: 0,
+};
 
 export function getHalfGaugeGeometry(): HalfGaugeGeometry {
   return {
@@ -214,6 +167,10 @@ function formatGroupedInteger(value: number): string {
   return GROUPED_INTEGER_FORMATTER.format(Math.trunc(value));
 }
 
+function formatYiUnit(value: number): string {
+  return `${(value / 100_000_000).toFixed(2)}億`;
+}
+
 function formatPercentage(value: number): string {
   return `${(value * 100).toFixed(1)}%`;
 }
@@ -225,8 +182,8 @@ function formatCoreMetricValue(
   if (value === null) {
     return "--";
   }
-  if (label === "預估量") {
-    return formatGroupedInteger(value);
+  if (label === "预估成交值") {
+    return formatYiUnit(value);
   }
   return formatFixed2(value);
 }
@@ -260,8 +217,7 @@ function MainForceHalfGauge({
               innerRadius={66}
               outerRadius={96}
               stroke="none"
-              isAnimationActive
-              animationDuration={320}
+              isAnimationActive={false}
             >
               {data.map((entry) => (
                 <Cell key={entry.name} fill={entry.fill} />
@@ -428,6 +384,33 @@ function MetricMiniPanel({
 }
 
 function OtcIndexLinePanel(): JSX.Element {
+  const { series } = useOtcIndexSeries();
+  const chartData = series;
+  const xTicks =
+    chartData.length > 0
+      ? [
+          chartData[0]?.minuteTs,
+          chartData.find((point) => point.time === "10:00")?.minuteTs,
+          chartData.find((point) => point.time === "11:00")?.minuteTs,
+          chartData.find((point) => point.time === "12:00")?.minuteTs,
+          chartData.find((point) => point.time === "13:00")?.minuteTs,
+          chartData[chartData.length - 1]?.minuteTs,
+        ].filter((value): value is number => typeof value === "number")
+      : [];
+  const latest = chartData[chartData.length - 1];
+  const latestValue =
+    latest && Number.isFinite(latest.value) ? latest.value.toFixed(2) : "--";
+  const latestChange =
+    latest && Number.isFinite(latest.change)
+      ? `${latest.change >= 0 ? "+" : ""}${latest.change.toFixed(2)}`
+      : "--";
+  const latestChangeColor =
+    latest && Number.isFinite(latest.change)
+      ? latest.change >= 0
+        ? "text-red-500"
+        : "text-green-500"
+      : "text-muted-foreground";
+
   return (
     <PanelCard
       title="OTC 櫃買指數"
@@ -437,87 +420,197 @@ function OtcIndexLinePanel(): JSX.Element {
       contentClassName="pt-[var(--panel-gap)]"
       data-testid="live-metrics-otc-line-panel"
     >
-      <div className="h-full min-h-[120px] w-full" data-testid="panel-chart">
-        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-          <AreaChart
-            data={otcIndexSeries}
-            margin={{ top: 8, right: 8, bottom: 2, left: -20 }}
-          >
-            <XAxis
-              dataKey="time"
-              axisLine={false}
-              tickLine={false}
-              tick={{ fill: "hsl(var(--subtle-foreground))", fontSize: 10 }}
-              ticks={["09:00", "10:00", "11:00", "12:00", "13:00"]}
-            />
-            <YAxis
-              axisLine={false}
-              tickLine={false}
-              tick={{ fill: "hsl(var(--subtle-foreground))", fontSize: 10 }}
-              domain={["dataMin - 0.3", "dataMax + 0.3"]}
-              ticks={[0]}
-              width={26}
-            />
-            <ReferenceLine
-              y={0}
-              stroke="hsl(var(--border-strong))"
-              strokeDasharray="3 3"
-            />
-            <Area
-              dataKey="upChange"
-              dot={false}
-              fill="rgba(239, 68, 68, 0.18)"
-              isAnimationActive={false}
-              stroke="#ef4444"
-              strokeWidth={1.8}
-              type="linear"
-            />
-            <Area
-              dataKey="downChange"
-              dot={false}
-              fill="rgba(34, 197, 94, 0.18)"
-              isAnimationActive={false}
-              stroke="#22c55e"
-              strokeWidth={1.8}
-              type="linear"
-            />
+      <div className="mb-1 flex items-center justify-end gap-2 text-xs">
+        <span className="font-semibold text-foreground" data-testid="otc-latest-value">
+          {latestValue}
+        </span>
+        <span className={latestChangeColor} data-testid="otc-latest-change">
+          {latestChange}
+        </span>
+      </div>
+      {chartData.length === 0 ? (
+        <div className="flex h-full min-h-[120px] items-center justify-center text-xs text-muted-foreground">
+          No OTC data
+        </div>
+      ) : (
+        <div className="h-full min-h-[120px] w-full" data-testid="panel-chart">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+            <AreaChart
+              data={chartData}
+              margin={{ top: 8, right: 8, bottom: 2, left: -8 }}
+            >
+              <XAxis
+                dataKey="minuteTs"
+                domain={["dataMin", "dataMax"]}
+                scale="time"
+                type="number"
+                axisLine={false}
+                tickLine={false}
+                tick={false}
+                ticks={xTicks}
+              />
+              <YAxis
+                axisLine={false}
+                tickLine={false}
+                tick={{ fill: "hsl(var(--subtle-foreground))", fontSize: 10 }}
+                domain={["dataMin - 0.2", "dataMax + 0.2"]}
+                width={32}
+                tickFormatter={(value) => Number(value).toFixed(0)}
+              />
+              <Tooltip
+                formatter={(value) => [Number(value).toFixed(2), "OTC"]}
+                labelFormatter={(label) =>
+                  new Date(Number(label)).toLocaleString("zh-TW", {
+                    hour12: false,
+                    month: "2-digit",
+                    day: "2-digit",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    timeZone: "Asia/Taipei",
+                  })
+                }
+                contentStyle={{
+                  backgroundColor: "rgba(15, 23, 42, 0.94)",
+                  border: "1px solid rgba(248, 250, 252, 0.16)",
+                  borderRadius: 8,
+                  padding: "8px 10px",
+                }}
+                labelStyle={{
+                  color: "#f8fafc",
+                  fontSize: 12,
+                  lineHeight: "16px",
+                  marginBottom: 4,
+                }}
+                itemStyle={{
+                  color: "#fecaca",
+                  fontSize: 12,
+                  lineHeight: "16px",
+                }}
+              />
+              <Area
+                dataKey="value"
+                dot={false}
+                fill="rgba(239, 68, 68, 0.18)"
+                isAnimationActive={false}
+                stroke="#ef4444"
+                strokeWidth={1.8}
+                type="linear"
+              />
           </AreaChart>
         </ResponsiveContainer>
       </div>
+      )}
     </PanelCard>
   );
 }
 
 function GapKlinePanelChart(): JSX.Element {
+  const spotLatestList = useSpotLatestList();
+  const [sessionOpenBySymbol, setSessionOpenBySymbol] = useState<
+    Record<string, number>
+  >({});
+  const spotBySymbol = new Map(
+    (spotLatestList?.items ?? []).map((item) => [item.symbol, item]),
+  );
+
+  useEffect(() => {
+    const incoming = spotLatestList?.items ?? [];
+    if (incoming.length === 0) {
+      return;
+    }
+    setSessionOpenBySymbol((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      for (const item of incoming) {
+        if (
+          typeof item.last_price === "number" &&
+          Number.isFinite(item.last_price) &&
+          next[item.symbol] === undefined
+        ) {
+          next[item.symbol] = item.last_price;
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [spotLatestList]);
+
+  const gapKlineData: GapKlineDatum[] = GAP_K_SYMBOLS.map((symbol) => {
+    const latest = spotBySymbol.get(symbol);
+    const close = latest?.last_price;
+    const openFromSse = latest?.open;
+    const highFromSse = latest?.high;
+    const lowFromSse = latest?.low;
+    const closeFromSse = latest?.close;
+    const sessionHigh = latest?.session_high;
+    const sessionLow = latest?.session_low;
+    const sessionOpen = sessionOpenBySymbol[symbol];
+    const resolvedClose =
+      typeof closeFromSse === "number" && Number.isFinite(closeFromSse)
+        ? closeFromSse
+        : close;
+    if (typeof resolvedClose !== "number" || !Number.isFinite(resolvedClose)) {
+      return { ...EMPTY_GAP_ROW, symbol };
+    }
+
+    const open =
+      typeof openFromSse === "number" && Number.isFinite(openFromSse)
+        ? openFromSse
+        : typeof sessionOpen === "number" && Number.isFinite(sessionOpen)
+          ? sessionOpen
+          : resolvedClose;
+    const highBase =
+      typeof highFromSse === "number" && Number.isFinite(highFromSse)
+        ? highFromSse
+        : typeof sessionHigh === "number" && Number.isFinite(sessionHigh)
+          ? sessionHigh
+          : Math.max(open, resolvedClose);
+    const lowBase =
+      typeof lowFromSse === "number" && Number.isFinite(lowFromSse)
+        ? lowFromSse
+        : typeof sessionLow === "number" && Number.isFinite(sessionLow)
+          ? sessionLow
+          : Math.min(open, resolvedClose);
+
+    const high = Math.max(highBase, open, resolvedClose);
+    const low = Math.min(lowBase, open, resolvedClose);
+    const changePct = open === 0 ? 0 : ((resolvedClose - open) / open) * 100;
+
+    return {
+      symbol,
+      open,
+      high,
+      low,
+      close: resolvedClose,
+      changePct,
+    };
+  });
+
   const width = 620;
   const height = 190;
   const margin = { top: 16, right: 10, bottom: 50, left: 44 };
   const plotWidth = width - margin.left - margin.right;
   const plotHeight = height - margin.top - margin.bottom;
-  const normalizedData = gapKlineData.map((item) => {
-    const toPct = (value: number): number =>
-      ((value - item.prevClose) / item.prevClose) * 100;
-
-    return {
-      ...item,
-      openPct: toPct(item.open),
-      highPct: toPct(item.high),
-      lowPct: toPct(item.low),
-      closePct: toPct(item.close),
-      currentPct: toPct(item.current),
-    };
-  });
-  const pctMin = Math.min(...normalizedData.map((item) => item.lowPct));
-  const pctMax = Math.max(...normalizedData.map((item) => item.highPct));
-  const paddedMin = pctMin - (pctMax - pctMin) * 0.08;
-  const paddedMax = pctMax + (pctMax - pctMin) * 0.08;
+  const validRows = gapKlineData.filter(
+    (item) =>
+      item.high > 0 &&
+      Number.isFinite(item.open) &&
+      Number.isFinite(item.high) &&
+      Number.isFinite(item.low) &&
+      Number.isFinite(item.close),
+  );
+  const baseMin = validRows.length > 0 ? Math.min(...validRows.map((item) => item.low)) : 0;
+  const baseMax = validRows.length > 0 ? Math.max(...validRows.map((item) => item.high)) : 1;
+  const range = Math.max(baseMax - baseMin, 1);
+  const paddedMin = baseMin - range * 0.08;
+  const paddedMax = baseMax + range * 0.08;
   const tickCount = 5;
-  const step = plotWidth / normalizedData.length;
+  const step = plotWidth / gapKlineData.length;
   const bodyWidth = Math.min(34, step * 0.56);
 
-  const yScale = (valuePct: number): number =>
+  const yScale = (price: number): number =>
     margin.top +
-    ((paddedMax - valuePct) / (paddedMax - paddedMin)) * plotHeight;
+    ((paddedMax - price) / (paddedMax - paddedMin)) * plotHeight;
 
   return (
     <div
@@ -554,23 +647,46 @@ function GapKlinePanelChart(): JSX.Element {
                   fontSize={10}
                   textAnchor="end"
                 >
-                  {`${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%`}
+                  {`${pct.toFixed(1)}`}
                 </text>
               </g>
             );
           })}
-          {normalizedData.map((item, index) => {
+          {gapKlineData.map((item, index) => {
+            if (item.high <= 0) {
+              const centerX = margin.left + step * index + step / 2;
+              return (
+                <g key={item.symbol}>
+                  <text
+                    x={centerX}
+                    y={height / 2}
+                    fill="hsl(var(--subtle-foreground))"
+                    fontSize={9}
+                    textAnchor="middle"
+                  >
+                    --
+                  </text>
+                  <text
+                    x={centerX}
+                    y={height - 24}
+                    fill="hsl(var(--subtle-foreground))"
+                    fontSize={10}
+                    textAnchor="middle"
+                  >
+                    {item.symbol}
+                  </text>
+                </g>
+              );
+            }
             const centerX = margin.left + step * index + step / 2;
-            const openY = yScale(item.openPct);
-            const closeY = yScale(item.closePct);
-            const highY = yScale(item.highPct);
-            const lowY = yScale(item.lowPct);
+            const openY = yScale(item.open);
+            const closeY = yScale(item.close);
+            const highY = yScale(item.high);
+            const lowY = yScale(item.low);
             const isUp = item.close >= item.open;
             const bodyY = Math.min(openY, closeY);
             const bodyHeight = Math.max(2, Math.abs(closeY - openY));
             const fill = isUp ? KLINE_UP_COLOR : KLINE_DOWN_COLOR;
-            const gapPct =
-              ((item.open - item.prevClose) / item.prevClose) * 100;
 
             return (
               <g key={item.symbol}>
@@ -602,11 +718,11 @@ function GapKlinePanelChart(): JSX.Element {
                 <text
                   x={centerX}
                   y={height - 10}
-                  fill={gapPct >= 0 ? KLINE_UP_COLOR : KLINE_DOWN_COLOR}
+                  fill={item.changePct >= 0 ? KLINE_UP_COLOR : KLINE_DOWN_COLOR}
                   fontSize={9}
                   textAnchor="middle"
                 >
-                  {`${gapPct >= 0 ? "+" : ""}${gapPct.toFixed(1)}%`}
+                  {`${item.changePct >= 0 ? "+" : ""}${item.changePct.toFixed(1)}%`}
                 </text>
               </g>
             );
@@ -635,16 +751,16 @@ export function DashboardMetricPanels(): JSX.Element {
   let gaugeIndex = 0;
   const coreMetrics = [
     {
-      label: "振幅",
-      value: formatCoreMetricValue("振幅", stickyDayAmplitude),
+      label: "日振幅",
+      value: formatCoreMetricValue("日振幅", stickyDayAmplitude),
     },
     {
-      label: "預估量",
-      value: formatCoreMetricValue("預估量", stickyEstimatedTurnover),
+      label: "预估成交值",
+      value: formatCoreMetricValue("预估成交值", stickyEstimatedTurnover),
     },
     {
-      label: "價差",
-      value: formatCoreMetricValue("價差", stickySpread),
+      label: "价差",
+      value: formatCoreMetricValue("价差", stickySpread),
     },
   ];
 
@@ -728,3 +844,5 @@ export function DashboardMetricPanels(): JSX.Element {
     </BentoGridSection>
   );
 }
+
+
