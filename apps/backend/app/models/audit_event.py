@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import DateTime, Index, String, Text, text
+from sqlalchemy import JSON, DateTime, Index, String, Text, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -42,11 +42,12 @@ class AuditEventModel(Base):
     actor: Mapped[str | None] = mapped_column(String(128), nullable=True)
     role: Mapped[str | None] = mapped_column(String(32), nullable=True)
     result: Mapped[str | None] = mapped_column(String(16), nullable=True)
-    metadata: Mapped[dict[str, Any]] = mapped_column(
-        JSONB(astext_type=Text()),
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(
+        "metadata",
+        JSON().with_variant(JSONB(astext_type=Text()), "postgresql"),
         nullable=False,
         default=dict,
-        server_default=text("'{}'::jsonb"),
+        server_default=text("'{}'"),
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

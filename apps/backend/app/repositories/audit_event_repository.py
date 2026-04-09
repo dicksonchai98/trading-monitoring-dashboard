@@ -47,7 +47,7 @@ class AuditEventRepository:
                 actor=actor,
                 role=role,
                 result=result,
-                metadata=metadata or {},
+                metadata_json=metadata or {},
                 created_at=created_at,
             )
             session.add(model)
@@ -117,6 +117,6 @@ class AuditEventRepository:
             actor=model.actor,
             role=model.role,
             result=model.result,
-            metadata=dict(model.metadata or {}),
+            metadata=dict(model.metadata_json or {}),
             created_at=model.created_at,
         )
