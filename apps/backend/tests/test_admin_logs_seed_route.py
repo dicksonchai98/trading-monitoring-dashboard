@@ -4,7 +4,7 @@ from app.db.session import SessionLocal
 from app.main import app
 from app.repositories.user_repository import UserRepository
 from app.security.passwords import hash_password
-from app.state import audit_log
+from app.state import audit_event_repository
 from fastapi.testclient import TestClient
 
 
@@ -21,7 +21,7 @@ def _login(client: TestClient, username: str, password: str) -> str:
 
 def test_seed_admin_logs_inserts_events_and_returns_total() -> None:
     client = TestClient(app)
-    audit_log.events.clear()
+    audit_event_repository.delete_all()
     _create_admin()
     token = _login(client, "seed-admin@example.com", "seed-pass")
 
@@ -37,6 +37,6 @@ def test_seed_admin_logs_inserts_events_and_returns_total() -> None:
 
     logs_response = client.get("/api/admin/logs", headers={"Authorization": f"Bearer {token}"})
     assert logs_response.status_code == 200
-    events = logs_response.json()["events"]
+    events = logs_response.json()["items"]
     assert len(events) == 4
     assert any(item["event_type"] == "crawler_run_triggered" for item in events)

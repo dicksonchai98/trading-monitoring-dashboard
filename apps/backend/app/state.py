@@ -81,6 +81,7 @@ from app.db.session import SessionLocal
 from app.latest_state.runner import LatestStateRunner
 from app.market_ingestion.runner import MarketIngestionRunner
 from app.market_summary.runner import MarketSummaryRunner
+from app.models.audit_event import AuditEventModel
 from app.models.batch_job import BatchJobModel
 from app.models.bidask_metric_1s import BidAskMetric1sModel
 from app.models.billing_event import BillingEventModel
@@ -96,6 +97,7 @@ from app.models.subscription import SubscriptionModel
 from app.models.user import UserModel
 from app.otc_summary.runner import OtcSummaryRunner
 from app.quote_processing.runner import QuoteWorkerRunner
+from app.repositories.audit_event_repository import AuditEventRepository
 from app.repositories.billing_event_repository import BillingEventRepository
 from app.repositories.email_delivery_log_repository import EmailDeliveryLogRepository
 from app.repositories.email_outbox_repository import EmailOutboxRepository
@@ -128,9 +130,10 @@ otp_challenge_repository = OtpChallengeRepository(session_factory=SessionLocal)
 otp_verification_token_repository = OtpVerificationTokenRepository(session_factory=SessionLocal)
 email_outbox_repository = EmailOutboxRepository(session_factory=SessionLocal)
 email_delivery_log_repository = EmailDeliveryLogRepository(session_factory=SessionLocal)
+audit_event_repository = AuditEventRepository(session_factory=SessionLocal)
 metrics = Metrics()
 denylist = RefreshDenylist(repo=refresh_denylist_repository)
-audit_log = AuditLog()
+audit_log = AuditLog(repository=audit_event_repository, metrics=metrics)
 auth_service = AuthService(user_repository=user_repository, denylist=denylist, metrics=metrics)
 otp_service = OtpService(
     user_repository=user_repository,
@@ -382,6 +385,7 @@ def reset_state_for_tests() -> None:
     otp_service.reset_rate_limits()
     email_outbox_dispatcher = None
     with SessionLocal() as session:
+        session.execute(delete(AuditEventModel))
         session.execute(delete(EmailDeliveryLogModel))
         session.execute(delete(EmailOutboxModel))
         session.execute(delete(OtpVerificationTokenModel))

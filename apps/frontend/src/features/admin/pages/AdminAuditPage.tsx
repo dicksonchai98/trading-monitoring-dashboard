@@ -72,8 +72,16 @@ export function AdminAuditPage(): JSX.Element {
   };
 
   const logsQuery = useQuery({
-    queryKey: ["admin", "audit", token],
-    queryFn: () => getAdminAuditLogs(token ?? ""),
+    queryKey: ["admin", "audit", token, actionFilter, resultFilter, actorFilter, pathFilter],
+    queryFn: () =>
+      getAdminAuditLogs(token ?? "", {
+        action: actionFilter,
+        result: resultFilter,
+        actor: actorFilter,
+        path: pathFilter,
+        limit: 200,
+        offset: 0,
+      }),
     enabled: Boolean(token),
   });
   const seedMutation = useMutation({
@@ -84,8 +92,8 @@ export function AdminAuditPage(): JSX.Element {
   });
 
   const events = useMemo(
-    () => normalizeAdminAuditEvents(logsQuery.data?.events ?? []),
-    [logsQuery.data?.events],
+    () => normalizeAdminAuditEvents(logsQuery.data?.items ?? logsQuery.data?.events ?? []),
+    [logsQuery.data?.events, logsQuery.data?.items],
   );
   const actionOptions = useMemo(() => {
     const set = new Set(events.map((item) => item.action));

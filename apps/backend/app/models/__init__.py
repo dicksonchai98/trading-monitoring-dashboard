@@ -1,5 +1,6 @@
 """ORM models."""
 
+from app.models.audit_event import AuditEventModel
 from app.models.batch_job import BatchJobModel
 from app.models.bidask_metric_1s import BidAskMetric1sModel
 from app.models.billing_event import BillingEventModel
@@ -18,6 +19,7 @@ from app.models.user import UserModel
 
 __all__ = [
     "UserModel",
+    "AuditEventModel",
     "RefreshTokenDenylistModel",
     "SubscriptionModel",
     "BillingEventModel",

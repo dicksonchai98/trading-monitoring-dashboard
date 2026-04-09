@@ -21,6 +21,16 @@ function resolveAuditResult(eventType: string): AdminAuditResult {
   return "unknown";
 }
 
+function isAdminAuditResult(value: unknown): value is AdminAuditResult {
+  return (
+    value === "success" ||
+    value === "accepted" ||
+    value === "denied" ||
+    value === "error" ||
+    value === "unknown"
+  );
+}
+
 function toSummary(event: AdminAuditEvent): string {
   const metadata = event.metadata ?? {};
   const jobId = metadata.job_id;
@@ -57,13 +67,13 @@ function makeId(event: AdminAuditEvent, index: number): string {
 export function normalizeAdminAuditEvents(events: AdminAuditEvent[]): AdminAuditEventView[] {
   return events
     .map((event, index) => ({
-      id: makeId(event, index),
+      id: typeof event.id === "number" ? String(event.id) : makeId(event, index),
       timeMs: toEpochMs(event.timestamp),
       action: event.event_type,
       actor: event.actor ?? "-",
       role: event.role ?? "-",
       path: event.path,
-      result: resolveAuditResult(event.event_type),
+      result: isAdminAuditResult(event.result) ? event.result : resolveAuditResult(event.event_type),
       summary: toSummary(event),
       metadata: event.metadata ?? null,
       raw: event,

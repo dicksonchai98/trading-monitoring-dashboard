@@ -26,24 +26,29 @@ describe("AdminAuditPage", () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
-        events: [
+        items: [
           {
+            id: 11,
             event_type: "admin_access_denied",
             path: "/api/admin/batch/jobs",
             actor: "member-01",
             role: "member",
+            result: "denied",
             timestamp: "2026-04-09T09:01:00+08:00",
             metadata: null,
           },
           {
+            id: 12,
             event_type: "crawler_run_triggered",
             path: "/api/admin/batch/crawler/jobs",
             actor: "admin-01",
             role: "admin",
+            result: "accepted",
             timestamp: "2026-04-09T09:02:00+08:00",
             metadata: { job_id: 99 },
           },
         ],
+        pagination: { limit: 200, offset: 0, total: 2 },
       }),
     });
     vi.stubGlobal("fetch", fetchMock);
@@ -89,6 +94,7 @@ describe("AdminAuditPage", () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
+        pagination: { limit: 200, offset: 0, total: 2 },
         events: [
           {
             event_type: "admin_access_denied",
