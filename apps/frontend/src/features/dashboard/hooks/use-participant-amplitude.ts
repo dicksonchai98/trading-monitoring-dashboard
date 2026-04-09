@@ -17,7 +17,6 @@ interface ParticipantCandlePoint {
   close: number;
   amplitude: number;
   isRealtime: boolean;
-  wickColor: string;
 }
 
 interface ParticipantAmplitudeSummary {
@@ -35,11 +34,15 @@ interface UseParticipantAmplitudeResult {
   error: string | null;
 }
 
-const dayLabelFormatter = new Intl.DateTimeFormat("en-GB", {
+const dayLabelFormatter = new Intl.DateTimeFormat("en-US", {
   timeZone: "Asia/Taipei",
   month: "2-digit",
   day: "2-digit",
 });
+
+function normalizeAmplitude(value: number): number {
+  return Math.abs(value);
+}
 
 function formatDayLabel(isoDate: string): string {
   const parsed = Date.parse(`${isoDate}T00:00:00+08:00`);
@@ -47,6 +50,10 @@ function formatDayLabel(isoDate: string): string {
     return isoDate;
   }
   return dayLabelFormatter.format(new Date(parsed));
+}
+
+function resolveTodayDayLabelInTaipei(): string {
+  return dayLabelFormatter.format(new Date());
 }
 
 function computeSummary(closedSeries: ParticipantCandlePoint[]): ParticipantAmplitudeSummary {
@@ -76,9 +83,8 @@ function toClosedSeries(rows: DailyAmplitudePoint[]): ParticipantCandlePoint[] {
     high: row.high,
     low: row.low,
     close: row.close,
-    amplitude: row.day_amplitude,
+    amplitude: normalizeAmplitude(row.day_amplitude),
     isRealtime: false,
-    wickColor: row.close >= row.open ? "#ef4444" : "#22c55e",
   }));
 }
 
@@ -92,17 +98,20 @@ function aggregateTodayKbar(kbars: KbarTodayPoint[]): ParticipantCandlePoint | n
   const high = Math.max(...asc.map((item) => item.high));
   const low = Math.min(...asc.map((item) => item.low));
   const tradeDate = first.trade_date;
+  const amplitude =
+    typeof last.day_amplitude === "number"
+      ? normalizeAmplitude(last.day_amplitude)
+      : normalizeAmplitude(high - low);
 
   return {
-    day: formatDayLabel(tradeDate),
+    day: resolveTodayDayLabelInTaipei(),
     tradeDate,
     open: first.open,
     high,
     low,
     close: last.close,
-    amplitude: high - low,
+    amplitude,
     isRealtime: true,
-    wickColor: last.close >= first.open ? "#ef4444" : "#22c55e",
   };
 }
 
@@ -121,10 +130,10 @@ function patchRealtimeTodayCandle(
   if (!current) {
     const amplitude =
       typeof kbarCurrent.day_amplitude === "number"
-        ? kbarCurrent.day_amplitude
-        : kbarCurrent.high - kbarCurrent.low;
+        ? normalizeAmplitude(kbarCurrent.day_amplitude)
+        : normalizeAmplitude(kbarCurrent.high - kbarCurrent.low);
     return {
-      day: formatDayLabel(kbarCurrent.trade_date),
+      day: resolveTodayDayLabelInTaipei(),
       tradeDate: kbarCurrent.trade_date,
       open: kbarCurrent.open,
       high: kbarCurrent.high,
@@ -132,7 +141,6 @@ function patchRealtimeTodayCandle(
       close: kbarCurrent.close,
       amplitude,
       isRealtime: true,
-      wickColor: kbarCurrent.close >= kbarCurrent.open ? "#ef4444" : "#22c55e",
     };
   }
 
@@ -141,8 +149,8 @@ function patchRealtimeTodayCandle(
   const close = kbarCurrent.close;
   const amplitude =
     typeof kbarCurrent.day_amplitude === "number"
-      ? kbarCurrent.day_amplitude
-      : high - low;
+      ? normalizeAmplitude(kbarCurrent.day_amplitude)
+      : normalizeAmplitude(high - low);
 
   return {
     ...current,
@@ -150,7 +158,6 @@ function patchRealtimeTodayCandle(
     low,
     close,
     amplitude,
-    wickColor: close >= current.open ? "#ef4444" : "#22c55e",
   };
 }
 
@@ -198,16 +205,26 @@ export function useParticipantAmplitude(
     setLoading(true);
     setError(null);
 
-    void Promise.all([
+    void Promise.allSettled([
       getDailyAmplitudeHistory(token, code, 19),
       getOrderFlowBaseline(token, code),
     ])
-      .then(([dailyRows, baseline]) => {
+      .then((results) => {
         if (cancelled) {
           return;
         }
-        setClosedSeries(toClosedSeries(dailyRows));
-        setTodayRealtimeCandle(aggregateTodayKbar(baseline.kbarToday));
+
+        const [dailyResult, baselineResult] = results;
+        if (dailyResult.status !== "fulfilled") {
+          throw dailyResult.reason;
+        }
+
+        setClosedSeries(toClosedSeries(dailyResult.value));
+        if (baselineResult.status === "fulfilled") {
+          setTodayRealtimeCandle(aggregateTodayKbar(baselineResult.value.kbarToday));
+        } else {
+          setTodayRealtimeCandle(null);
+        }
         setLoading(false);
       })
       .catch((err: unknown) => {

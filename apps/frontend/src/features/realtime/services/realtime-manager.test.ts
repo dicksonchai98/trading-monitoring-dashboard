@@ -6,6 +6,12 @@ import {
 import { useRealtimeStore } from "@/features/realtime/store/realtime.store";
 
 describe("realtime-manager", () => {
+  const inSessionMinuteTs = Date.parse("2026-04-09T10:00:00+08:00");
+  const inSessionMetricTs = Date.parse("2026-04-09T10:00:05+08:00");
+  const inSessionMarketMinuteTs = Date.parse("2026-04-09T10:01:00+08:00");
+  const inSessionOtcMinuteTs = Date.parse("2026-04-09T10:02:00+08:00");
+  const inSessionSpotTs = Date.parse("2026-04-09T10:01:30+08:00");
+
   beforeEach(() => {
     useRealtimeStore.getState().resetRealtime();
   });
@@ -48,7 +54,7 @@ describe("realtime-manager", () => {
     applyServingSseEvent("kbar_current", {
       code: "MTX",
       trade_date: "2026-03-23",
-      minute_ts: 1774233600000,
+      minute_ts: inSessionMinuteTs,
       open: 100,
       high: 101,
       low: 99,
@@ -66,7 +72,7 @@ describe("realtime-manager", () => {
     applyServingSseEvent("kbar_current", {
       code: "TXFD6",
       trade_date: "2026-04-08",
-      minute_ts: 1775600400000,
+      minute_ts: inSessionMinuteTs,
       open: 22300,
       high: 22310,
       low: 22290,
@@ -76,7 +82,7 @@ describe("realtime-manager", () => {
 
     applyServingSseEvent("metric_latest", {
       main_force_big_order: 9876,
-      ts: 1775600405000,
+      ts: inSessionMetricTs,
     });
 
     const state = useRealtimeStore.getState();
@@ -86,7 +92,7 @@ describe("realtime-manager", () => {
   it("routes metric_latest without code to TXFD6 fallback key", () => {
     applyServingSseEvent("metric_latest", {
       main_force_big_order: 321,
-      ts: 1775600460000,
+      ts: inSessionMetricTs,
     });
 
     const state = useRealtimeStore.getState();
@@ -95,7 +101,7 @@ describe("realtime-manager", () => {
 
   it("routes market_summary_latest without code to TXFD6 fallback key", () => {
     applyServingSseEvent("market_summary_latest", {
-      minute_ts: 1775600460000,
+      minute_ts: inSessionMarketMinuteTs,
       estimated_turnover: 6666,
     });
 
@@ -103,11 +109,21 @@ describe("realtime-manager", () => {
     expect(state.marketSummaryLatestByCode.TXFD6?.estimated_turnover).toBe(6666);
   });
 
+  it("routes otc_summary_latest without code to OTC001 fallback key", () => {
+    applyServingSseEvent("otc_summary_latest", {
+      minute_ts: inSessionOtcMinuteTs,
+      index_value: 252.34,
+    });
+
+    const state = useRealtimeStore.getState();
+    expect(state.otcSummaryLatestByCode.OTC001?.index_value).toBe(252.34);
+  });
+
   it("accepts and stores live metrics source fields across three SSE events", () => {
     applyServingSseEvent("kbar_current", {
       code: "TXFD6",
       trade_date: "2026-04-08",
-      minute_ts: 1775600400000,
+      minute_ts: inSessionMinuteTs,
       open: 22300,
       high: 22310,
       low: 22290,
@@ -117,12 +133,12 @@ describe("realtime-manager", () => {
     });
     applyServingSseEvent("metric_latest", {
       main_force_big_order_strength: 0.72,
-      ts: 1775600405000,
+      ts: inSessionMetricTs,
     });
     applyServingSseEvent("market_summary_latest", {
       spread: 12.5,
       estimated_turnover: 2940000000,
-      minute_ts: 1775600460000,
+      minute_ts: inSessionMarketMinuteTs,
     });
 
     const state = useRealtimeStore.getState();
@@ -132,6 +148,26 @@ describe("realtime-manager", () => {
     expect(state.marketSummaryLatestByCode.TXFD6?.estimated_turnover).toBe(2940000000);
   });
 
+  it("writes spot_latest_list into realtime store", () => {
+    applyServingSseEvent("spot_latest_list", {
+      ts: inSessionSpotTs,
+      items: [
+        {
+          symbol: "2330",
+          last_price: 950,
+          session_high: 955,
+          session_low: 940,
+          updated_at: inSessionSpotTs,
+        },
+      ],
+    });
+
+    const state = useRealtimeStore.getState();
+    expect(state.spotLatestList?.items).toHaveLength(1);
+    expect(state.spotLatestList?.items[0]?.symbol).toBe("2330");
+    expect(state.spotLatestList?.items[0]?.last_price).toBe(950);
+  });
+
   it("ignores invalid payloads without mutating store", () => {
     applyServingSseEvent("kbar_current", { code: "MTX" });
     applyServingSseEvent("heartbeat", { ts: "bad" });
@@ -139,5 +175,43 @@ describe("realtime-manager", () => {
     const state = useRealtimeStore.getState();
     expect(Object.keys(state.kbarCurrentByCode)).toHaveLength(0);
     expect(state.lastHeartbeatTs).toBeNull();
+  });
+
+  it("ignores dashboard SSE payloads outside 09:00-13:45 session window", () => {
+    applyServingSseEvent("kbar_current", {
+      code: "TXFD6",
+      trade_date: "2026-04-09",
+      minute_ts: Date.parse("2026-04-09T14:00:00+08:00"),
+      open: 100,
+      high: 101,
+      low: 99,
+      close: 100,
+      volume: 1,
+    });
+    applyServingSseEvent("metric_latest", {
+      ts: Date.parse("2026-04-09T14:00:01+08:00"),
+      main_force_big_order: 123,
+    });
+    applyServingSseEvent("market_summary_latest", {
+      minute_ts: Date.parse("2026-04-09T14:00:02+08:00"),
+      estimated_turnover: 9999,
+    });
+    applyServingSseEvent("otc_summary_latest", {
+      minute_ts: Date.parse("2026-04-09T14:00:02+08:00"),
+      index_value: 300,
+    });
+    applyServingSseEvent("heartbeat", { ts: 1775714400000 });
+    applyServingSseEvent("spot_latest_list", {
+      ts: Date.parse("2026-04-09T14:00:03+08:00"),
+      items: [{ symbol: "2330", last_price: 999 }],
+    });
+
+    const state = useRealtimeStore.getState();
+    expect(state.kbarCurrentByCode.TXFD6).toBeUndefined();
+    expect(state.metricLatestByCode.TXFD6).toBeUndefined();
+    expect(state.marketSummaryLatestByCode.TXFD6).toBeUndefined();
+    expect(state.otcSummaryLatestByCode.OTC001).toBeUndefined();
+    expect(state.spotLatestList).toBeNull();
+    expect(state.lastHeartbeatTs).toBe(1775714400000);
   });
 });

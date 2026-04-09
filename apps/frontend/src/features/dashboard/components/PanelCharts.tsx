@@ -86,15 +86,26 @@ function withTickPriceSeries(
     return data;
   }
 
-  const priceByTime = new Map<string, number>();
-  for (const point of tickSeries) {
-    priceByTime.set(point.time, point.indexPrice);
+  const orderedTicks = [...tickSeries].sort((a, b) => a.minuteTs - b.minuteTs);
+  const secondaryByTime = new Map<string, number>();
+  for (const item of data) {
+    secondaryByTime.set(item.time, item.chipDelta);
   }
 
-  return data.map((item) => ({
-    ...item,
-    indexPrice: priceByTime.get(item.time) ?? item.indexPrice,
-  }));
+  let carrySecondary = data[0]?.chipDelta ?? 0;
+  const merged = orderedTicks.map((point) => {
+    const matchedSecondary = secondaryByTime.get(point.time);
+    if (typeof matchedSecondary === "number") {
+      carrySecondary = matchedSecondary;
+    }
+    return {
+      time: point.time,
+      indexPrice: point.indexPrice,
+      chipDelta: carrySecondary,
+    };
+  });
+
+  return withSignedBars(merged);
 }
 
 const SESSION_MINUTES = 271;
@@ -217,6 +228,7 @@ function MarketOverviewHybridChart({
             fillOpacity={0.3}
             stroke="none"
             type="step"
+            isAnimationActive={false}
           />
           <Area
             yAxisId="chip"
@@ -225,8 +237,9 @@ function MarketOverviewHybridChart({
             fillOpacity={0.3}
             stroke="none"
             type="step"
+            isAnimationActive={false}
           />
-          <Line yAxisId="price" dataKey="indexPrice" dot={false} stroke="hsl(var(--primary))" strokeWidth={2} type="linear" />
+          <Line yAxisId="price" dataKey="indexPrice" dot={false} stroke="hsl(var(--primary))" strokeWidth={2} type="linear" isAnimationActive={false} />
         </ComposedChart>
       </ResponsiveContainer>
     </ChartShell>
@@ -275,7 +288,7 @@ export function BidAskPressureChart({
   return (
     <MarketOverviewHybridChart
       data={withTickPriceSeries(pressureData, tickSeries)}
-      priceLabel="TAIEX Electronics"
+      priceLabel="TXFD6 Near Month"
       testId="bid-ask-pressure-chart"
     />
   );
@@ -291,7 +304,7 @@ export function ProgramActivityChart({
   return (
     <MarketOverviewHybridChart
       data={withTickPriceSeries(programActivityData, tickSeries)}
-      priceLabel="TAIEX Finance"
+      priceLabel="TXFD6 Near Month"
       testId="program-activity-chart"
     />
   );
@@ -387,7 +400,7 @@ export function BreadthDistributionChart(): JSX.Element {
               <Cell key={`${entry.bucket}-${entry.side}`} fill={entry.side === "up" ? "#ef4444" : "#22c55e"} />
             ))}
           </Bar>
-          <Line yAxisId="breadth" dataKey="breadthSwing" dot={false} stroke="#f59e0b" strokeWidth={2} type="linear" />
+          <Line yAxisId="breadth" dataKey="breadthSwing" dot={false} stroke="#f59e0b" strokeWidth={2} type="linear" isAnimationActive={false} />
         </ComposedChart>
       </ResponsiveContainer>
     </ChartShell>
@@ -488,10 +501,10 @@ export function EstimatedVolumeCompareChart({
               return `時間 ${matched?.time ?? value}`;
             }}
           />
-          <Area yAxisId="diff" dataKey="positiveDiff" type="linear" stroke="none" fill="#ef4444" fillOpacity={0.3} />
-          <Area yAxisId="diff" dataKey="negativeDiff" type="linear" stroke="none" fill="#22c55e" fillOpacity={0.3} />
-          <Line yAxisId="volume" dataKey="yesterdayEstimated" dot={false} stroke="#94a3b8" strokeWidth={2} type="linear" />
-          <Line yAxisId="volume" dataKey="todayEstimated" dot={false} stroke="#38bdf8" strokeWidth={2} type="linear" />
+          <Area yAxisId="diff" dataKey="positiveDiff" type="linear" stroke="none" fill="#ef4444" fillOpacity={0.3} isAnimationActive={false} />
+          <Area yAxisId="diff" dataKey="negativeDiff" type="linear" stroke="none" fill="#22c55e" fillOpacity={0.3} isAnimationActive={false} />
+          <Line yAxisId="volume" dataKey="yesterdayEstimated" dot={false} stroke="#94a3b8" strokeWidth={2} type="linear" isAnimationActive={false} />
+          <Line yAxisId="volume" dataKey="todayEstimated" dot={false} stroke="#38bdf8" strokeWidth={2} type="linear" isAnimationActive={false} />
         </ComposedChart>
       </ResponsiveContainer>
     </ChartShell>
@@ -505,7 +518,7 @@ export function ForeignParticipationChart(): JSX.Element {
     <ChartShell testId="foreign-chart" compact>
       <ResponsiveContainer width="100%" height="100%" minHeight={120} minWidth={0}>
         <RadialBarChart cx="50%" cy="55%" innerRadius="55%" outerRadius="95%" data={foreignData} startAngle={180} endAngle={0} barSize={14}>
-          <RadialBar background cornerRadius={8} dataKey="value" />
+          <RadialBar background cornerRadius={8} dataKey="value" isAnimationActive={false} />
           <text x="50%" y="58%" textAnchor="middle" className="fill-foreground text-xs font-semibold">
             76%
           </text>
@@ -584,6 +597,7 @@ export function DealerPositionChart(): JSX.Element {
             stroke="none"
             label={renderDealerLabel}
             labelLine={false}
+            isAnimationActive={false}
           >
             {dealerData.map((entry) => (
               <Cell key={entry.name} fill={entry.fill} />
@@ -612,7 +626,7 @@ export function RetailPulseChart(): JSX.Element {
           <XAxis axisLine={false} dataKey="day" tick={axisTick} tickLine={false} />
           <YAxis hide />
           <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
-          <Bar dataKey="intensity" radius={[3, 3, 0, 0]} fill="hsl(var(--chart-4))" />
+          <Bar dataKey="intensity" radius={[3, 3, 0, 0]} fill="hsl(var(--chart-4))" isAnimationActive={false} />
         </BarChart>
       </ResponsiveContainer>
     </ChartShell>
@@ -636,7 +650,7 @@ export function SentimentTrendChart(): JSX.Element {
           <XAxis axisLine={false} dataKey="step" tick={axisTick} tickLine={false} />
           <YAxis hide domain={[35, 70]} />
           <Tooltip contentStyle={tooltipStyle} />
-          <Line dataKey="score" dot={false} stroke="hsl(var(--info))" strokeWidth={2} type="monotone" />
+          <Line dataKey="score" dot={false} stroke="hsl(var(--info))" strokeWidth={2} type="monotone" isAnimationActive={false} />
         </LineChart>
       </ResponsiveContainer>
     </ChartShell>

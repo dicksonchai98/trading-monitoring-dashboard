@@ -5,11 +5,19 @@ import type {
   KbarTodayResponse,
   MarketSummaryResponse,
   MetricTodayResponse,
+  OtcSummaryResponse,
   OrderFlowBaselineResponse,
 } from "@/features/dashboard/api/types";
 
 export const DEFAULT_ORDER_FLOW_CODE = "TXFD6";
+export const DEFAULT_OTC_CODE = "OTC001";
 const SESSION_OPEN_HOUR = 9;
+const SESSION_CLOSE_HOUR = 13;
+const SESSION_CLOSE_MINUTE = 45;
+const OTC_SESSION_OPEN_HOUR = 8;
+const OTC_SESSION_OPEN_MINUTE = 45;
+const OTC_SESSION_CLOSE_HOUR = 13;
+const OTC_SESSION_CLOSE_MINUTE = 44;
 
 function resolveDatePartInTaipei(tsMs: number): string {
   const now = new Date(tsMs);
@@ -26,8 +34,11 @@ function resolveSessionRangeMs(tsMs: number): { fromMs: number; toMs: number } {
   const fromMs = Date.parse(
     `${datePart}T${String(SESSION_OPEN_HOUR).padStart(2, "0")}:00:00+08:00`,
   );
+  const sessionCloseMs = Date.parse(
+    `${datePart}T${String(SESSION_CLOSE_HOUR).padStart(2, "0")}:${String(SESSION_CLOSE_MINUTE).padStart(2, "0")}:00+08:00`,
+  );
 
-  return { fromMs, toMs: tsMs };
+  return { fromMs, toMs: Math.min(tsMs, sessionCloseMs) };
 }
 
 function resolveTodayRangeMs(): { fromMs: number; toMs: number } {
@@ -112,4 +123,28 @@ export async function getOrderFlowBaseline(
     kbarToday,
     metricToday,
   };
+}
+
+export async function getOtcSummaryToday(
+  token: string,
+  code: string = DEFAULT_OTC_CODE,
+): Promise<OtcSummaryResponse> {
+  const headers = {
+    Authorization: `Bearer ${token}`,
+  };
+  const datePart = resolveDatePartInTaipei(Date.now());
+  const fromMs = Date.parse(
+    `${datePart}T${String(OTC_SESSION_OPEN_HOUR).padStart(2, "0")}:${String(
+      OTC_SESSION_OPEN_MINUTE,
+    ).padStart(2, "0")}:00+08:00`,
+  );
+  const toMs = Date.parse(
+    `${datePart}T${String(OTC_SESSION_CLOSE_HOUR).padStart(2, "0")}:${String(
+      OTC_SESSION_CLOSE_MINUTE,
+    ).padStart(2, "0")}:00+08:00`,
+  );
+  const query = `code=${encodeURIComponent(code)}&from_ms=${fromMs}&to_ms=${toMs}`;
+  return getJson<OtcSummaryResponse>(`/v1/otc-summary/today?${query}`, {
+    headers,
+  });
 }

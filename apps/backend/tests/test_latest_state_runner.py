@@ -96,6 +96,11 @@ def _spot_fields(symbol: str, last_price: float, ingest_seq: int) -> dict[str, s
         "source": "shioaji",
         "symbol": symbol,
         "event_ts": "2026-03-21T09:01:02+00:00",
+        "open": str(last_price - 2),
+        "high": str(last_price + 3),
+        "low": str(last_price - 4),
+        "close": str(last_price),
+        "reference_price": str(last_price - 5),
         "last_price": str(last_price),
         "ingest_seq": str(ingest_seq),
         "payload": "{}",
@@ -118,12 +123,19 @@ def test_latest_state_runner_updates_and_flushes_state() -> None:
         claim_count=100,
         flush_interval_ms=1,
     )
-    stream_key = "dev:stream:spot:2330"
+    stream_key = "dev:stream:spot"
     redis.xadd(stream_key, _spot_fields("2330", 612.0, 1))
 
     assert runner.consume_once() == 1
     latest_key = "dev:state:spot:2330:latest"
     assert latest_key in redis.strings
+    state = runner._latest_state["2330"]
+    assert state["open"] == 610.0
+    assert state["high"] == 615.0
+    assert state["low"] == 608.0
+    assert state["close"] == 612.0
+    assert state["reference_price"] == 607.0
+    assert state["is_gap_up"] is True
     assert metrics.counters["latest_state_events_processed_total"] == 1
 
 
@@ -142,12 +154,94 @@ def test_latest_state_runner_ignores_replayed_ingest_seq() -> None:
         claim_count=100,
         flush_interval_ms=1,
     )
-    stream_key = "dev:stream:spot:2330"
+    stream_key = "dev:stream:spot"
     redis.xadd(stream_key, _spot_fields("2330", 612.0, 2))
     redis.xadd(stream_key, _spot_fields("2330", 611.0, 1))
 
     assert runner.consume_once() == 2
     assert runner._latest_state["2330"]["last_price"] == 612.0
+
+
+def test_latest_state_runner_locks_reference_price_after_first_tick() -> None:
+    redis = FakeRedis()
+    metrics = Metrics()
+    runner = LatestStateRunner(
+        redis_client=redis,
+        metrics=metrics,
+        env="dev",
+        group="latest-state:spot",
+        consumer="latest-state-1",
+        read_count=100,
+        block_ms=0,
+        claim_idle_ms=1000,
+        claim_count=100,
+        flush_interval_ms=1,
+    )
+    stream_key = "dev:stream:spot"
+    redis.xadd(
+        stream_key,
+        {
+            **_spot_fields("2330", 612.0, 1),
+            "event_ts": "2026-04-09T09:01:02+08:00",
+            "reference_price": "607.0",
+            "open": "610.0",
+            "close": "612.0",
+            "high": "615.0",
+            "low": "608.0",
+        },
+    )
+    redis.xadd(
+        stream_key,
+        {
+            **_spot_fields("2330", 613.0, 2),
+            "event_ts": "2026-04-09T09:02:02+08:00",
+            "reference_price": "608.0",
+            "open": "610.0",
+            "close": "613.0",
+            "high": "616.0",
+            "low": "608.0",
+        },
+    )
+
+    assert runner.consume_once() == 2
+    state = runner._latest_state["2330"]
+    assert state["reference_price"] == 607.0
+    assert state["gap_value"] == 3.0
+
+
+def test_latest_state_runner_can_derive_reference_price_from_price_chg() -> None:
+    redis = FakeRedis()
+    metrics = Metrics()
+    runner = LatestStateRunner(
+        redis_client=redis,
+        metrics=metrics,
+        env="dev",
+        group="latest-state:spot",
+        consumer="latest-state-1",
+        read_count=100,
+        block_ms=0,
+        claim_idle_ms=1000,
+        claim_count=100,
+        flush_interval_ms=1,
+    )
+    stream_key = "dev:stream:spot"
+    redis.xadd(
+        stream_key,
+        {
+            **_spot_fields("2330", 612.0, 1),
+            "event_ts": "2026-04-09T09:01:02+08:00",
+            "reference_price": "",
+            "open": "610.0",
+            "close": "612.0",
+            "price_chg": "5.0",
+            "high": "615.0",
+            "low": "608.0",
+        },
+    )
+
+    assert runner.consume_once() == 1
+    state = runner._latest_state["2330"]
+    assert state["reference_price"] == 607.0
 
 
 def test_latest_state_runner_does_not_ack_when_flush_fails() -> None:
@@ -165,7 +259,7 @@ def test_latest_state_runner_does_not_ack_when_flush_fails() -> None:
         claim_count=100,
         flush_interval_ms=1,
     )
-    stream_key = "dev:stream:spot:2330"
+    stream_key = "dev:stream:spot"
     redis.xadd(stream_key, _spot_fields("2330", 612.0, 1))
 
     assert runner.consume_once() == 0

@@ -3,13 +3,20 @@ import {
   KbarCurrentSchema,
   MarketSummaryLatestSchema,
   MetricLatestSchema,
+  OtcSummaryLatestSchema,
+  SpotLatestListSchema,
 } from "@/features/realtime/schemas/serving-event.schema";
 import { useRealtimeStore } from "@/features/realtime/store/realtime.store";
-import type { ServingSseEventName } from "@/features/realtime/types/realtime.types";
+import type {
+  ServingSseEventName,
+  SpotLatestListPayload,
+} from "@/features/realtime/types/realtime.types";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api";
 const STREAM_PATH = "/v1/stream/sse";
 const DEFAULT_STREAM_CODE = "TXFD6";
+const SESSION_START_HHMM = "09:00:00";
+const SESSION_END_HHMM = "13:45:00";
 
 interface StreamHttpError extends Error {
   status: number;
@@ -18,6 +25,81 @@ interface StreamHttpError extends Error {
 interface ParsedFrame {
   event: string | null;
   data: string | null;
+}
+
+interface ServingSseBatch {
+  kbarCurrent?: ReturnType<typeof useRealtimeStore.getState>["kbarCurrentByCode"][string];
+  metricLatest?: {
+    code: string;
+    payload: ReturnType<typeof useRealtimeStore.getState>["metricLatestByCode"][string];
+  };
+  marketSummaryLatest?: {
+    code: string;
+    payload: ReturnType<typeof useRealtimeStore.getState>["marketSummaryLatestByCode"][string];
+  };
+  otcSummaryLatest?: {
+    code: string;
+    payload: ReturnType<typeof useRealtimeStore.getState>["otcSummaryLatestByCode"][string];
+  };
+  spotLatestList?: SpotLatestListPayload;
+  heartbeatTs?: number;
+}
+
+function resolveTaipeiDatePart(tsMs: number): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Taipei",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(tsMs));
+}
+
+function resolveSessionBoundsForTs(tsMs: number): { startMs: number; endMs: number } {
+  const datePart = resolveTaipeiDatePart(tsMs);
+  return {
+    startMs: Date.parse(`${datePart}T${SESSION_START_HHMM}+08:00`),
+    endMs: Date.parse(`${datePart}T${SESSION_END_HHMM}+08:00`),
+  };
+}
+
+function toEpochMs(raw: unknown): number | null {
+  if (typeof raw === "number" && Number.isFinite(raw)) {
+    return raw;
+  }
+  if (typeof raw === "string" && raw.trim()) {
+    const parsed = Date.parse(raw);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+  return null;
+}
+
+function shouldApplyDashboardSseEvent(eventName: string, data: unknown): boolean {
+  if (eventName === "heartbeat") {
+    return true;
+  }
+  if (typeof data !== "object" || data === null) {
+    return false;
+  }
+  const payload = data as Record<string, unknown>;
+  let tsMs: number | null = null;
+  if (eventName === "kbar_current") {
+    tsMs = toEpochMs(payload.minute_ts);
+  } else if (eventName === "metric_latest") {
+    tsMs = toEpochMs(payload.ts) ?? toEpochMs(payload.event_ts);
+  } else if (eventName === "market_summary_latest") {
+    tsMs = toEpochMs(payload.minute_ts) ?? toEpochMs(payload.event_ts);
+  } else if (eventName === "otc_summary_latest") {
+    tsMs = toEpochMs(payload.minute_ts) ?? toEpochMs(payload.event_ts);
+  } else if (eventName === "spot_latest_list") {
+    tsMs = toEpochMs(payload.ts);
+  }
+  if (tsMs === null) {
+    return false;
+  }
+  const { startMs, endMs } = resolveSessionBoundsForTs(tsMs);
+  return tsMs >= startMs && tsMs <= endMs;
 }
 
 export function splitSseBuffer(buffer: string): { frames: string[]; rest: string } {
@@ -69,14 +151,25 @@ export function parseSseFrame(frame: string): ParsedFrame {
 }
 
 export function applyServingSseEvent(eventName: string, data: unknown): void {
-  const store = useRealtimeStore.getState();
+  if (!shouldApplyDashboardSseEvent(eventName, data)) {
+    return;
+  }
+  const batch: ServingSseBatch = {};
+  collectServingSseEvent(eventName, data, batch);
+  applyServingSseBatch(batch);
+}
 
+function applyServingSseBatch(batch: ServingSseBatch): void {
+  useRealtimeStore.getState().applySseBatch(batch);
+}
+
+function collectServingSseEvent(eventName: string, data: unknown, batch: ServingSseBatch): void {
   if (eventName === "kbar_current") {
     const parsed = KbarCurrentSchema.safeParse(data);
     if (!parsed.success) {
       return;
     }
-    store.upsertKbarCurrent(parsed.data);
+    batch.kbarCurrent = parsed.data;
     return;
   }
 
@@ -90,7 +183,10 @@ export function applyServingSseEvent(eventName: string, data: unknown): void {
       typeof (data as { code?: unknown })?.code === "string"
         ? ((data as { code: string }).code || fallbackCode)
         : fallbackCode;
-    store.upsertMetricLatest(payloadCode, parsed.data);
+    batch.metricLatest = {
+      code: payloadCode,
+      payload: parsed.data,
+    };
     return;
   }
 
@@ -101,7 +197,10 @@ export function applyServingSseEvent(eventName: string, data: unknown): void {
     }
     const fallbackCode = DEFAULT_STREAM_CODE;
     const payloadCode = parsed.data.market_code || parsed.data.code || fallbackCode;
-    store.upsertMarketSummaryLatest(payloadCode, parsed.data);
+    batch.marketSummaryLatest = {
+      code: payloadCode,
+      payload: parsed.data,
+    };
     return;
   }
 
@@ -110,7 +209,32 @@ export function applyServingSseEvent(eventName: string, data: unknown): void {
     if (!parsed.success) {
       return;
     }
-    store.setHeartbeat(parsed.data.ts);
+    batch.heartbeatTs = parsed.data.ts;
+    return;
+  }
+
+  if (eventName === "spot_latest_list") {
+    const parsed = SpotLatestListSchema.safeParse(data);
+    if (!parsed.success) {
+      return;
+    }
+    batch.spotLatestList = parsed.data;
+    return;
+  }
+
+  if (eventName === "otc_summary_latest") {
+    const parsed = OtcSummaryLatestSchema.safeParse(data);
+    if (!parsed.success) {
+      return;
+    }
+    const payloadCode =
+      typeof parsed.data.code === "string" && parsed.data.code.trim()
+        ? parsed.data.code
+        : "OTC001";
+    batch.otcSummaryLatest = {
+      code: payloadCode,
+      payload: parsed.data,
+    };
   }
 }
 
@@ -246,6 +370,7 @@ class RealtimeManager {
       buffer += decoder.decode(value, { stream: true });
       const { frames, rest } = splitSseBuffer(buffer);
       buffer = rest;
+      const batch: ServingSseBatch = {};
 
       for (const frame of frames) {
         const parsed = parseSseFrame(frame);
@@ -258,7 +383,21 @@ class RealtimeManager {
         } catch {
           continue;
         }
-        applyServingSseEvent(parsed.event as ServingSseEventName, payload);
+        if (!shouldApplyDashboardSseEvent(parsed.event, payload)) {
+          continue;
+        }
+        collectServingSseEvent(parsed.event as ServingSseEventName, payload, batch);
+      }
+
+      if (
+        batch.kbarCurrent ||
+        batch.metricLatest ||
+        batch.marketSummaryLatest ||
+        batch.otcSummaryLatest ||
+        batch.spotLatestList ||
+        typeof batch.heartbeatTs === "number"
+      ) {
+        applyServingSseBatch(batch);
       }
     }
 

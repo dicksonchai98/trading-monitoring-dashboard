@@ -79,6 +79,7 @@ Runbook:
   - `python -m workers.quote_worker`
   - `python -m workers.latest_state_worker`
   - `python -m workers.market_summary_worker`
+  - `python -m workers.otc_summary_worker`
 - API process should not run aggregator loops; set `AGGREGATOR_ENABLED=false` for API service.
 - In docker-compose:
   - `backend-api` serves HTTP only.
@@ -87,6 +88,7 @@ Runbook:
   - `backend-bidask-worker` runs BidAsk processing.
   - `backend-latest-state-worker` runs spot latest-state processing.
   - `backend-market-summary-worker` runs market summary processing for `TSE001`.
+  - `backend-otc-summary-worker` runs OTC summary processing for `OTC001`.
 
 Quick runbook:
 - Start (split workers): `docker compose up -d redis backend-api backend-tick-worker backend-bidask-worker backend-latest-state-worker backend-quote-worker`

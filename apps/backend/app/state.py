@@ -65,6 +65,15 @@ from app.config import (
     MARKET_SUMMARY_ENV,
     MARKET_TRADING_END,
     MARKET_TRADING_START,
+    OTC_SUMMARY_BLOCK_MS,
+    OTC_SUMMARY_CLAIM_COUNT,
+    OTC_SUMMARY_CLAIM_IDLE_MS,
+    OTC_SUMMARY_CODE,
+    OTC_SUMMARY_CONSUMER_NAME,
+    OTC_SUMMARY_ENV,
+    OTC_SUMMARY_GROUP,
+    OTC_SUMMARY_READ_COUNT,
+    OTC_SUMMARY_STATE_TTL_SECONDS,
     REDIS_URL,
     get_stripe_settings,
 )
@@ -85,6 +94,7 @@ from app.models.quote_feature_1m import QuoteFeature1mModel
 from app.models.refresh_denylist import RefreshTokenDenylistModel
 from app.models.subscription import SubscriptionModel
 from app.models.user import UserModel
+from app.otc_summary.runner import OtcSummaryRunner
 from app.quote_processing.runner import QuoteWorkerRunner
 from app.repositories.billing_event_repository import BillingEventRepository
 from app.repositories.email_delivery_log_repository import EmailDeliveryLogRepository
@@ -142,6 +152,7 @@ ingestor_runner: MarketIngestionRunner | None = None
 aggregator_runner: StreamProcessingRunner | None = None
 latest_state_runner: LatestStateRunner | None = None
 market_summary_runner: MarketSummaryRunner | None = None
+otc_summary_runner: OtcSummaryRunner | None = None
 serving_redis_client = None
 email_outbox_dispatcher: EmailOutboxDispatcher | None = None
 email_webhook_service = EmailWebhookService(
@@ -151,45 +162,6 @@ email_webhook_service = EmailWebhookService(
 notification_email_service = NotificationEmailService(
     outbox_repository=email_outbox_repository,
 )
-
-
-def _normalize_aggregator_role(role: str) -> str:
-    normalized = role.strip().lower()
-    if normalized not in {"all", "tick", "bidask"}:
-        raise RuntimeError("invalid AGGREGATOR_WORKER_ROLE, expected one of: all, tick, bidask")
-    return normalized
-
-
-def _build_aggregator_runner_for_role(role: str, redis_module: Any) -> StreamProcessingRunner:
-    normalized = _normalize_aggregator_role(role)
-    enable_tick = normalized in {"all", "tick"}
-    enable_bidask = normalized in {"all", "bidask"}
-    runner = StreamProcessingRunner(
-        redis_client=redis_module.from_url(REDIS_URL),
-        session_factory=SessionLocal,
-        metrics=metrics,
-        env=AGGREGATOR_ENV,
-        code=AGGREGATOR_CODE,
-        tick_group=AGGREGATOR_TICK_GROUP,
-        bidask_group=AGGREGATOR_BIDASK_GROUP,
-        tick_consumer=AGGREGATOR_TICK_CONSUMER,
-        bidask_consumer=AGGREGATOR_BIDASK_CONSUMER,
-        read_count=AGGREGATOR_READ_COUNT,
-        block_ms=AGGREGATOR_BLOCK_MS,
-        claim_idle_ms=AGGREGATOR_CLAIM_IDLE_MS,
-        claim_count=AGGREGATOR_CLAIM_COUNT,
-        ttl_seconds=AGGREGATOR_STATE_TTL_SECONDS,
-        series_fields=AGGREGATOR_SERIES_FIELDS,
-        db_sink_batch_size=AGGREGATOR_DB_SINK_BATCH_SIZE,
-        db_sink_retry_backoff_seconds=AGGREGATOR_DB_SINK_RETRY_BACKOFF_SECONDS,
-        db_sink_max_retries=AGGREGATOR_DB_SINK_MAX_RETRIES,
-        db_sink_dead_letter_maxlen=AGGREGATOR_DB_SINK_DEAD_LETTER_MAXLEN,
-        blocking_warn_ms=AGGREGATOR_BLOCKING_WARN_MS,
-        enable_tick_pipeline=enable_tick,
-        enable_bidask_pipeline=enable_bidask,
-    )
-    logger.info("aggregator runner created role=%s", normalized)
-    return runner
 
 
 def _normalize_aggregator_role(role: str) -> str:
@@ -348,6 +320,32 @@ def build_market_summary_runner() -> MarketSummaryRunner:
     )
     logger.info("market-summary runner created")
     return market_summary_runner
+
+
+def build_otc_summary_runner() -> OtcSummaryRunner:
+    global otc_summary_runner
+    if otc_summary_runner is not None:
+        return otc_summary_runner
+    try:
+        import redis
+    except Exception as err:  # pragma: no cover - depends on runtime dependency
+        raise RuntimeError("otc-summary dependencies unavailable: install redis") from err
+
+    otc_summary_runner = OtcSummaryRunner(
+        redis_client=redis.from_url(REDIS_URL),
+        metrics=metrics,
+        env=OTC_SUMMARY_ENV,
+        code=OTC_SUMMARY_CODE,
+        group=OTC_SUMMARY_GROUP,
+        consumer=OTC_SUMMARY_CONSUMER_NAME,
+        read_count=OTC_SUMMARY_READ_COUNT,
+        block_ms=OTC_SUMMARY_BLOCK_MS,
+        claim_idle_ms=OTC_SUMMARY_CLAIM_IDLE_MS,
+        claim_count=OTC_SUMMARY_CLAIM_COUNT,
+        ttl_seconds=OTC_SUMMARY_STATE_TTL_SECONDS,
+    )
+    logger.info("otc-summary runner created")
+    return otc_summary_runner
 
 
 def get_serving_redis_client():

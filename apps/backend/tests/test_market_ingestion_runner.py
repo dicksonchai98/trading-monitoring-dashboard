@@ -12,6 +12,9 @@ class _FakeQuote:
     def set_on_bidask_fop_v1_callback(self, _callback) -> None:
         return None
 
+    def set_on_market_callback(self, _callback) -> bool:
+        return True
+
     def on_event(self, callback):
         return callback
 
@@ -53,6 +56,17 @@ class _FakeMarketQuote:
         return {
             "index_value": 21000.0,
             "cumulative_turnover": 123456789,
+        }
+
+
+class _FakeOtcQuote:
+    def __init__(self) -> None:
+        self.code = "OTC001"
+        self.datetime = "2026-04-06T10:30:01+08:00"
+
+    def to_dict(self, raw: bool = True):  # noqa: ARG002
+        return {
+            "index_value": 150.25,
         }
 
 
@@ -168,3 +182,30 @@ def test_market_quote_dict_payload_is_enqueued_to_canonical_market_stream() -> N
     assert queued.event.code == "TSE001"
     assert queued.event.payload["index_value"] == 34560.5
     assert queued.event.payload["cumulative_turnover"] == 123456789.0
+
+
+def test_otc_quote_is_enqueued_to_otc_stream() -> None:
+    runner = MarketIngestionRunner(
+        shioaji_client=ShioajiClient(
+            api=_FakeAPI(),
+            api_key="k",
+            secret_key="s",
+            simulation=True,
+        ),
+        redis_client=_FakeRedis(),
+        metrics=Metrics(),
+        queue_maxsize=8,
+        stream_maxlen=100,
+        retry_attempts=2,
+        retry_backoff_ms=10,
+    )
+    runner._market_enabled = False
+    runner._otc_enabled = True
+    runner._otc_code = "OTC001"
+    quote = _FakeOtcQuote()
+    runner._on_market_quote(quote)
+    queued = runner._futures_pipeline.queue.get_nowait()
+    assert queued.stream_key == "dev:stream:market:OTC001"
+    assert queued.event.quote_type == "market"
+    assert queued.event.code == "OTC001"
+    assert queued.event.payload["index_value"] == 150.25

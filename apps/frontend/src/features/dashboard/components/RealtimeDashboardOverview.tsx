@@ -1,4 +1,5 @@
 ﻿import type { JSX } from "react";
+import { useMemo } from "react";
 import {
   Bar,
   CartesianGrid,
@@ -14,7 +15,6 @@ import { BentoGridSection } from "@/components/ui/bento-grid";
 import { PageLayout } from "@/components/ui/page-layout";
 import { PanelCard } from "@/components/ui/panel-card";
 import { DashboardMetricPanels } from "@/features/dashboard/components/DashboardMetricPanels";
-import { RealtimeSseChartsSection } from "@/features/dashboard/components/RealtimeSseChartsSection";
 import {
   BreadthDistributionChart,
   BidAskPressureChart,
@@ -23,6 +23,10 @@ import {
 } from "@/features/dashboard/components/PanelCharts";
 import { EstimatedVolumeCard } from "@/features/dashboard/components/EstimatedVolumeCard";
 import { useParticipantAmplitude } from "@/features/dashboard/hooks/use-participant-amplitude";
+import {
+  type ParticipantSignalWithMaPoint,
+  withAmplitudeMovingAverages,
+} from "@/features/dashboard/lib/participant-signals";
 import { useMarketOverviewTimeline } from "@/features/dashboard/hooks/use-market-overview-timeline";
 import { OrderFlowCard } from "@/features/dashboard/components/OrderFlowCard";
 
@@ -34,8 +38,10 @@ interface ParticipantSignalDatum {
   low: number;
   close: number;
   amplitude: number;
-  isRealtime: boolean;
-  wickColor: string;
+  ampOpen?: number;
+  ampHigh?: number;
+  ampLow?: number;
+  ampClose?: number;
 }
 
 function formatAmplitude(value: number): string {
@@ -63,20 +69,30 @@ function renderCandleShape(props: {
     return null;
   }
 
-  const range = Math.max(payload.high - payload.low, 1);
-  const bodyHigh = Math.max(payload.open, payload.close);
-  const bodyLow = Math.min(payload.open, payload.close);
-  const bodyTop = y + ((payload.high - bodyHigh) / range) * height;
-  const bodyBottom = y + ((payload.high - bodyLow) / range) * height;
+  const amplitudePayload = payload as ParticipantSignalDatum;
+  const ampHigh =
+    typeof amplitudePayload.ampHigh === "number" ? amplitudePayload.ampHigh : payload.amplitude;
+  const ampLow = typeof amplitudePayload.ampLow === "number" ? amplitudePayload.ampLow : payload.amplitude;
+  const ampOpen =
+    typeof amplitudePayload.ampOpen === "number" ? amplitudePayload.ampOpen : payload.amplitude;
+  const ampClose =
+    typeof amplitudePayload.ampClose === "number" ? amplitudePayload.ampClose : payload.amplitude;
+
+  const range = Math.max(ampHigh - ampLow, 1);
+  const bodyHigh = Math.max(ampOpen, ampClose);
+  const bodyLow = Math.min(ampOpen, ampClose);
+  const bodyTop = y + ((ampHigh - bodyHigh) / range) * height;
+  const bodyBottom = y + ((ampHigh - bodyLow) / range) * height;
   const bodyHeight = Math.max(2, bodyBottom - bodyTop);
   const centerX = x + width / 2;
   const bodyWidth = Math.max(6, width * 0.44);
   const bodyX = centerX - bodyWidth / 2;
+  const color = "#ef4444";
 
   return (
     <g>
-      <line x1={centerX} x2={centerX} y1={y} y2={y + height} stroke={payload.wickColor} strokeWidth={1.4} />
-      <rect x={bodyX} y={bodyTop} width={bodyWidth} height={bodyHeight} fill={payload.wickColor} stroke="none" />
+      <line x1={centerX} x2={centerX} y1={y} y2={y + height} stroke={color} strokeWidth={1.4} />
+      <rect x={bodyX} y={bodyTop} width={bodyWidth} height={bodyHeight} fill={color} stroke="none" />
     </g>
   );
 }
@@ -93,6 +109,17 @@ export function RealtimeDashboardOverview(): JSX.Element {
     loading: participantLoading,
     error: participantError,
   } = useParticipantAmplitude();
+  const participantChartData = useMemo(
+    () => withAmplitudeMovingAverages(participantSignalData),
+    [participantSignalData],
+  );
+  const participantAmplitudeMax = useMemo(() => {
+    const maxValue = participantChartData.reduce((currentMax, point) => {
+      const maMax = Math.max(point.ma3 ?? 0, point.ma5 ?? 0, point.ma10 ?? 0);
+      return Math.max(currentMax, point.ampHigh, maMax);
+    }, 0);
+    return Math.max(10, Math.ceil(maxValue + 5));
+  }, [participantChartData]);
 
   return (
     <PageLayout
@@ -148,7 +175,7 @@ export function RealtimeDashboardOverview(): JSX.Element {
             </div>
           </div>
         </PanelCard>
-        <PanelCard title="Participant Signals" span={10} units={2} meta="19日收盤 + 今日即時振幅">
+        <PanelCard title="Participant Signals" span={10} units={2} meta="振幅K棒（影線=高低、實體=Open/Close）">
           <div className="mt-[var(--panel-gap)] w-full" data-testid="participant-amplitude-chart">
             {participantLoading ? (
               <div className="flex h-[240px] items-center justify-center text-xs text-muted-foreground">
@@ -161,7 +188,10 @@ export function RealtimeDashboardOverview(): JSX.Element {
             ) : (
               <div data-testid="panel-chart" className="h-[240px] w-full">
                 <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                  <ComposedChart data={participantSignalData} margin={{ top: 8, right: 12, bottom: 0, left: -14 }}>
+                  <ComposedChart
+                    data={participantChartData as ParticipantSignalWithMaPoint[]}
+                    margin={{ top: 8, right: 12, bottom: 0, left: -14 }}
+                  >
                     <CartesianGrid vertical={false} stroke="hsl(var(--border-strong))" strokeDasharray="3 3" />
                     <XAxis
                       axisLine={false}
@@ -170,23 +200,14 @@ export function RealtimeDashboardOverview(): JSX.Element {
                       tickLine={false}
                     />
                     <YAxis
-                      yAxisId="price"
-                      axisLine={false}
-                      tick={{ fill: "hsl(var(--subtle-foreground))", fontSize: 11 }}
-                      tickLine={false}
-                      width={56}
-                      type="number"
-                      domain={["dataMin - 40", "dataMax + 40"]}
-                    />
-                    <YAxis
                       yAxisId="amp"
                       axisLine={false}
-                      orientation="right"
                       tick={{ fill: "hsl(var(--subtle-foreground))", fontSize: 11 }}
+                      tickFormatter={(value) => `${value}`}
                       tickLine={false}
                       width={56}
                       type="number"
-                      domain={["dataMin - 10", "dataMax + 10"]}
+                      domain={[0, participantAmplitudeMax]}
                       tickCount={8}
                     />
                     <Tooltip
@@ -197,31 +218,68 @@ export function RealtimeDashboardOverview(): JSX.Element {
                         color: "hsl(var(--foreground))",
                       }}
                     />
-                    <Bar yAxisId="price" dataKey="high" shape={renderCandleShape} />
-                    <Line yAxisId="amp" dataKey="amplitude" dot={false} stroke="#f59e0b" strokeWidth={2} type="linear" />
+                    <Bar
+                      yAxisId="amp"
+                      dataKey="ampHigh"
+                      shape={renderCandleShape}
+                      isAnimationActive={false}
+                    />
+                    <Line
+                      yAxisId="amp"
+                      dataKey="ma3"
+                      dot={false}
+                      stroke="#38bdf8"
+                      strokeWidth={1.5}
+                      type="linear"
+                      connectNulls
+                      isAnimationActive={false}
+                    />
+                    <Line
+                      yAxisId="amp"
+                      dataKey="ma5"
+                      dot={false}
+                      stroke="#22c55e"
+                      strokeWidth={1.5}
+                      type="linear"
+                      connectNulls
+                      isAnimationActive={false}
+                    />
+                    <Line
+                      yAxisId="amp"
+                      dataKey="ma10"
+                      dot={false}
+                      stroke="#a855f7"
+                      strokeWidth={1.5}
+                      type="linear"
+                      connectNulls
+                      isAnimationActive={false}
+                    />
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>
             )}
             <div className="mt-2 flex flex-wrap items-center gap-4 text-[11px] text-muted-foreground">
               <span className="inline-flex items-center gap-1.5">
-                <span className="h-[2px] w-4 bg-[#f59e0b]" />
-                日振幅（點）
-              </span>
-              <span className="inline-flex items-center gap-1.5">
                 <span className="h-[6px] w-[10px] rounded-[1px] bg-[#ef4444]" />
-                上漲K
+                K棒（振幅）
               </span>
               <span className="inline-flex items-center gap-1.5">
-                <span className="h-[6px] w-[10px] rounded-[1px] bg-[#22c55e]" />
-                下跌K
+                <span className="h-[2px] w-4 bg-[#38bdf8]" />
+                MA3
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-[2px] w-4 bg-[#22c55e]" />
+                MA5
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-[2px] w-4 bg-[#a855f7]" />
+                MA10
               </span>
             </div>
           </div>
         </PanelCard>
       </BentoGridSection>
-
-      <RealtimeSseChartsSection />
     </PageLayout>
   );
 }
+

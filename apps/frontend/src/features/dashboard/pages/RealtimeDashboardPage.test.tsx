@@ -3,7 +3,7 @@ import { MemoryRouter } from "react-router-dom";
 import { RealtimeDashboardPage } from "@/features/dashboard/pages/RealtimeDashboardPage";
 
 describe("RealtimeDashboardPage", () => {
-  it("renders existing dashboard sections and the new SSE chart section at the bottom", () => {
+  it("renders the dashboard sections without the deprecated SSE mock block", () => {
     render(
       <MemoryRouter initialEntries={["/dashboard"]}>
         <RealtimeDashboardPage />
@@ -16,10 +16,6 @@ describe("RealtimeDashboardPage", () => {
     expect(screen.getByText("MARKET OVERVIEW")).toBeInTheDocument();
     expect(screen.getByText("PARTICIPANT OVERVIEW")).toBeInTheDocument();
 
-    expect(screen.getByText("SSE LIVE STREAM")).toBeInTheDocument();
-    expect(screen.getByTestId("sse-close-trend-panel")).toBeInTheDocument();
-    expect(screen.getByTestId("sse-spread-panel")).toBeInTheDocument();
-    expect(screen.getByTestId("sse-depth-panel")).toBeInTheDocument();
-    expect(screen.getByText("Waiting for SSE data...")).toBeInTheDocument();
+    expect(screen.queryByText("SSE LIVE STREAM")).not.toBeInTheDocument();
   });
 });
