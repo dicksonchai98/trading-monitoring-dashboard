@@ -41,3 +41,32 @@ export const MarketSummaryLatestSchema = z.object({
   estimated_turnover_ratio: z.number().nullable().optional(),
   cumulative_turnover: z.number().nullable().optional(),
 });
+
+export const OtcSummaryLatestSchema = z.object({
+  code: z.string().trim().min(1).optional(),
+  minute_ts: z.number().optional(),
+  event_ts: z.number().optional(),
+  index_value: z.number().nullable().optional(),
+});
+
+export const SpotLatestListSchema = z.object({
+  ts: z.number(),
+  items: z.array(
+    z.object({
+      symbol: z.string().trim().min(1),
+      open: z.number().nullable().optional(),
+      high: z.number().nullable().optional(),
+      low: z.number().nullable().optional(),
+      close: z.number().nullable().optional(),
+      last_price: z.number().nullable().optional(),
+      session_high: z.number().nullable().optional(),
+      session_low: z.number().nullable().optional(),
+      reference_price: z.number().nullable().optional(),
+      gap_value: z.number().nullable().optional(),
+      gap_pct: z.number().nullable().optional(),
+      is_gap_up: z.boolean().nullable().optional(),
+      is_gap_down: z.boolean().nullable().optional(),
+      updated_at: z.number().nullable().optional(),
+    }),
+  ),
+});

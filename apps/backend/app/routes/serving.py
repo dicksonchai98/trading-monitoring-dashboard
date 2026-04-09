@@ -9,7 +9,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 
-from app.config import SERVING_HEARTBEAT_SECONDS, SERVING_POLL_INTERVAL_MS
+from app.config import OTC_SUMMARY_CODE, SERVING_HEARTBEAT_SECONDS, SERVING_POLL_INTERVAL_MS
 from app.db.deps import get_db_session
 from app.deps import (
     enforce_serving_rate_limit,
@@ -29,6 +29,10 @@ from app.services.serving_store import (
     fetch_market_summary_today_range,
     fetch_metric_latest,
     fetch_metric_today_range,
+    fetch_otc_summary_latest,
+    fetch_otc_summary_today_range,
+    fetch_spot_latest,
+    fetch_spot_latest_list,
     fetch_quote_aggregates,
     fetch_quote_history,
     fetch_quote_latest,
@@ -60,6 +64,13 @@ def _require_positive_days(days: int) -> int:
     if days > 365:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="days_too_large")
     return days
+
+
+def _resolve_otc_code(code: str | None) -> str:
+    normalized = (code or "").strip()
+    if normalized:
+        return normalized
+    return OTC_SUMMARY_CODE
 
 
 @router.get("/health")
@@ -406,6 +417,69 @@ def market_summary_history(
         ) from err
 
 
+@router.get("/otc-summary/latest")
+def otc_summary_latest(
+    code: str | None = None,
+    __: None = Depends(require_authenticated),
+    ___: None = Depends(enforce_serving_rate_limit),
+    ____: None = Depends(record_serving_latency),
+) -> dict[str, Any]:
+    metrics.inc("serving_rest_requests_total")
+    try:
+        data = fetch_otc_summary_latest(_resolve_otc_code(code))
+    except Exception as err:
+        metrics.inc("serving_redis_errors_total")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="redis_unavailable"
+        ) from err
+    if data is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="otc_summary_not_found")
+    return data
+
+
+@router.get("/otc-summary/today")
+def otc_summary_today(
+    code: str | None = None,
+    from_ms: int | None = None,
+    to_ms: int | None = None,
+    from_: str | None = None,
+    to: str | None = None,
+    __: None = Depends(require_authenticated),
+    ___: None = Depends(enforce_serving_rate_limit),
+    ____: None = Depends(record_serving_latency),
+) -> list[dict[str, Any]]:
+    metrics.inc("serving_rest_requests_total")
+    time_range = resolve_time_range(from_ms, to_ms, from_, to, default_metric_window())
+    try:
+        return fetch_otc_summary_today_range(_resolve_otc_code(code), time_range)
+    except Exception as err:
+        metrics.inc("serving_redis_errors_total")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="redis_unavailable"
+        ) from err
+
+
+@router.get("/spot/latest")
+def spot_latest(
+    symbol: str | None = None,
+    __: None = Depends(require_authenticated),
+    ___: None = Depends(enforce_serving_rate_limit),
+    ____: None = Depends(record_serving_latency),
+) -> dict[str, Any]:
+    metrics.inc("serving_rest_requests_total")
+    requested_symbol = _require_code(symbol)
+    try:
+        data = fetch_spot_latest(requested_symbol)
+    except Exception as err:
+        metrics.inc("serving_redis_errors_total")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="redis_unavailable"
+        ) from err
+    if data is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="spot_not_found")
+    return data
+
+
 @router.get("/stream/sse")
 async def stream_sse(
     request: Request,
@@ -424,6 +498,7 @@ async def stream_sse(
         last_kbar: dict[str, Any] | None = None
         last_metric: dict[str, Any] | None = None
         last_market_summary: dict[str, Any] | None = None
+        last_otc_summary: dict[str, Any] | None = None
         last_heartbeat = asyncio.get_running_loop().time()
         poll_interval = max(SERVING_POLL_INTERVAL_MS / 1000, 0.05)
         try:
@@ -433,6 +508,9 @@ async def stream_sse(
                 try:
                     current_k = fetch_current_kbar(instrument)
                     metric_latest = fetch_metric_latest(instrument)
+                    market_summary_latest_data = fetch_market_summary_latest(instrument)
+                    otc_summary_latest_data = fetch_otc_summary_latest(OTC_SUMMARY_CODE)
+                    spot_latest_list_data = fetch_spot_latest_list()
                 except Exception:
                     metrics.inc("serving_redis_errors_total")
                     break
@@ -446,6 +524,20 @@ async def stream_sse(
                     last_metric = metric_latest
                     metrics.inc("serving_sse_push_total")
                     yield _sse_message("metric_latest", metric_latest)
+
+                if market_summary_latest_data and market_summary_latest_data != last_market_summary:
+                    last_market_summary = market_summary_latest_data
+                    metrics.inc("serving_sse_push_total")
+                    yield _sse_message("market_summary_latest", market_summary_latest_data)
+
+                if otc_summary_latest_data and otc_summary_latest_data != last_otc_summary:
+                    last_otc_summary = otc_summary_latest_data
+                    metrics.inc("serving_sse_push_total")
+                    yield _sse_message("otc_summary_latest", otc_summary_latest_data)
+
+                if spot_latest_list_data:
+                    metrics.inc("serving_sse_push_total")
+                    yield _sse_message("spot_latest_list", spot_latest_list_data)
 
                 now = asyncio.get_running_loop().time()
                 if now - last_heartbeat >= SERVING_HEARTBEAT_SECONDS:

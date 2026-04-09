@@ -7,7 +7,8 @@ export function useRealtimeConnection(): {
 } {
   const connectionStatus = useRealtimeStore((state) => state.connectionStatus);
   const errorReason = useRealtimeStore((state) => state.errorReason);
-  const lastHeartbeatTs = useRealtimeStore((state) => state.lastHeartbeatTs);
+  // Avoid subscribing high-level UI to heartbeat ticks unless explicitly needed.
+  const lastHeartbeatTs = useRealtimeStore.getState().lastHeartbeatTs;
 
   return { connectionStatus, errorReason, lastHeartbeatTs };
 }

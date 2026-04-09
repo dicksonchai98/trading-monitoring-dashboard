@@ -9,6 +9,7 @@ export interface KbarTodayPoint {
   volume: number;
   amplitude?: number;
   amplitude_pct?: number;
+  day_amplitude?: number | null;
 }
 
 export interface MetricTodayPoint {
@@ -62,3 +63,13 @@ export interface EstimatedVolumeBaselineResponse {
   marketSummaryToday: MarketSummaryResponse;
   marketSummaryYesterday: MarketSummaryResponse;
 }
+
+export interface OtcSummaryPoint {
+  code?: string;
+  trade_date?: string;
+  minute_ts?: number;
+  event_ts?: number;
+  index_value?: number | null;
+}
+
+export type OtcSummaryResponse = OtcSummaryPoint[];

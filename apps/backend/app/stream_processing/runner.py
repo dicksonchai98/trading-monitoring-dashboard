@@ -9,6 +9,7 @@ import time
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
+from datetime import time as dt_time
 from typing import Any
 
 from sqlalchemy.exc import IntegrityError
@@ -20,6 +21,8 @@ from app.services.metrics import Metrics
 logger = logging.getLogger(__name__)
 
 TZ_TAIPEI = ZoneInfo("Asia/Taipei")
+DAY_SESSION_START = dt_time(8, 45)
+DAY_SESSION_END = dt_time(13, 45)
 
 
 def _decode(value: Any) -> str:
@@ -140,7 +143,7 @@ class TickStateMachine:
         minute_ts = event_ts.replace(second=0, microsecond=0)
         trade_date = trade_date_for(event_ts)
         if self.current is None:
-            self._reset_day_state(trade_date, price)
+            self._update_day_state(trade_date, price, event_ts)
             self.current = KBar(
                 code=code,
                 trade_date=trade_date,
@@ -160,7 +163,7 @@ class TickStateMachine:
         if minute_ts < self.current.minute_ts:
             return None, True
 
-        self._update_day_state(trade_date, price)
+        self._update_day_state(trade_date, price, event_ts)
         if minute_ts == self.current.minute_ts:
             self.current.high = max(self.current.high, price)
             self.current.low = min(self.current.low, price)
@@ -189,15 +192,17 @@ class TickStateMachine:
         )
         return archived, False
 
-    def _reset_day_state(self, trade_date: date, price: float) -> None:
+    def _reset_day_state(self, trade_date: date) -> None:
         self._trade_date = trade_date
-        self._day_open = price
-        self._day_high = price
-        self._day_low = price
+        self._day_open = None
+        self._day_high = None
+        self._day_low = None
 
-    def _update_day_state(self, trade_date: date, price: float) -> None:
+    def _update_day_state(self, trade_date: date, price: float, event_ts: datetime) -> None:
         if self._trade_date != trade_date:
-            self._reset_day_state(trade_date, price)
+            self._reset_day_state(trade_date)
+        local_time = event_ts.astimezone(TZ_TAIPEI).time()
+        if local_time < DAY_SESSION_START or local_time > DAY_SESSION_END:
             return
         if self._day_open is None:
             self._day_open = price
@@ -1016,6 +1021,50 @@ class StreamProcessingRunner:
         from app.models.bidask_metric_1s import BidAskMetric1sModel
 
         with self._session_factory() as session:
+            bind = getattr(session, "bind", None)
+            dialect_name = (
+                getattr(getattr(bind, "dialect", None), "name", None) if bind is not None else None
+            )
+            if dialect_name == "postgresql":
+                # Use atomic upsert to avoid race-condition UniqueViolation on concurrent workers.
+                from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+                values = [
+                    {
+                        "code": row["code"],
+                        "trade_date": row["trade_date"],
+                        "event_ts": row["event_ts"],
+                        "event_second": row["event_second"],
+                        "bid": row["bid"],
+                        "ask": row["ask"],
+                        "spread": row["spread"],
+                        "mid": row["mid"],
+                        "bid_size": row["bid_size"],
+                        "ask_size": row["ask_size"],
+                        "metric_payload": json.dumps(row["metric_payload"], ensure_ascii=True),
+                    }
+                    for row in rows
+                ]
+                if values:
+                    stmt = pg_insert(BidAskMetric1sModel).values(values)
+                    stmt = stmt.on_conflict_do_update(
+                        constraint="uq_bidask_metrics_1s_code_event_second",
+                        set_={
+                            "trade_date": stmt.excluded.trade_date,
+                            "event_ts": stmt.excluded.event_ts,
+                            "event_second": stmt.excluded.event_second,
+                            "bid": stmt.excluded.bid,
+                            "ask": stmt.excluded.ask,
+                            "spread": stmt.excluded.spread,
+                            "mid": stmt.excluded.mid,
+                            "bid_size": stmt.excluded.bid_size,
+                            "ask_size": stmt.excluded.ask_size,
+                            "metric_payload": stmt.excluded.metric_payload,
+                        },
+                    )
+                    session.execute(stmt)
+                    session.commit()
+                return
             for row in rows:
                 existing = (
                     session.query(BidAskMetric1sModel)

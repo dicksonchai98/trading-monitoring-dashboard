@@ -20,6 +20,7 @@ describe("useEstimatedVolumeTimeline", () => {
   const getEstimatedVolumeBaselineMock = vi.mocked(getEstimatedVolumeBaseline);
 
   beforeEach(() => {
+    vi.spyOn(Date, "now").mockReturnValue(Date.parse("2026-04-08T10:00:00+08:00"));
     act(() => {
       useAuthStore.setState({
         token: "token",
@@ -44,6 +45,7 @@ describe("useEstimatedVolumeTimeline", () => {
         checkoutSessionId: null,
       });
     });
+    vi.restoreAllMocks();
     vi.clearAllMocks();
   });
 
@@ -117,6 +119,40 @@ describe("useEstimatedVolumeTimeline", () => {
         yesterdayEstimated: 900,
         todayEstimated: 1300,
         positiveDiff: 400,
+        negativeDiff: 0,
+      }),
+    );
+  });
+
+  it("ignores market_summary_latest SSE patch after 13:45", async () => {
+    getEstimatedVolumeBaselineMock.mockResolvedValueOnce({
+      marketSummaryToday: [
+        { minute_ts: minute0, estimated_turnover: 1000 },
+      ],
+      marketSummaryYesterday: [
+        { minute_ts: yesterdayMinute0, estimated_turnover: 900 },
+      ],
+    });
+    vi.spyOn(Date, "now").mockReturnValue(Date.parse("2026-04-08T15:12:00+08:00"));
+
+    const { result } = renderHook(() => useEstimatedVolumeTimeline());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    act(() => {
+      useRealtimeStore.getState().upsertMarketSummaryLatest("TXFD6", {
+        minute_ts: Date.parse("2026-04-08T15:00:00+08:00"),
+        estimated_turnover: 1300,
+      });
+    });
+
+    await waitFor(() =>
+      expect(result.current.latest).toEqual({
+        minuteTs: minute0,
+        minuteOfDay: 540,
+        time: "09:00",
+        yesterdayEstimated: 900,
+        todayEstimated: 1000,
+        positiveDiff: 100,
         negativeDiff: 0,
       }),
     );

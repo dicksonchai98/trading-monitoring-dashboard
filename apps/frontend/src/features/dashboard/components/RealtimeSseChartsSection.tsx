@@ -155,7 +155,7 @@ export function RealtimeSseChartsSection(): JSX.Element {
                 <XAxis dataKey="label" tick={{ fill: "hsl(var(--subtle-foreground))", fontSize: 10 }} tickLine={false} axisLine={false} />
                 <YAxis tick={{ fill: "hsl(var(--subtle-foreground))", fontSize: 10 }} tickLine={false} axisLine={false} width={56} />
                 <Tooltip />
-                <Line dataKey="value" type="monotone" stroke="hsl(var(--primary))" dot={false} strokeWidth={2} />
+                <Line dataKey="value" type="monotone" stroke="hsl(var(--primary))" dot={false} strokeWidth={2} isAnimationActive={false} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -173,8 +173,8 @@ export function RealtimeSseChartsSection(): JSX.Element {
                 <XAxis dataKey="label" tick={{ fill: "hsl(var(--subtle-foreground))", fontSize: 10 }} tickLine={false} axisLine={false} />
                 <YAxis tick={{ fill: "hsl(var(--subtle-foreground))", fontSize: 10 }} tickLine={false} axisLine={false} width={56} />
                 <Tooltip />
-                <Line dataKey="mid" type="monotone" stroke="#38bdf8" dot={false} strokeWidth={2} />
-                <Line dataKey="spread" type="monotone" stroke="#f59e0b" dot={false} strokeWidth={2} />
+                <Line dataKey="mid" type="monotone" stroke="#38bdf8" dot={false} strokeWidth={2} isAnimationActive={false} />
+                <Line dataKey="spread" type="monotone" stroke="#f59e0b" dot={false} strokeWidth={2} isAnimationActive={false} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -192,8 +192,8 @@ export function RealtimeSseChartsSection(): JSX.Element {
                 <XAxis dataKey="label" tick={{ fill: "hsl(var(--subtle-foreground))", fontSize: 10 }} tickLine={false} axisLine={false} />
                 <YAxis tick={{ fill: "hsl(var(--subtle-foreground))", fontSize: 10 }} tickLine={false} axisLine={false} width={56} />
                 <Tooltip />
-                <Line dataKey="bidSize" type="monotone" stroke="#22c55e" dot={false} strokeWidth={2} />
-                <Line dataKey="askSize" type="monotone" stroke="#ef4444" dot={false} strokeWidth={2} />
+                <Line dataKey="bidSize" type="monotone" stroke="#22c55e" dot={false} strokeWidth={2} isAnimationActive={false} />
+                <Line dataKey="askSize" type="monotone" stroke="#ef4444" dot={false} strokeWidth={2} isAnimationActive={false} />
               </LineChart>
             </ResponsiveContainer>
           </div>

@@ -310,6 +310,62 @@ def test_bidask_same_second_events_persist_single_second_sample() -> None:
         assert rows[0].ask == 106
 
 
+def test_persist_bidask_batch_updates_existing_same_second_row() -> None:
+    redis = FakeRedis()
+    runner = build_runner(redis)
+
+    event_ts = datetime.fromisoformat("2026-04-09T15:50:21+08:00")
+    event_second = event_ts.replace(microsecond=0)
+
+    with SessionLocal() as session:
+        session.add(
+            BidAskMetric1sModel(
+                code="TXFD6",
+                trade_date=event_ts.date(),
+                event_ts=event_ts,
+                event_second=event_second,
+                bid=34780.0,
+                ask=34790.0,
+                spread=10.0,
+                mid=34785.0,
+                bid_size=1.0,
+                ask_size=1.0,
+                metric_payload="{}",
+            )
+        )
+        session.commit()
+
+    runner._persist_bidask_batch(
+        [
+            {
+                "code": "TXFD6",
+                "trade_date": event_ts.date(),
+                "event_ts": event_ts,
+                "event_second": event_second,
+                "bid": 34788.0,
+                "ask": 34792.0,
+                "spread": 4.0,
+                "mid": 34790.0,
+                "bid_size": 1.0,
+                "ask_size": 2.0,
+                "metric_payload": {"bid": 34788.0, "ask": 34792.0},
+            }
+        ]
+    )
+
+    with SessionLocal() as session:
+        rows = (
+            session.query(BidAskMetric1sModel)
+            .filter(BidAskMetric1sModel.code == "TXFD6")
+            .filter(BidAskMetric1sModel.event_second == event_second)
+            .all()
+        )
+        assert len(rows) == 1
+        assert rows[0].bid == 34788.0
+        assert rows[0].ask == 34792.0
+        assert rows[0].spread == 4.0
+
+
 def test_tick_db_sink_retries_without_dropping_batch() -> None:
     redis = FakeRedis()
     runner = build_runner(redis)

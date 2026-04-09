@@ -113,4 +113,59 @@ describe("useParticipantAmplitude", () => {
     expect(latest.amplitude).toBe(50);
     expect(latest.isRealtime).toBe(true);
   });
+
+  it("keeps closed-day amplitude visible when intraday baseline request fails", async () => {
+    getDailyAmplitudeHistoryMock.mockResolvedValueOnce([
+      { code: "TXFD6", trade_date: "2026-04-03", open: 205, high: 255, low: 205, close: 250, day_amplitude: 50 },
+      { code: "TXFD6", trade_date: "2026-04-02", open: 140, high: 210, low: 140, close: 205, day_amplitude: 70 },
+    ]);
+    getOrderFlowBaselineMock.mockRejectedValueOnce(new Error("metric_not_found"));
+
+    const { result } = renderHook(() => useParticipantAmplitude());
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.error).toBeNull();
+    expect(result.current.series).toHaveLength(2);
+    expect(result.current.series[0]?.tradeDate).toBe("2026-04-02");
+    expect(result.current.series[1]?.tradeDate).toBe("2026-04-03");
+  });
+
+  it("prefers latest day_amplitude from today baseline over computed high-low", async () => {
+    getDailyAmplitudeHistoryMock.mockResolvedValueOnce([]);
+    getOrderFlowBaselineMock.mockResolvedValueOnce({
+      kbarToday: [
+        {
+          code: "TXFD6",
+          trade_date: "2026-04-08",
+          minute_ts: Date.parse("2026-04-08T09:01:00+08:00"),
+          open: 35000,
+          high: 35030,
+          low: 34980,
+          close: 35020,
+          volume: 10,
+          day_amplitude: 12,
+        },
+        {
+          code: "TXFD6",
+          trade_date: "2026-04-08",
+          minute_ts: Date.parse("2026-04-08T09:02:00+08:00"),
+          open: 35020,
+          high: 35080,
+          low: 34970,
+          close: 35070,
+          volume: 8,
+          day_amplitude: 18,
+        },
+      ],
+      metricToday: [],
+    });
+
+    const { result } = renderHook(() => useParticipantAmplitude());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    const latest = result.current.series[result.current.series.length - 1];
+    expect(latest?.isRealtime).toBe(true);
+    expect(latest?.amplitude).toBe(18);
+  });
 });

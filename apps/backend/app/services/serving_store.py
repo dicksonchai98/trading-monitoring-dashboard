@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from datetime import time as dt_time
 from typing import Any
 
 from sqlalchemy import select
@@ -13,11 +14,14 @@ from zoneinfo import ZoneInfo
 
 from app.config import (
     INGESTOR_CODE,
+    INGESTOR_SPOT_SYMBOLS_EXPECTED_COUNT,
+    INGESTOR_SPOT_SYMBOLS_FILE,
     SERVING_DEFAULT_CODE,
     SERVING_DEFAULT_KBAR_MINUTES,
     SERVING_DEFAULT_METRIC_SECONDS,
     SERVING_ENV,
 )
+from app.market_ingestion.spot_symbols import load_and_validate_spot_symbols
 from app.models.kbar_1m import Kbar1mModel
 from app.models.market_summary_1m import MarketSummary1mModel
 from app.models.quote_feature_1m import QuoteFeature1mModel
@@ -25,8 +29,12 @@ from app.state import get_serving_redis_client
 from app.stream_processing.runner import build_state_key, trade_date_for
 
 TZ_TAIPEI = ZoneInfo("Asia/Taipei")
+DAY_SESSION_START = dt_time(8, 45)
+DAY_SESSION_END = dt_time(13, 45)
 _DEFAULT_CODE_CACHE: dict[str, object] = {"code": None, "ts": 0.0}
 _DEFAULT_CODE_TTL_SECONDS = 10.0
+_SPOT_SYMBOLS_CACHE: dict[str, object] = {"symbols": None, "ts": 0.0}
+_SPOT_SYMBOLS_TTL_SECONDS = 10.0
 
 
 @dataclass(frozen=True)
@@ -132,18 +140,31 @@ def _latest_stream_entry(redis_client: Any, key: str) -> str | None:
 
 
 def normalize_kbar(record: dict[str, Any]) -> dict[str, Any]:
+    def _to_float(value: Any, default: float = 0.0) -> float:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return default
+
+    def _to_optional_float(value: Any) -> float | None:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
     minute_ts = _parse_iso(str(record.get("minute_ts")))
     return {
         "code": record.get("code"),
         "trade_date": record.get("trade_date"),
         "minute_ts": _to_epoch_ms(minute_ts),
-        "open": float(record.get("open", 0)),
-        "high": float(record.get("high", 0)),
-        "low": float(record.get("low", 0)),
-        "close": float(record.get("close", 0)),
-        "volume": float(record.get("volume", 0)),
-        "amplitude": float(record.get("amplitude", 0)),
-        "amplitude_pct": float(record.get("amplitude_pct", 0)),
+        "open": _to_float(record.get("open", 0)),
+        "high": _to_float(record.get("high", 0)),
+        "low": _to_float(record.get("low", 0)),
+        "close": _to_float(record.get("close", 0)),
+        "volume": _to_float(record.get("volume", 0)),
+        "amplitude": _to_float(record.get("amplitude", 0)),
+        "amplitude_pct": _to_float(record.get("amplitude_pct", 0)),
+        "day_amplitude": _to_optional_float(record.get("day_amplitude")),
     }
 
 
@@ -270,6 +291,12 @@ def fetch_kbar_daily_amplitude(session: Session, code: str, days: int) -> list[d
     rows = session.execute(rows_stmt).all()
     by_date: dict[Any, list[Any]] = {}
     for row in rows:
+        minute_ts = row.minute_ts
+        if minute_ts.tzinfo is None:
+            minute_ts = minute_ts.replace(tzinfo=TZ_TAIPEI)
+        local_time = minute_ts.astimezone(TZ_TAIPEI).time()
+        if local_time < DAY_SESSION_START or local_time > DAY_SESSION_END:
+            continue
         by_date.setdefault(row.trade_date, []).append(row)
 
     result: list[dict[str, Any]] = []
@@ -339,6 +366,100 @@ def normalize_market_summary_latest(payload: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
+def normalize_otc_summary_latest(payload: dict[str, Any]) -> dict[str, Any]:
+    result = dict(payload)
+    event_ts = payload.get("event_ts")
+    if event_ts:
+        result["event_ts"] = _to_epoch_ms(_parse_iso(str(event_ts)))
+    minute_ts = payload.get("minute_ts")
+    if minute_ts:
+        result["minute_ts"] = _to_epoch_ms(_parse_iso(str(minute_ts)))
+    return result
+
+
+def normalize_spot_latest(payload: dict[str, Any]) -> dict[str, Any]:
+    result = dict(payload)
+    updated_at = payload.get("updated_at")
+    if updated_at:
+        result["updated_at"] = _to_epoch_ms(_parse_iso(str(updated_at)))
+    return result
+
+
+def _load_spot_symbols() -> list[str]:
+    now = datetime.now(tz=TZ_TAIPEI).timestamp()
+    cached_symbols = _SPOT_SYMBOLS_CACHE.get("symbols")
+    cached_ts = float(_SPOT_SYMBOLS_CACHE.get("ts", 0.0))
+    if isinstance(cached_symbols, list) and (now - cached_ts) < _SPOT_SYMBOLS_TTL_SECONDS:
+        return [str(item) for item in cached_symbols]
+    symbols = load_and_validate_spot_symbols(
+        path=INGESTOR_SPOT_SYMBOLS_FILE,
+        expected_count=INGESTOR_SPOT_SYMBOLS_EXPECTED_COUNT,
+    )
+    _SPOT_SYMBOLS_CACHE["symbols"] = symbols
+    _SPOT_SYMBOLS_CACHE["ts"] = now
+    return symbols
+
+
+def fetch_spot_latest(symbol: str) -> dict[str, Any] | None:
+    redis_client = get_serving_redis_client()
+    key = f"{SERVING_ENV}:state:spot:{symbol}:latest"
+    raw = redis_client.get(key)
+    if raw is None:
+        return None
+    payload = raw.decode("utf-8") if isinstance(raw, bytes) else str(raw)
+    try:
+        data = json.loads(payload)
+    except json.JSONDecodeError:
+        return None
+    return normalize_spot_latest(data)
+
+
+def fetch_spot_latest_list() -> dict[str, Any]:
+    symbols = _load_spot_symbols()
+    items: list[dict[str, Any]] = []
+    for symbol in symbols:
+        payload = fetch_spot_latest(symbol)
+        if payload is None:
+            items.append(
+                {
+                    "symbol": symbol,
+                    "open": None,
+                    "high": None,
+                    "low": None,
+                    "close": None,
+                    "last_price": None,
+                    "session_high": None,
+                    "session_low": None,
+                    "reference_price": None,
+                    "gap_value": None,
+                    "gap_pct": None,
+                    "is_gap_up": None,
+                    "is_gap_down": None,
+                    "updated_at": None,
+                }
+            )
+            continue
+        items.append(
+            {
+                "symbol": payload.get("symbol", symbol),
+                "open": payload.get("open"),
+                "high": payload.get("high"),
+                "low": payload.get("low"),
+                "close": payload.get("close"),
+                "last_price": payload.get("last_price"),
+                "session_high": payload.get("session_high"),
+                "session_low": payload.get("session_low"),
+                "reference_price": payload.get("reference_price"),
+                "gap_value": payload.get("gap_value"),
+                "gap_pct": payload.get("gap_pct"),
+                "is_gap_up": payload.get("is_gap_up"),
+                "is_gap_down": payload.get("is_gap_down"),
+                "updated_at": payload.get("updated_at"),
+            }
+        )
+    return {"ts": int(datetime.now(tz=TZ_TAIPEI).timestamp() * 1000), "items": items}
+
+
 def fetch_market_summary_latest(code: str) -> dict[str, Any] | None:
     redis_client = get_serving_redis_client()
     trade_date = trade_date_for(datetime.now(tz=TZ_TAIPEI))
@@ -405,6 +526,39 @@ def fetch_market_summary_history(
         }
         for row in rows
     ]
+
+
+def fetch_otc_summary_latest(code: str) -> dict[str, Any] | None:
+    redis_client = get_serving_redis_client()
+    trade_date = trade_date_for(datetime.now(tz=TZ_TAIPEI))
+    key = build_state_key(SERVING_ENV, code, trade_date, "otc_summary:latest")
+    raw = redis_client.get(key)
+    if raw is None:
+        return None
+    payload = raw.decode("utf-8") if isinstance(raw, bytes) else str(raw)
+    try:
+        data = json.loads(payload)
+    except json.JSONDecodeError:
+        return None
+    return normalize_otc_summary_latest(data)
+
+
+def fetch_otc_summary_today_range(code: str, time_range: TimeRange) -> list[dict[str, Any]]:
+    redis_client = get_serving_redis_client()
+    trade_date = trade_date_for(time_range.end)
+    key = build_state_key(SERVING_ENV, code, trade_date, "otc_summary:zset")
+    start_score = int(time_range.start.timestamp())
+    end_score = int(time_range.end.timestamp())
+    entries = redis_client.zrangebyscore(key, start_score, end_score)
+    result: list[dict[str, Any]] = []
+    for entry in entries or []:
+        payload = entry.decode("utf-8") if isinstance(entry, bytes) else str(entry)
+        try:
+            data = json.loads(payload)
+        except json.JSONDecodeError:
+            continue
+        result.append(normalize_otc_summary_latest(data))
+    return result
 
 
 def default_kbar_window() -> timedelta:

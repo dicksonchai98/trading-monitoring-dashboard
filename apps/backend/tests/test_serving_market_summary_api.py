@@ -64,6 +64,39 @@ def test_market_summary_today_route_returns_list(monkeypatch) -> None:
     assert isinstance(response.json(), list)
 
 
+def test_otc_summary_latest_route_returns_payload(monkeypatch) -> None:
+    client = TestClient(app)
+    headers = _auth_headers(client)
+
+    monkeypatch.setattr(
+        "app.routes.serving.fetch_otc_summary_latest",
+        lambda _code: {
+            "code": "OTC001",
+            "event_ts": 1712368801000,
+            "minute_ts": 1712368800000,
+            "index_value": 252.34,
+        },
+    )
+
+    response = client.get("/v1/otc-summary/latest", headers=headers)
+    assert response.status_code == 200
+    assert response.json()["code"] == "OTC001"
+
+
+def test_otc_summary_today_route_returns_list(monkeypatch) -> None:
+    client = TestClient(app)
+    headers = _auth_headers(client)
+
+    monkeypatch.setattr(
+        "app.routes.serving.fetch_otc_summary_today_range",
+        lambda _code, _time_range: [{"code": "OTC001", "minute_ts": 1712368800000}],
+    )
+
+    response = client.get("/v1/otc-summary/today", headers=headers)
+    assert response.status_code == 200
+    assert isinstance(response.json(), list)
+
+
 def test_market_summary_history_route_requires_range() -> None:
     client = TestClient(app)
     headers = _auth_headers(client)
@@ -84,6 +117,27 @@ def test_market_summary_latest_returns_503_when_redis_unavailable(monkeypatch) -
     assert response.json()["detail"] == "redis_unavailable"
 
 
+def test_otc_summary_latest_returns_404_when_missing(monkeypatch) -> None:
+    client = TestClient(app)
+    headers = _auth_headers(client)
+    monkeypatch.setattr("app.routes.serving.fetch_otc_summary_latest", lambda _code: None)
+    response = client.get("/v1/otc-summary/latest", headers=headers)
+    assert response.status_code == 404
+    assert response.json()["detail"] == "otc_summary_not_found"
+
+
+def test_otc_summary_latest_returns_503_when_redis_unavailable(monkeypatch) -> None:
+    client = TestClient(app)
+    headers = _auth_headers(client)
+    monkeypatch.setattr(
+        "app.routes.serving.fetch_otc_summary_latest",
+        lambda _code: (_ for _ in ()).throw(RuntimeError("redis down")),
+    )
+    response = client.get("/v1/otc-summary/latest", headers=headers)
+    assert response.status_code == 503
+    assert response.json()["detail"] == "redis_unavailable"
+
+
 def test_market_summary_history_returns_503_when_db_unavailable(monkeypatch) -> None:
     client = TestClient(app)
     headers = _auth_headers(client)
@@ -98,6 +152,33 @@ def test_market_summary_history_returns_503_when_db_unavailable(monkeypatch) -> 
     )
     assert response.status_code == 503
     assert response.json()["detail"] == "db_unavailable"
+
+
+def test_spot_latest_route_returns_payload(monkeypatch) -> None:
+    client = TestClient(app)
+    headers = _auth_headers(client)
+    monkeypatch.setattr(
+        "app.routes.serving.fetch_spot_latest",
+        lambda _symbol: {
+            "symbol": "2330",
+            "last_price": 612.0,
+            "session_high": 620.0,
+            "session_low": 600.0,
+            "updated_at": 1712368801000,
+        },
+    )
+    response = client.get("/v1/spot/latest", headers=headers, params={"symbol": "2330"})
+    assert response.status_code == 200
+    assert response.json()["symbol"] == "2330"
+
+
+def test_spot_latest_route_returns_404_when_missing(monkeypatch) -> None:
+    client = TestClient(app)
+    headers = _auth_headers(client)
+    monkeypatch.setattr("app.routes.serving.fetch_spot_latest", lambda _symbol: None)
+    response = client.get("/v1/spot/latest", headers=headers, params={"symbol": "2330"})
+    assert response.status_code == 404
+    assert response.json()["detail"] == "spot_not_found"
 
 
 class _FakeSSERequest:
@@ -120,6 +201,8 @@ def test_sse_disconnect_isolated_per_connection(monkeypatch: pytest.MonkeyPatch)
     )
     monkeypatch.setattr("app.routes.serving.fetch_metric_latest", lambda _code: None)
     monkeypatch.setattr("app.routes.serving.fetch_market_summary_latest", lambda _code: None)
+    monkeypatch.setattr("app.routes.serving.fetch_otc_summary_latest", lambda _code: None)
+    monkeypatch.setattr("app.routes.serving.fetch_spot_latest_list", lambda: {"ts": 1, "items": []})
     monkeypatch.setattr("app.routes.serving.SERVING_HEARTBEAT_SECONDS", 3600)
 
     async def _run() -> None:
@@ -135,10 +218,74 @@ def test_sse_disconnect_isolated_per_connection(monkeypatch: pytest.MonkeyPatch)
 
         await drop_iter.__anext__()
         with pytest.raises(StopAsyncIteration):
-            await drop_iter.__anext__()
+            while True:
+                await drop_iter.__anext__()
         assert "10.0.0.1" not in serving_rate_limiter._sse_active
         assert serving_rate_limiter._sse_active.get("10.0.0.2") == 1
 
         await alive_iter.aclose()
+
+    asyncio.run(_run())
+
+
+def test_sse_includes_spot_latest_list_event(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("app.routes.serving.fetch_current_kbar", lambda _code: None)
+    monkeypatch.setattr("app.routes.serving.fetch_metric_latest", lambda _code: None)
+    monkeypatch.setattr("app.routes.serving.fetch_market_summary_latest", lambda _code: None)
+    monkeypatch.setattr("app.routes.serving.fetch_otc_summary_latest", lambda _code: None)
+    monkeypatch.setattr(
+        "app.routes.serving.fetch_spot_latest_list",
+        lambda: {
+            "ts": 1712368801000,
+            "items": [
+                {
+                    "symbol": "2330",
+                    "last_price": 612.0,
+                    "session_high": 620.0,
+                    "session_low": 600.0,
+                    "updated_at": 1712368801000,
+                }
+            ],
+        },
+    )
+    monkeypatch.setattr("app.routes.serving.SERVING_HEARTBEAT_SECONDS", 3600)
+
+    async def _run() -> None:
+        req = _FakeSSERequest(host="10.0.0.3", disconnect_after_checks=10)
+        response = await stream_sse(req, code="TSE001")
+        event_bytes = await response.body_iterator.__anext__()
+        event_text = event_bytes.decode("utf-8")
+        assert "event: spot_latest_list" in event_text
+        assert '"symbol": "2330"' in event_text
+        await response.body_iterator.aclose()
+
+    asyncio.run(_run())
+
+
+def test_sse_includes_otc_summary_latest_event(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("app.routes.serving.fetch_current_kbar", lambda _code: None)
+    monkeypatch.setattr("app.routes.serving.fetch_metric_latest", lambda _code: None)
+    monkeypatch.setattr("app.routes.serving.fetch_market_summary_latest", lambda _code: None)
+    monkeypatch.setattr(
+        "app.routes.serving.fetch_otc_summary_latest",
+        lambda _code: {
+            "code": "OTC001",
+            "minute_ts": 1712368800000,
+            "event_ts": 1712368801000,
+            "index_value": 252.34,
+        },
+    )
+    monkeypatch.setattr("app.routes.serving.fetch_spot_latest_list", lambda: {"ts": 1, "items": []})
+    monkeypatch.setattr("app.routes.serving.SERVING_HEARTBEAT_SECONDS", 3600)
+
+    async def _run() -> None:
+        req = _FakeSSERequest(host="10.0.0.4", disconnect_after_checks=10)
+        response = await stream_sse(req, code="TSE001")
+        first_event = await response.body_iterator.__anext__()
+        second_event = await response.body_iterator.__anext__()
+        merged = (first_event + second_event).decode("utf-8")
+        assert "event: otc_summary_latest" in merged
+        assert '"code": "OTC001"' in merged
+        await response.body_iterator.aclose()
 
     asyncio.run(_run())

@@ -43,8 +43,14 @@ class _FakeAPI:
             "Contracts",
             (),
             {
-                "Futures": {"MTXR1": object(), "MTX": object()},
+                "Futures": {
+                    "TXFR1": object(),
+                    "TXF": object(),
+                    "MTXR1": object(),
+                    "MTX": object(),
+                },
                 "Stocks": {"2330": object()},
+                "Indexs": {"001": object()},
             },
         )
 
@@ -61,12 +67,22 @@ class _FakeAPI:
 class _FakeSpotTick:
     def __init__(self, code: str, price: float) -> None:
         self.code = code
+        self.open = price - 2
+        self.high = price + 3
+        self.low = price - 4
         self.close = price
+        self.reference_price = price - 5
         self.datetime = datetime.now(tz=timezone.utc)
 
     def to_dict(self, raw: bool = True):
         _ = raw
-        return {"close": self.close}
+        return {
+            "open": self.open,
+            "high": self.high,
+            "low": self.low,
+            "close": self.close,
+            "reference_price": self.reference_price,
+        }
 
 
 class _FakeFuturesTick:
@@ -98,7 +114,7 @@ class _SelectiveRedis:
 
     def xadd(self, key, fields, maxlen, approximate):
         _ = (maxlen, approximate)
-        if ":stream:spot:" in key:
+        if key.endswith(":stream:spot"):
             raise RuntimeError("spot write failure")
         self.writes.append((key, fields))
         return f"{len(self.writes)}-0"
@@ -160,11 +176,16 @@ def test_spot_stream_contract_and_ingest_seq_monotonic(tmp_path) -> None:
 
     first = runner._spot_pipeline.queue.get_nowait()
     second = runner._spot_pipeline.queue.get_nowait()
-    assert first.stream_key == "dev:stream:spot:2330"
+    assert first.stream_key == "dev:stream:spot"
     assert first.event.payload["symbol"] == "2330"
     assert first.event.payload["source"] == "shioaji"
     assert "event_ts" in first.event.payload
     assert "last_price" in first.event.payload
+    assert first.event.payload["open"] == 899.5
+    assert first.event.payload["high"] == 904.5
+    assert first.event.payload["low"] == 897.5
+    assert first.event.payload["close"] == 901.5
+    assert first.event.payload["reference_price"] == 896.5
     assert first.event.payload["ingest_seq"] == 1
     assert second.event.payload["ingest_seq"] == 2
 

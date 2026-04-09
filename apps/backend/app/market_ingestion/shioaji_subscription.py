@@ -90,6 +90,15 @@ def _available_stock_codes(stocks: Any, limit: int = 20) -> list[str]:
     return names[:limit]
 
 
+def _iter_stock_buckets(stocks: Any) -> list[Any]:
+    buckets: list[Any] = [stocks]
+    for bucket_name in ("TSE", "OTC", "OES"):
+        bucket = getattr(stocks, bucket_name, None)
+        if bucket is not None:
+            buckets.append(bucket)
+    return buckets
+
+
 def resolve_contract(api: Any, code: str) -> Any:
     # Prefer near-month shorthand (e.g., TXFR1 / MTXR1) when available.
     near_month_code = f"{code}R1"
@@ -152,9 +161,10 @@ def subscribe_topics(api: Any, contract: Any, quote_types: Iterable[str] | None 
 
 def resolve_stock_contract(api: Any, symbol: str) -> Any:
     stocks = api.Contracts.Stocks
-    contract = _resolve_from_stocks(stocks, symbol)
-    if contract is not None:
-        return contract
+    for bucket in _iter_stock_buckets(stocks):
+        contract = _resolve_from_stocks(bucket, symbol)
+        if contract is not None:
+            return contract
     raise RuntimeError(
         "unable to resolve stock contract "
         f"symbol={symbol} available={_available_stock_codes(stocks)}"

@@ -47,6 +47,22 @@ function resolveRealtimeMinuteTs(payload: {
   return null;
 }
 
+function resolveTaipeiDatePart(tsMs: number): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Taipei",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(tsMs));
+}
+
+function resolveSessionBoundsMs(tsMs: number): { sessionStartMs: number; sessionEndMs: number } {
+  const datePart = resolveTaipeiDatePart(tsMs);
+  const sessionStartMs = Date.parse(`${datePart}T09:00:00+08:00`);
+  const sessionEndMs = Date.parse(`${datePart}T13:45:00+08:00`);
+  return { sessionStartMs, sessionEndMs };
+}
+
 export function useEstimatedVolumeTimeline(): UseEstimatedVolumeTimelineResult {
   const token = useAuthStore((state) => state.token);
   const resolved = useAuthStore((state) => state.resolved);
@@ -130,6 +146,10 @@ export function useEstimatedVolumeTimeline(): UseEstimatedVolumeTimelineResult {
 
     const minuteTs = resolveRealtimeMinuteTs(marketSummaryLatest);
     if (minuteTs === null) {
+      return;
+    }
+    const { sessionStartMs, sessionEndMs } = resolveSessionBoundsMs(Date.now());
+    if (minuteTs < sessionStartMs || minuteTs > sessionEndMs) {
       return;
     }
     const estimatedTurnover = marketSummaryLatest.estimated_turnover;

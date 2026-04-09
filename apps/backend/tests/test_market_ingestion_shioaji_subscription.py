@@ -56,6 +56,18 @@ class GetOnlyBucket:
         return self._mapping.get(key)
 
 
+class StocksByMarket:
+    def __init__(
+        self,
+        tse: dict[str, object] | None = None,
+        otc: dict[str, object] | None = None,
+        oes: dict[str, object] | None = None,
+    ) -> None:
+        self.TSE = tse or {}
+        self.OTC = otc or {}
+        self.OES = oes or {}
+
+
 class FakeAPI:
     def __init__(
         self,
@@ -144,6 +156,20 @@ def test_subscribe_spot_ticks_for_symbols() -> None:
     assert subscribed == 2
     assert any(target is contract_2330 for _, target, _ in api.quote.subscriptions)
     assert any(target is contract_2317 for _, target, _ in api.quote.subscriptions)
+
+
+def test_resolve_stock_contract_from_tse_bucket() -> None:
+    contract_1704 = object()
+    api = FakeAPI(FakeFutures({}), stocks={})
+    api.Contracts.Stocks = StocksByMarket(tse={"1704": contract_1704})
+    assert resolve_stock_contract(api, "1704") is contract_1704
+
+
+def test_resolve_stock_contract_from_otc_bucket() -> None:
+    contract_5483 = object()
+    api = FakeAPI(FakeFutures({}), stocks={})
+    api.Contracts.Stocks = StocksByMarket(otc={"5483": contract_5483})
+    assert resolve_stock_contract(api, "5483") is contract_5483
 
 
 def test_resolve_market_contract_prefers_index_bucket() -> None:
