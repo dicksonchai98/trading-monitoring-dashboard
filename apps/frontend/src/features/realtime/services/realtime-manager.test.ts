@@ -1,5 +1,6 @@
 import {
   applyServingSseEvent,
+  createSpotLatestListMockGenerator,
   parseSseFrame,
   splitSseBuffer,
 } from "@/features/realtime/services/realtime-manager";
@@ -110,6 +111,21 @@ describe("realtime-manager", () => {
     expect(state.marketSummaryLatestByCode.TXFD6?.estimated_turnover).toBe(6666);
   });
 
+  it("prefers code over market_code for market_summary_latest routing", () => {
+    applyServingSseEvent("market_summary_latest", {
+      code: "TXFD6",
+      market_code: "TSE001",
+      minute_ts: inSessionMarketMinuteTs,
+      estimated_turnover: 7777,
+      spread: 9.5,
+    });
+
+    const state = useRealtimeStore.getState();
+    expect(state.marketSummaryLatestByCode.TXFD6?.estimated_turnover).toBe(7777);
+    expect(state.marketSummaryLatestByCode.TXFD6?.spread).toBe(9.5);
+    expect(state.marketSummaryLatestByCode.TSE001).toBeUndefined();
+  });
+
   it("routes otc_summary_latest without code to OTC001 fallback key", () => {
     applyServingSseEvent("otc_summary_latest", {
       minute_ts: inSessionOtcMinuteTs,
@@ -152,10 +168,32 @@ describe("realtime-manager", () => {
   it("writes spot_latest_list into realtime store", () => {
     applyServingSseEvent("spot_latest_list", {
       ts: inSessionSpotTs,
+      market_strength_score: 0.5,
+      market_strength_pct: 25,
+      market_strength_count: 1,
+      sector_strength: {
+        weighted: 65,
+        financial: null,
+        tech: null,
+      },
+      market_strength_breakdown: {
+        new_high: 1,
+        strong_up: 0,
+        flat: 0,
+        strong_down: 0,
+        new_low: 0,
+      },
       items: [
         {
           symbol: "2330",
           last_price: 950,
+          price_chg: 5,
+          pct_chg: 0.53,
+          is_new_high: true,
+          is_new_low: false,
+          strength_state: "new_high",
+          strength_score: 2,
+          strength_pct: 100,
           session_high: 955,
           session_low: 940,
           updated_at: inSessionSpotTs,
@@ -167,11 +205,48 @@ describe("realtime-manager", () => {
     expect(state.spotLatestList?.items).toHaveLength(1);
     expect(state.spotLatestList?.items[0]?.symbol).toBe("2330");
     expect(state.spotLatestList?.items[0]?.last_price).toBe(950);
+    expect(state.spotLatestList?.items[0]?.price_chg).toBe(5);
+    expect(state.spotLatestList?.items[0]?.pct_chg).toBe(0.53);
+    expect(state.spotLatestList?.items[0]?.is_new_high).toBe(true);
+    expect(state.spotLatestList?.items[0]?.is_new_low).toBe(false);
+    expect(state.spotLatestList?.items[0]?.strength_state).toBe("new_high");
+    expect(state.spotLatestList?.items[0]?.strength_score).toBe(2);
+    expect(state.spotLatestList?.items[0]?.strength_pct).toBe(100);
+    expect(state.spotLatestList?.market_strength_score).toBe(0.5);
+    expect(state.spotLatestList?.market_strength_pct).toBe(25);
+    expect(state.spotLatestList?.market_strength_count).toBe(1);
+    expect(state.spotLatestList?.sector_strength?.weighted).toBe(65);
+  });
+
+  it("spot latest list mock generator emits six gap symbols every second", () => {
+    const startTs = Date.parse("2026-04-09T10:00:00+08:00");
+    const generator = createSpotLatestListMockGenerator(startTs);
+
+    const first = generator.next().value;
+    const second = generator.next().value;
+
+    expect(first?.items).toHaveLength(6);
+    expect(first?.items.map((item) => item.symbol)).toEqual([
+      "2330",
+      "2317",
+      "2454",
+      "2308",
+      "2881",
+      "6505",
+    ]);
+    expect(first?.ts).toBe(startTs);
+    expect(typeof first?.market_strength_score).toBe("number");
+    expect(typeof first?.market_strength_pct).toBe("number");
+    expect(first?.market_strength_count).toBe(6);
+    expect(first?.sector_strength).toBeDefined();
+    expect(first?.market_strength_breakdown).toBeDefined();
+    expect(second?.ts).toBe(startTs + 1000);
+    expect(second?.items[0]?.last_price).not.toBe(first?.items[0]?.last_price);
   });
 
   it("routes quote_latest without code to TXFD6 fallback key", () => {
     applyServingSseEvent("quote_latest", {
-      event_ts: inSessionQuoteTs,
+      event_ts: "2026-04-09T10:01:45+08:00",
       main_chip: 120,
       long_short_force: -16,
       main_chip_strength: 0.61,
