@@ -18,6 +18,17 @@ const STREAM_PATH = "/v1/stream/sse";
 const DEFAULT_STREAM_CODE = "TXFD6";
 const SESSION_START_HHMM = "09:00:00";
 const SESSION_END_HHMM = "13:45:00";
+const ENABLE_SPOT_GAP_K_MOCK =
+  String(import.meta.env.VITE_ENABLE_SPOT_GAP_K_MOCK ?? "").toLowerCase() === "true";
+const SPOT_GAP_K_SYMBOLS = ["2330", "2317", "2454", "2308", "2881", "6505"] as const;
+const SPOT_GAP_K_BASE_OPEN: Record<(typeof SPOT_GAP_K_SYMBOLS)[number], number> = {
+  "2330": 948,
+  "2317": 154,
+  "2454": 1310,
+  "2308": 252,
+  "2881": 79.8,
+  "6505": 109.5,
+};
 
 interface StreamHttpError extends Error {
   status: number;
@@ -48,6 +59,176 @@ interface ServingSseBatch {
   };
   spotLatestList?: SpotLatestListPayload;
   heartbeatTs?: number;
+}
+
+function resolveMockSessionStartTs(): number {
+  const datePart = resolveTaipeiDatePart(Date.now());
+  return Date.parse(`${datePart}T10:00:00+08:00`);
+}
+
+interface SpotGapMockSymbolState {
+  open: number;
+  close: number;
+  sessionHigh: number;
+  sessionLow: number;
+  referencePrice: number;
+}
+
+const SPOT_STRENGTH_THRESHOLD_PCT = 0.8;
+
+type SpotStrengthState = "new_high" | "strong_up" | "flat" | "strong_down" | "new_low";
+
+function resolveSpotStrength(
+  openPrice: number,
+  lastPrice: number,
+  isNewHigh: boolean,
+  isNewLow: boolean,
+): { state: SpotStrengthState; score: number } {
+  if (isNewHigh) {
+    return { state: "new_high", score: 2 };
+  }
+  if (isNewLow) {
+    return { state: "new_low", score: -2 };
+  }
+  if (!Number.isFinite(openPrice) || openPrice === 0 || !Number.isFinite(lastPrice)) {
+    return { state: "flat", score: 0 };
+  }
+  const changePct = ((lastPrice - openPrice) / openPrice) * 100;
+  if (changePct >= SPOT_STRENGTH_THRESHOLD_PCT) {
+    return { state: "strong_up", score: 1 };
+  }
+  if (changePct <= -SPOT_STRENGTH_THRESHOLD_PCT) {
+    return { state: "strong_down", score: -1 };
+  }
+  return { state: "flat", score: 0 };
+}
+
+function strengthScoreToPct(score: number): number {
+  return Math.max(0, Math.min(100, ((score + 2) / 4) * 100));
+}
+
+export function* createSpotLatestListMockGenerator(
+  initialTs: number = resolveMockSessionStartTs(),
+): Generator<SpotLatestListPayload> {
+  let ts = initialTs;
+  let tick = 0;
+  const state = new Map<string, SpotGapMockSymbolState>(
+    SPOT_GAP_K_SYMBOLS.map((symbol, index) => {
+      const open = SPOT_GAP_K_BASE_OPEN[symbol];
+      const referencePrice = Number((open * (1 - 0.003 + index * 0.0002)).toFixed(2));
+      return [
+        symbol,
+        {
+          open,
+          close: open,
+          sessionHigh: open,
+          sessionLow: open,
+          referencePrice,
+        },
+      ];
+    }),
+  );
+
+  while (true) {
+    let marketScoreSum = 0;
+    const sectorStrengthValues: Record<"weighted" | "financial" | "tech", number[]> = {
+      weighted: [],
+      financial: [],
+      tech: [],
+    };
+    const marketBreakdown: Record<SpotStrengthState, number> = {
+      new_high: 0,
+      strong_up: 0,
+      flat: 0,
+      strong_down: 0,
+      new_low: 0,
+    };
+    const items: SpotLatestListPayload["items"] = SPOT_GAP_K_SYMBOLS.map((symbol, index) => {
+      const current = state.get(symbol)!;
+      const wave = Math.sin((tick + index * 5) / 6) * current.open * 0.0038;
+      const drift = (((tick + index * 11) % 31) - 15) * current.open * 0.00005;
+      const close = Number((current.open + wave + drift).toFixed(2));
+      const isNewHigh = close > current.sessionHigh;
+      const isNewLow = close < current.sessionLow;
+      const high = Math.max(current.sessionHigh, close, current.open);
+      const low = Math.min(current.sessionLow, close, current.open);
+      const gapValue = Number((current.open - current.referencePrice).toFixed(2));
+      const gapPct =
+        current.referencePrice === 0
+          ? 0
+          : Number(((gapValue / current.referencePrice) * 100).toFixed(2));
+      const priceChg = Number((close - current.referencePrice).toFixed(2));
+      const pctChg =
+        current.referencePrice === 0
+          ? 0
+          : Number((((close - current.referencePrice) / current.referencePrice) * 100).toFixed(2));
+      const strength = resolveSpotStrength(current.open, close, isNewHigh, isNewLow);
+      const strengthPct = strengthScoreToPct(strength.score);
+      marketScoreSum += strength.score;
+      marketBreakdown[strength.state] += 1;
+      if (symbol === "2330" || symbol === "2317") {
+        sectorStrengthValues.weighted.push(strengthPct);
+      }
+      if (symbol === "2881" || symbol === "6505") {
+        sectorStrengthValues.financial.push(strengthPct);
+      }
+      if (symbol === "2454" || symbol === "2308") {
+        sectorStrengthValues.tech.push(strengthPct);
+      }
+
+      state.set(symbol, {
+        ...current,
+        close,
+        sessionHigh: high,
+        sessionLow: low,
+      });
+
+      return {
+        symbol,
+        open: current.open,
+        high,
+        low,
+        close,
+        last_price: close,
+        session_high: high,
+        session_low: low,
+        reference_price: current.referencePrice,
+        price_chg: priceChg,
+        pct_chg: pctChg,
+        gap_value: gapValue,
+        gap_pct: gapPct,
+        is_gap_up: gapValue > 0,
+        is_gap_down: gapValue < 0,
+        is_new_high: isNewHigh,
+        is_new_low: isNewLow,
+        strength_state: strength.state,
+        strength_score: strength.score,
+        strength_pct: strengthPct,
+        updated_at: ts,
+      };
+    });
+
+    const avgPct = (values: number[]): number | null =>
+      values.length === 0
+        ? null
+        : Number((values.reduce((acc, value) => acc + value, 0) / values.length).toFixed(2));
+
+    yield {
+      ts,
+      market_strength_score: Number((marketScoreSum / SPOT_GAP_K_SYMBOLS.length).toFixed(3)),
+      market_strength_pct: Number(((marketScoreSum / (SPOT_GAP_K_SYMBOLS.length * 2)) * 100).toFixed(2)),
+      market_strength_count: SPOT_GAP_K_SYMBOLS.length,
+      sector_strength: {
+        weighted: avgPct(sectorStrengthValues.weighted),
+        financial: avgPct(sectorStrengthValues.financial),
+        tech: avgPct(sectorStrengthValues.tech),
+      },
+      market_strength_breakdown: marketBreakdown,
+      items,
+    };
+    tick += 1;
+    ts += 1000;
+  }
 }
 
 function resolveTaipeiDatePart(tsMs: number): string {
@@ -203,7 +384,7 @@ function collectServingSseEvent(eventName: string, data: unknown, batch: Serving
       return;
     }
     const fallbackCode = DEFAULT_STREAM_CODE;
-    const payloadCode = parsed.data.market_code || parsed.data.code || fallbackCode;
+    const payloadCode = parsed.data.code || parsed.data.market_code || fallbackCode;
     batch.marketSummaryLatest = {
       code: payloadCode,
       payload: parsed.data,
@@ -263,6 +444,8 @@ class RealtimeManager {
   private token: string | null = null;
   private abortController: AbortController | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private spotGapMockTimer: ReturnType<typeof setInterval> | null = null;
+  private spotGapMockGenerator: Generator<SpotLatestListPayload> | null = null;
   private reconnectAttempts = 0;
   private stoppedByClient = false;
 
@@ -277,6 +460,13 @@ class RealtimeManager {
     this.token = token;
     this.stoppedByClient = false;
     this.clearReconnectTimer();
+    this.clearSpotGapMockTimer();
+
+    if (ENABLE_SPOT_GAP_K_MOCK) {
+      this.startSpotGapKMock();
+      return;
+    }
+
     this.start();
   }
 
@@ -285,6 +475,7 @@ class RealtimeManager {
     this.token = null;
     this.reconnectAttempts = 0;
     this.clearReconnectTimer();
+    this.clearSpotGapMockTimer();
     if (this.abortController) {
       this.abortController.abort();
       this.abortController = null;
@@ -348,6 +539,30 @@ class RealtimeManager {
     }
     clearTimeout(this.reconnectTimer);
     this.reconnectTimer = null;
+  }
+
+  private startSpotGapKMock(): void {
+    this.spotGapMockGenerator = createSpotLatestListMockGenerator();
+    useRealtimeStore.getState().setConnectionStatus("connected", null);
+
+    const emit = () => {
+      const payload = this.spotGapMockGenerator?.next().value;
+      if (!payload) {
+        return;
+      }
+      applyServingSseBatch({ spotLatestList: payload });
+    };
+
+    emit();
+    this.spotGapMockTimer = setInterval(emit, 1000);
+  }
+
+  private clearSpotGapMockTimer(): void {
+    if (this.spotGapMockTimer) {
+      clearInterval(this.spotGapMockTimer);
+      this.spotGapMockTimer = null;
+    }
+    this.spotGapMockGenerator = null;
   }
 
   private async stream(signal: AbortSignal, token: string): Promise<void> {
