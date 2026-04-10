@@ -62,6 +62,19 @@ services:
       DATABASE_URL: ${DATABASE_URL_DOCKER:-postgresql+psycopg://postgres:981025060598Cc!@host.docker.internal:5432/trading_dashboard}
       REDIS_URL: ${REDIS_URL_DOCKER:-redis://redis:6379/0}
 
+  backend-quote-worker:
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile
+    command: python -m workers.quote_worker
+    env_file:
+      - ./.env
+    depends_on:
+      - redis
+    environment:
+      DATABASE_URL: ${DATABASE_URL_DOCKER:-postgresql+psycopg://postgres:981025060598Cc!@host.docker.internal:5432/trading_dashboard}
+      REDIS_URL: ${REDIS_URL_DOCKER:-redis://redis:6379/0}
+
   backend-latest-state-worker:
     build:
       context: ./apps/backend

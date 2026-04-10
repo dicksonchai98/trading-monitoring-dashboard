@@ -81,6 +81,7 @@ function toOrderFlowMarketData(data: OrderFlowSeriesPoint[]): MarketOverviewDatu
 function withTickPriceSeries(
   data: MarketOverviewDatum[],
   tickSeries?: OrderFlowSeriesPoint[],
+  secondaryOverrideValue?: number,
 ): MarketOverviewDatum[] {
   if (!tickSeries || tickSeries.length === 0) {
     return data;
@@ -89,7 +90,12 @@ function withTickPriceSeries(
   const orderedTicks = [...tickSeries].sort((a, b) => a.minuteTs - b.minuteTs);
   const secondaryByTime = new Map<string, number>();
   for (const item of data) {
-    secondaryByTime.set(item.time, item.chipDelta);
+    secondaryByTime.set(
+      item.time,
+      typeof secondaryOverrideValue === "number" && Number.isFinite(secondaryOverrideValue)
+        ? secondaryOverrideValue
+        : item.chipDelta,
+    );
   }
 
   let carrySecondary = data[0]?.chipDelta ?? 0;
@@ -266,12 +272,14 @@ const volumeLadderData = generateMarketOverviewData(22420, 6.8, 3, 6);
 
 export function VolumeLadderChart({
   tickSeries,
+  quoteMainChip,
 }: {
   tickSeries?: OrderFlowSeriesPoint[];
+  quoteMainChip?: number | null;
 }): JSX.Element {
   return (
     <MarketOverviewHybridChart
-      data={withTickPriceSeries(volumeLadderData, tickSeries)}
+      data={withTickPriceSeries(volumeLadderData, tickSeries, quoteMainChip ?? undefined)}
       priceLabel="TXFD6 Near Month"
       testId="volume-ladder-chart"
     />
@@ -282,12 +290,14 @@ const pressureData = generateMarketOverviewData(1210, 1.8, 7, 2);
 
 export function BidAskPressureChart({
   tickSeries,
+  quoteLongShortForce,
 }: {
   tickSeries?: OrderFlowSeriesPoint[];
+  quoteLongShortForce?: number | null;
 }): JSX.Element {
   return (
     <MarketOverviewHybridChart
-      data={withTickPriceSeries(pressureData, tickSeries)}
+      data={withTickPriceSeries(pressureData, tickSeries, quoteLongShortForce ?? undefined)}
       priceLabel="TXFD6 Near Month"
       testId="bid-ask-pressure-chart"
     />

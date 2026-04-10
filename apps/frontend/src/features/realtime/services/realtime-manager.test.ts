@@ -11,6 +11,7 @@ describe("realtime-manager", () => {
   const inSessionMarketMinuteTs = Date.parse("2026-04-09T10:01:00+08:00");
   const inSessionOtcMinuteTs = Date.parse("2026-04-09T10:02:00+08:00");
   const inSessionSpotTs = Date.parse("2026-04-09T10:01:30+08:00");
+  const inSessionQuoteTs = Date.parse("2026-04-09T10:01:45+08:00");
 
   beforeEach(() => {
     useRealtimeStore.getState().resetRealtime();
@@ -168,6 +169,22 @@ describe("realtime-manager", () => {
     expect(state.spotLatestList?.items[0]?.last_price).toBe(950);
   });
 
+  it("routes quote_latest without code to TXFD6 fallback key", () => {
+    applyServingSseEvent("quote_latest", {
+      event_ts: inSessionQuoteTs,
+      main_chip: 120,
+      long_short_force: -16,
+      main_chip_strength: 0.61,
+      long_short_force_strength: 0.47,
+    });
+
+    const state = useRealtimeStore.getState();
+    expect(state.quoteLatestByCode.TXFD6?.main_chip).toBe(120);
+    expect(state.quoteLatestByCode.TXFD6?.long_short_force).toBe(-16);
+    expect(state.quoteLatestByCode.TXFD6?.main_chip_strength).toBe(0.61);
+    expect(state.quoteLatestByCode.TXFD6?.long_short_force_strength).toBe(0.47);
+  });
+
   it("ignores invalid payloads without mutating store", () => {
     applyServingSseEvent("kbar_current", { code: "MTX" });
     applyServingSseEvent("heartbeat", { ts: "bad" });
@@ -205,12 +222,17 @@ describe("realtime-manager", () => {
       ts: Date.parse("2026-04-09T14:00:03+08:00"),
       items: [{ symbol: "2330", last_price: 999 }],
     });
+    applyServingSseEvent("quote_latest", {
+      event_ts: Date.parse("2026-04-09T14:00:04+08:00"),
+      main_chip: 20,
+    });
 
     const state = useRealtimeStore.getState();
     expect(state.kbarCurrentByCode.TXFD6).toBeUndefined();
     expect(state.metricLatestByCode.TXFD6).toBeUndefined();
     expect(state.marketSummaryLatestByCode.TXFD6).toBeUndefined();
     expect(state.otcSummaryLatestByCode.OTC001).toBeUndefined();
+    expect(state.quoteLatestByCode.TXFD6).toBeUndefined();
     expect(state.spotLatestList).toBeNull();
     expect(state.lastHeartbeatTs).toBe(1775714400000);
   });

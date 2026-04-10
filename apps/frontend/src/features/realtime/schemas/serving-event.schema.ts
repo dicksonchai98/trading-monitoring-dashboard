@@ -49,6 +49,15 @@ export const OtcSummaryLatestSchema = z.object({
   index_value: z.number().nullable().optional(),
 });
 
+export const QuoteLatestSchema = z.object({
+  code: z.string().trim().min(1).optional(),
+  event_ts: z.number().optional(),
+  main_chip: z.number().nullable().optional(),
+  long_short_force: z.number().nullable().optional(),
+  main_chip_strength: z.number().nullable().optional(),
+  long_short_force_strength: z.number().nullable().optional(),
+});
+
 export const SpotLatestListSchema = z.object({
   ts: z.number(),
   items: z.array(

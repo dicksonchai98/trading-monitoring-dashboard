@@ -4,6 +4,7 @@ import type {
   MarketSummaryLatestPayload,
   MetricLatestPayload,
   OtcSummaryLatestPayload,
+  QuoteLatestPayload,
   SseConnectionStatus,
   SpotLatestListPayload,
 } from "@/features/realtime/types/realtime.types";
@@ -15,6 +16,7 @@ interface RealtimeStore {
   metricLatestByCode: Record<string, MetricLatestPayload>;
   marketSummaryLatestByCode: Record<string, MarketSummaryLatestPayload>;
   otcSummaryLatestByCode: Record<string, OtcSummaryLatestPayload>;
+  quoteLatestByCode: Record<string, QuoteLatestPayload>;
   spotLatestList: SpotLatestListPayload | null;
   lastHeartbeatTs: number | null;
   setConnectionStatus: (status: SseConnectionStatus, errorReason?: string | null) => void;
@@ -22,11 +24,13 @@ interface RealtimeStore {
   upsertMetricLatest: (code: string, payload: MetricLatestPayload) => void;
   upsertMarketSummaryLatest: (code: string, payload: MarketSummaryLatestPayload) => void;
   upsertOtcSummaryLatest: (code: string, payload: OtcSummaryLatestPayload) => void;
+  upsertQuoteLatest: (code: string, payload: QuoteLatestPayload) => void;
   applySseBatch: (batch: {
     kbarCurrent?: KbarCurrentPayload;
     metricLatest?: { code: string; payload: MetricLatestPayload };
     marketSummaryLatest?: { code: string; payload: MarketSummaryLatestPayload };
     otcSummaryLatest?: { code: string; payload: OtcSummaryLatestPayload };
+    quoteLatest?: { code: string; payload: QuoteLatestPayload };
     spotLatestList?: SpotLatestListPayload;
     heartbeatTs?: number;
   }) => void;
@@ -41,6 +45,7 @@ const initialState = {
   metricLatestByCode: {} as Record<string, MetricLatestPayload>,
   marketSummaryLatestByCode: {} as Record<string, MarketSummaryLatestPayload>,
   otcSummaryLatestByCode: {} as Record<string, OtcSummaryLatestPayload>,
+  quoteLatestByCode: {} as Record<string, QuoteLatestPayload>,
   spotLatestList: null as SpotLatestListPayload | null,
   lastHeartbeatTs: null as number | null,
 };
@@ -73,6 +78,13 @@ export const useRealtimeStore = create<RealtimeStore>((set) => ({
     set((state) => ({
       otcSummaryLatestByCode: {
         ...state.otcSummaryLatestByCode,
+        [code]: payload,
+      },
+    })),
+  upsertQuoteLatest: (code, payload) =>
+    set((state) => ({
+      quoteLatestByCode: {
+        ...state.quoteLatestByCode,
         [code]: payload,
       },
     })),
@@ -109,6 +121,14 @@ export const useRealtimeStore = create<RealtimeStore>((set) => ({
         nextState.otcSummaryLatestByCode = {
           ...state.otcSummaryLatestByCode,
           [batch.otcSummaryLatest.code]: batch.otcSummaryLatest.payload,
+        };
+        changed = true;
+      }
+
+      if (batch.quoteLatest) {
+        nextState.quoteLatestByCode = {
+          ...state.quoteLatestByCode,
+          [batch.quoteLatest.code]: batch.quoteLatest.payload,
         };
         changed = true;
       }

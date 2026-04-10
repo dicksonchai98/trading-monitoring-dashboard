@@ -9,7 +9,12 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 
-from app.config import OTC_SUMMARY_CODE, SERVING_HEARTBEAT_SECONDS, SERVING_POLL_INTERVAL_MS
+from app.config import (
+    OTC_SUMMARY_CODE,
+    SERVING_HEARTBEAT_SECONDS,
+    SERVING_POLL_INTERVAL_MS,
+    SERVING_SSE_INCLUDE_QUOTE,
+)
 from app.db.deps import get_db_session
 from app.deps import (
     enforce_serving_rate_limit,
@@ -31,12 +36,12 @@ from app.services.serving_store import (
     fetch_metric_today_range,
     fetch_otc_summary_latest,
     fetch_otc_summary_today_range,
-    fetch_spot_latest,
-    fetch_spot_latest_list,
     fetch_quote_aggregates,
     fetch_quote_history,
     fetch_quote_latest,
     fetch_quote_today_range,
+    fetch_spot_latest,
+    fetch_spot_latest_list,
     resolve_default_code,
     resolve_time_range,
 )
@@ -497,6 +502,7 @@ async def stream_sse(
     async def event_stream():
         last_kbar: dict[str, Any] | None = None
         last_metric: dict[str, Any] | None = None
+        last_quote: dict[str, Any] | None = None
         last_market_summary: dict[str, Any] | None = None
         last_otc_summary: dict[str, Any] | None = None
         last_heartbeat = asyncio.get_running_loop().time()
@@ -508,6 +514,7 @@ async def stream_sse(
                 try:
                     current_k = fetch_current_kbar(instrument)
                     metric_latest = fetch_metric_latest(instrument)
+                    quote_latest_data = fetch_quote_latest(instrument)
                     market_summary_latest_data = fetch_market_summary_latest(instrument)
                     otc_summary_latest_data = fetch_otc_summary_latest(OTC_SUMMARY_CODE)
                     spot_latest_list_data = fetch_spot_latest_list()
@@ -524,6 +531,15 @@ async def stream_sse(
                     last_metric = metric_latest
                     metrics.inc("serving_sse_push_total")
                     yield _sse_message("metric_latest", metric_latest)
+
+                if (
+                    SERVING_SSE_INCLUDE_QUOTE
+                    and quote_latest_data
+                    and quote_latest_data != last_quote
+                ):
+                    last_quote = quote_latest_data
+                    metrics.inc("serving_sse_push_total")
+                    yield _sse_message("quote_latest", quote_latest_data)
 
                 if market_summary_latest_data and market_summary_latest_data != last_market_summary:
                     last_market_summary = market_summary_latest_data
