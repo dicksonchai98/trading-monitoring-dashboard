@@ -4,6 +4,7 @@ import {
   MarketSummaryLatestSchema,
   MetricLatestSchema,
   OtcSummaryLatestSchema,
+  QuoteLatestSchema,
   SpotLatestListSchema,
 } from "@/features/realtime/schemas/serving-event.schema";
 import { useRealtimeStore } from "@/features/realtime/store/realtime.store";
@@ -40,6 +41,10 @@ interface ServingSseBatch {
   otcSummaryLatest?: {
     code: string;
     payload: ReturnType<typeof useRealtimeStore.getState>["otcSummaryLatestByCode"][string];
+  };
+  quoteLatest?: {
+    code: string;
+    payload: ReturnType<typeof useRealtimeStore.getState>["quoteLatestByCode"][string];
   };
   spotLatestList?: SpotLatestListPayload;
   heartbeatTs?: number;
@@ -94,6 +99,8 @@ function shouldApplyDashboardSseEvent(eventName: string, data: unknown): boolean
     tsMs = toEpochMs(payload.minute_ts) ?? toEpochMs(payload.event_ts);
   } else if (eventName === "spot_latest_list") {
     tsMs = toEpochMs(payload.ts);
+  } else if (eventName === "quote_latest") {
+    tsMs = toEpochMs(payload.event_ts) ?? toEpochMs(payload.ts);
   }
   if (tsMs === null) {
     return false;
@@ -232,6 +239,20 @@ function collectServingSseEvent(eventName: string, data: unknown, batch: Serving
         ? parsed.data.code
         : "OTC001";
     batch.otcSummaryLatest = {
+      code: payloadCode,
+      payload: parsed.data,
+    };
+    return;
+  }
+
+  if (eventName === "quote_latest") {
+    const parsed = QuoteLatestSchema.safeParse(data);
+    if (!parsed.success) {
+      return;
+    }
+    const fallbackCode = DEFAULT_STREAM_CODE;
+    const payloadCode = parsed.data.code || fallbackCode;
+    batch.quoteLatest = {
       code: payloadCode,
       payload: parsed.data,
     };
@@ -394,6 +415,7 @@ class RealtimeManager {
         batch.metricLatest ||
         batch.marketSummaryLatest ||
         batch.otcSummaryLatest ||
+        batch.quoteLatest ||
         batch.spotLatestList ||
         typeof batch.heartbeatTs === "number"
       ) {

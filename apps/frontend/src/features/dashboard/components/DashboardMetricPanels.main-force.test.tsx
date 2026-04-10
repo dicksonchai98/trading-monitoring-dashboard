@@ -43,4 +43,16 @@ describe("DashboardMetricPanels main force needle", () => {
     expect(screen.getByText("200.00")).toBeInTheDocument();
     expect(screen.getByText("29.40億")).toBeInTheDocument();
   });
+  it("maps quote strength fields into 銝餃?蝐Ⅳ and 憭征?? cards", () => {
+    useRealtimeStore.getState().upsertQuoteLatest("TXFD6", {
+      main_chip_strength: 0.66,
+      long_short_force_strength: 0.38,
+    });
+
+    render(<DashboardMetricPanels />);
+
+    expect(screen.getByTestId("live-metrics-main-chip-strength")).toHaveTextContent("66.0%");
+    expect(screen.getByTestId("live-metrics-long-short-force-strength")).toHaveTextContent("38.0%");
+    expect(screen.getByTestId("live-metrics-retail-small-order")).toHaveTextContent("+176");
+  });
 });

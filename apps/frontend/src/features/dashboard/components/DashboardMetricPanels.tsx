@@ -17,6 +17,7 @@ import { Card } from "@/components/ui/card";
 import { useKbarCurrent } from "@/features/realtime/hooks/use-kbar-current";
 import { useMarketSummaryLatest } from "@/features/realtime/hooks/use-market-summary-latest";
 import { useMetricLatest } from "@/features/realtime/hooks/use-metric-latest";
+import { useQuoteLatest } from "@/features/realtime/hooks/use-quote-latest";
 import { useSpotLatestList } from "@/features/realtime/hooks/use-spot-latest-list";
 import { useOtcIndexSeries } from "@/features/dashboard/hooks/use-otc-index-series";
 import { PanelCard } from "@/components/ui/panel-card";
@@ -57,12 +58,7 @@ const GAP_K_SYMBOLS = ["2330", "2317", "2454", "2308", "2881", "6505"] as const;
 const NEEDLE_BASE_RADIUS_PX = 4;
 const gaugeValues = [74, 66, 58, 82, 63];
 const GROUPED_INTEGER_FORMATTER = new Intl.NumberFormat("en-US");
-const coreMetricLabels = ["日振幅", "预估成交值", "价差"] as const;
-const contributionMetrics = [
-  { label: "上涨家数", value: "+84" },
-  { label: "20日净流入", value: "+176" },
-  { label: "多空力道", value: "612 / 356" },
-];
+const coreMetricLabels = ["\u6210\u4ea4\u632f\u5e45", "\u9810\u4f30\u6210\u4ea4\u91cf", "\u50f9\u5dee"] as const;
 function buildOtcIntradaySeries(): Array<{
   time: string;
   value: number;
@@ -168,7 +164,7 @@ function formatGroupedInteger(value: number): string {
 }
 
 function formatYiUnit(value: number): string {
-  return `${(value / 100_000_000).toFixed(2)}億`;
+  return `${(value / 100_000_000).toFixed(2)}\u5104`;
 }
 
 function formatPercentage(value: number): string {
@@ -182,7 +178,7 @@ function formatCoreMetricValue(
   if (value === null) {
     return "--";
   }
-  if (label === "预估成交值") {
+  if (label === "\u9810\u4f30\u6210\u4ea4\u91cf") {
     return formatYiUnit(value);
   }
   return formatFixed2(value);
@@ -413,7 +409,7 @@ function OtcIndexLinePanel(): JSX.Element {
 
   return (
     <PanelCard
-      title="OTC 櫃買指數"
+      title="OTC Index"
       span={1}
       units={1}
       className="h-full"
@@ -740,6 +736,7 @@ export function DashboardMetricPanels(): JSX.Element {
   const kbar = useKbarCurrent("TXFD6");
   const metric = useMetricLatest("TXFD6");
   const marketSummary = useMarketSummaryLatest("TXFD6");
+  const quote = useQuoteLatest("TXFD6");
   const stickyDayAmplitude = useStickyLatestNumber(kbar?.day_amplitude);
   const stickyEstimatedTurnover = useStickyLatestNumber(
     marketSummary?.estimated_turnover,
@@ -748,19 +745,44 @@ export function DashboardMetricPanels(): JSX.Element {
   const stickyMainForceStrength = useStickyLatestNumber(
     metric?.main_force_big_order_strength,
   );
+  const stickyMainChipStrength = useStickyLatestNumber(
+    quote?.main_chip_strength,
+  );
+  const stickyLongShortForceStrength = useStickyLatestNumber(
+    quote?.long_short_force_strength,
+  );
   let gaugeIndex = 0;
   const coreMetrics = [
     {
-      label: "日振幅",
-      value: formatCoreMetricValue("日振幅", stickyDayAmplitude),
+      label: "\u6210\u4ea4\u632f\u5e45",
+      value: formatCoreMetricValue("\u6210\u4ea4\u632f\u5e45", stickyDayAmplitude),
     },
     {
-      label: "预估成交值",
-      value: formatCoreMetricValue("预估成交值", stickyEstimatedTurnover),
+      label: "\u9810\u4f30\u6210\u4ea4\u91cf",
+      value: formatCoreMetricValue("\u9810\u4f30\u6210\u4ea4\u91cf", stickyEstimatedTurnover),
     },
     {
-      label: "价差",
-      value: formatCoreMetricValue("价差", stickySpread),
+      label: "\u50f9\u5dee",
+      value: formatCoreMetricValue("\u50f9\u5dee", stickySpread),
+    },
+  ];
+  const contributionMetrics = [
+    {
+      label: "\u4e3b\u529b\u7c4c\u78bc",
+      value:
+        stickyMainChipStrength === null
+          ? "--"
+          : formatPercentage(stickyMainChipStrength),
+      testId: "live-metrics-main-chip-strength",
+    },
+    { label: "\u6563\u6236\u5c0f\u55ae", value: "+176", testId: "live-metrics-retail-small-order" },
+    {
+      label: "\u591a\u7a7a\u529b\u9053",
+      value:
+        stickyLongShortForceStrength === null
+          ? "--"
+          : formatPercentage(stickyLongShortForceStrength),
+      testId: "live-metrics-long-short-force-strength",
     },
   ];
 
@@ -825,7 +847,7 @@ export function DashboardMetricPanels(): JSX.Element {
             key={item.label}
             title={item.label}
             value={item.value}
-            testId="live-metrics-contribution-card"
+            testId={item.testId}
           />
         ))}
       </div>

@@ -5,6 +5,7 @@ import type {
   MarketSummaryLatestSchema,
   MetricLatestSchema,
   OtcSummaryLatestSchema,
+  QuoteLatestSchema,
   SpotLatestListSchema,
 } from "@/features/realtime/schemas/serving-event.schema";
 
@@ -14,6 +15,7 @@ export type KbarCurrentPayload = z.infer<typeof KbarCurrentSchema>;
 export type MetricLatestPayload = z.infer<typeof MetricLatestSchema>;
 export type MarketSummaryLatestPayload = z.infer<typeof MarketSummaryLatestSchema>;
 export type OtcSummaryLatestPayload = z.infer<typeof OtcSummaryLatestSchema>;
+export type QuoteLatestPayload = z.infer<typeof QuoteLatestSchema>;
 export type HeartbeatPayload = z.infer<typeof HeartbeatSchema>;
 export type SpotLatestListPayload = z.infer<typeof SpotLatestListSchema>;
 
@@ -22,5 +24,6 @@ export type ServingSseEventName =
   | "metric_latest"
   | "market_summary_latest"
   | "otc_summary_latest"
+  | "quote_latest"
   | "spot_latest_list"
   | "heartbeat";
