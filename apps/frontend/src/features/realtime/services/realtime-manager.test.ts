@@ -239,6 +239,8 @@ describe("realtime-manager", () => {
     expect(typeof first?.market_strength_pct).toBe("number");
     expect(first?.market_strength_count).toBe(6);
     expect(first?.sector_strength).toBeDefined();
+    expect(typeof first?.items[0]?.strength_pct).toBe("number");
+    expect(first?.items.some((item) => typeof item.strength_pct !== "number")).toBe(false);
     expect(first?.market_strength_breakdown).toBeDefined();
     expect(second?.ts).toBe(startTs + 1000);
     expect(second?.items[0]?.last_price).not.toBe(first?.items[0]?.last_price);

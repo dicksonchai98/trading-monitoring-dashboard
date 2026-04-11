@@ -107,6 +107,26 @@ function strengthScoreToPct(score: number): number {
   return Math.max(0, Math.min(100, ((score + 2) / 4) * 100));
 }
 
+function computePositionStrengthPct(
+  sessionLow: number,
+  sessionHigh: number,
+  price: number,
+): number | null {
+  if (
+    !Number.isFinite(sessionLow) ||
+    !Number.isFinite(sessionHigh) ||
+    !Number.isFinite(price)
+  ) {
+    return null;
+  }
+  const range = sessionHigh - sessionLow;
+  if (range <= 0) {
+    return null;
+  }
+  const raw = ((price - sessionLow) / range) * 100;
+  return Math.max(0, Math.min(100, Number(raw.toFixed(2))));
+}
+
 export function* createSpotLatestListMockGenerator(
   initialTs: number = resolveMockSessionStartTs(),
 ): Generator<SpotLatestListPayload> {
@@ -163,7 +183,9 @@ export function* createSpotLatestListMockGenerator(
           ? 0
           : Number((((close - current.referencePrice) / current.referencePrice) * 100).toFixed(2));
       const strength = resolveSpotStrength(current.open, close, isNewHigh, isNewLow);
-      const strengthPct = strengthScoreToPct(strength.score);
+      const strengthPct =
+        computePositionStrengthPct(low, high, close) ??
+        strengthScoreToPct(strength.score);
       marketScoreSum += strength.score;
       marketBreakdown[strength.state] += 1;
       if (symbol === "2330" || symbol === "2317") {
