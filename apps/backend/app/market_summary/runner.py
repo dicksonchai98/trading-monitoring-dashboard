@@ -496,17 +496,25 @@ class MarketSummaryRunner:
         return max(0.0, min(raw, 1.0))
 
     def _write_snapshot(self, snapshot: MarketSummarySnapshot) -> None:
-        latest_key = build_state_key(
-            self._env, snapshot.code, snapshot.trade_date, "market_summary:latest"
-        )
-        zset_key = build_state_key(
-            self._env, snapshot.code, snapshot.trade_date, "market_summary:zset"
-        )
-        member = json.dumps(snapshot.to_dict(), ensure_ascii=True)
-        self._redis.set(latest_key, member)
-        self._redis.expire(latest_key, self._ttl_seconds)
-        self._redis.zadd(zset_key, {member: unix_seconds(snapshot.event_ts)})
-        self._redis.expire(zset_key, self._ttl_seconds)
+        target_codes = {snapshot.code}
+        alias_code = str(self._futures_code or "").strip()
+        if alias_code:
+            target_codes.add(alias_code)
+
+        for code in target_codes:
+            latest_key = build_state_key(
+                self._env, code, snapshot.trade_date, "market_summary:latest"
+            )
+            zset_key = build_state_key(self._env, code, snapshot.trade_date, "market_summary:zset")
+            payload = snapshot.to_dict()
+            if code != snapshot.code:
+                payload["market_code"] = snapshot.code
+                payload["code"] = code
+            member = json.dumps(payload, ensure_ascii=True)
+            self._redis.set(latest_key, member)
+            self._redis.expire(latest_key, self._ttl_seconds)
+            self._redis.zadd(zset_key, {member: unix_seconds(snapshot.event_ts)})
+            self._redis.expire(zset_key, self._ttl_seconds)
 
     def _track_minute_rollover(self, snapshot: MarketSummarySnapshot) -> None:
         if self._buffered_minute_snapshot is None:

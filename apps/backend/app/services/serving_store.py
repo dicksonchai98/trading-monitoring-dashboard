@@ -506,6 +506,15 @@ def fetch_spot_latest(symbol: str) -> dict[str, Any] | None:
 def fetch_spot_latest_list() -> dict[str, Any]:
     symbols = _load_spot_symbols()
     items: list[dict[str, Any]] = []
+    strength_score_sum = 0.0
+    strength_score_count = 0
+    strength_counts = {
+        "new_high": 0,
+        "strong_up": 0,
+        "flat": 0,
+        "strong_down": 0,
+        "new_low": 0,
+    }
     for symbol in symbols:
         payload = fetch_spot_latest(symbol)
         if payload is None:
@@ -520,14 +529,27 @@ def fetch_spot_latest_list() -> dict[str, Any]:
                     "session_high": None,
                     "session_low": None,
                     "reference_price": None,
+                    "price_chg": None,
+                    "pct_chg": None,
                     "gap_value": None,
                     "gap_pct": None,
                     "is_gap_up": None,
                     "is_gap_down": None,
+                    "is_new_high": None,
+                    "is_new_low": None,
+                    "strength_state": None,
+                    "strength_score": None,
                     "updated_at": None,
                 }
             )
             continue
+        strength_state = payload.get("strength_state")
+        strength_score = payload.get("strength_score")
+        if isinstance(strength_state, str) and strength_state in strength_counts:
+            strength_counts[strength_state] += 1
+        if isinstance(strength_score, (int, float)):
+            strength_score_sum += float(strength_score)
+            strength_score_count += 1
         items.append(
             {
                 "symbol": payload.get("symbol", symbol),
@@ -539,14 +561,33 @@ def fetch_spot_latest_list() -> dict[str, Any]:
                 "session_high": payload.get("session_high"),
                 "session_low": payload.get("session_low"),
                 "reference_price": payload.get("reference_price"),
+                "price_chg": payload.get("price_chg"),
+                "pct_chg": payload.get("pct_chg"),
                 "gap_value": payload.get("gap_value"),
                 "gap_pct": payload.get("gap_pct"),
                 "is_gap_up": payload.get("is_gap_up"),
                 "is_gap_down": payload.get("is_gap_down"),
+                "is_new_high": payload.get("is_new_high"),
+                "is_new_low": payload.get("is_new_low"),
+                "strength_state": strength_state,
+                "strength_score": strength_score,
                 "updated_at": payload.get("updated_at"),
             }
         )
-    return {"ts": int(datetime.now(tz=TZ_TAIPEI).timestamp() * 1000), "items": items}
+    market_strength_score = (
+        round(strength_score_sum / strength_score_count, 3) if strength_score_count > 0 else None
+    )
+    market_strength_pct = (
+        round((market_strength_score / 2.0) * 100, 2) if market_strength_score is not None else None
+    )
+    return {
+        "ts": int(datetime.now(tz=TZ_TAIPEI).timestamp() * 1000),
+        "items": items,
+        "market_strength_score": market_strength_score,
+        "market_strength_pct": market_strength_pct,
+        "market_strength_count": strength_score_count,
+        "market_strength_breakdown": strength_counts,
+    }
 
 
 def fetch_market_summary_latest(code: str) -> dict[str, Any] | None:

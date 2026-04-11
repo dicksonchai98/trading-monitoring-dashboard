@@ -15,6 +15,28 @@ from app.services.metrics import Metrics
 
 logger = logging.getLogger(__name__)
 TZ_OFFSET_SECONDS = 8 * 3600
+STRONG_MOVE_THRESHOLD_PCT = 0.8
+
+
+def _resolve_strength_state(
+    *,
+    is_new_high: bool,
+    is_new_low: bool,
+    open_price: float | None,
+    last_price: float | None,
+) -> tuple[str, int]:
+    if is_new_high:
+        return "new_high", 2
+    if is_new_low:
+        return "new_low", -2
+    if open_price is None or last_price is None or open_price == 0:
+        return "flat", 0
+    open_move_pct = ((last_price - open_price) / open_price) * 100
+    if open_move_pct >= STRONG_MOVE_THRESHOLD_PCT:
+        return "strong_up", 1
+    if open_move_pct <= -STRONG_MOVE_THRESHOLD_PCT:
+        return "strong_down", -1
+    return "flat", 0
 
 
 def _decode(value: Any) -> str:
@@ -234,10 +256,12 @@ class LatestStateRunner:
             high_price = _extract_price_field(data, payload, "high")
             low_price = _extract_price_field(data, payload, "low")
             reference_price = _extract_price_field(data, payload, "reference_price")
-            if reference_price is None:
-                price_chg = _extract_price_field(data, payload, "price_chg")
-                if price_chg is not None:
-                    reference_price = close_price - price_chg
+            price_chg = _extract_price_field(data, payload, "price_chg")
+            pct_chg = _extract_price_field(data, payload, "pct_chg")
+            if pct_chg is None:
+                pct_chg = _extract_price_field(data, payload, "pcct_chg")
+            if reference_price is None and price_chg is not None:
+                reference_price = close_price - price_chg
 
             close_price = close_price if close_price is not None else last_price
             open_price = open_price if open_price is not None else close_price
@@ -246,6 +270,12 @@ class LatestStateRunner:
 
             current = self._latest_state.get(symbol)
             if current is None:
+                strength_state, strength_score = _resolve_strength_state(
+                    is_new_high=False,
+                    is_new_low=False,
+                    open_price=open_price,
+                    last_price=last_price,
+                )
                 current = {
                     "symbol": symbol,
                     "last_price": last_price,
@@ -257,8 +287,14 @@ class LatestStateRunner:
                     "session_low": low_price,
                     "is_new_high": False,
                     "is_new_low": False,
+                    "strength_state": strength_state,
+                    "strength_score": strength_score,
                     "updated_at": event_ts.isoformat(),
                 }
+                if price_chg is not None:
+                    current["price_chg"] = price_chg
+                if pct_chg is not None:
+                    current["pct_chg"] = pct_chg
                 if reference_price is not None:
                     gap_value = open_price - reference_price
                     current["reference_price"] = reference_price
@@ -282,6 +318,18 @@ class LatestStateRunner:
                 current["close"] = close_price
                 current["session_high"] = max(prev_session_high, high_price)
                 current["session_low"] = min(prev_session_low, low_price)
+                strength_state, strength_score = _resolve_strength_state(
+                    is_new_high=bool(current["is_new_high"]),
+                    is_new_low=bool(current["is_new_low"]),
+                    open_price=_coerce_float(current.get("open")),
+                    last_price=_coerce_float(current.get("last_price")),
+                )
+                current["strength_state"] = strength_state
+                current["strength_score"] = strength_score
+                if price_chg is not None:
+                    current["price_chg"] = price_chg
+                if pct_chg is not None:
+                    current["pct_chg"] = pct_chg
                 locked_trade_date = self._reference_trade_date.get(symbol)
                 should_update_reference = reference_price is not None and (
                     _coerce_float(current.get("reference_price")) is None

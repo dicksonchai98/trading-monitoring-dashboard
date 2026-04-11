@@ -85,6 +85,24 @@ class _FakeSpotTick:
         }
 
 
+class _FakeSpotTickStringPayload:
+    def __init__(self, code: str) -> None:
+        self.code = code
+        self.datetime = datetime.now(tz=timezone.utc)
+
+    def to_dict(self, raw: bool = True):
+        _ = raw
+        return {
+            "open": "899.5",
+            "high": "904.5",
+            "low": "897.5",
+            "close": "901.5",
+            "reference_price": "896.5",
+            "price_chg": "5.0",
+            "pcct_chg": "0.56",
+        }
+
+
 class _FakeFuturesTick:
     def __init__(self, code: str, price: float) -> None:
         self.code = code
@@ -188,6 +206,28 @@ def test_spot_stream_contract_and_ingest_seq_monotonic(tmp_path) -> None:
     assert first.event.payload["reference_price"] == 896.5
     assert first.event.payload["ingest_seq"] == 1
     assert second.event.payload["ingest_seq"] == 2
+
+
+def test_spot_price_fields_support_numeric_strings_in_raw_payload(tmp_path) -> None:
+    symbols_file = tmp_path / "symbols.txt"
+    symbols_file.write_text("2330\n", encoding="utf-8")
+    runner = _build_runner(
+        _SelectiveRedis(), str(symbols_file), expected_count=1, spot_required=True
+    )
+    runner._spot_enabled = True
+
+    runner._on_spot_quote(_FakeSpotTickStringPayload("2330"))
+
+    first = runner._spot_pipeline.queue.get_nowait()
+    assert first.stream_key == "dev:stream:spot"
+    assert first.event.payload["last_price"] == 901.5
+    assert first.event.payload["open"] == 899.5
+    assert first.event.payload["high"] == 904.5
+    assert first.event.payload["low"] == 897.5
+    assert first.event.payload["close"] == 901.5
+    assert first.event.payload["reference_price"] == 896.5
+    assert first.event.payload["price_chg"] == 5.0
+    assert first.event.payload["pct_chg"] == 0.56
 
 
 def test_futures_path_continues_when_spot_publish_fails(tmp_path, caplog) -> None:
