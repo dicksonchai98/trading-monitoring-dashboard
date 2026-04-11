@@ -53,6 +53,6 @@ describe("DashboardMetricPanels main force needle", () => {
 
     expect(screen.getByTestId("live-metrics-main-chip-strength")).toHaveTextContent("66.0%");
     expect(screen.getByTestId("live-metrics-long-short-force-strength")).toHaveTextContent("38.0%");
-    expect(screen.getByTestId("live-metrics-retail-small-order")).toHaveTextContent("+176");
+    expect(screen.getByTestId("live-metrics-retail-small-order-strength")).toHaveTextContent("--");
   });
 });

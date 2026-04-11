@@ -14,22 +14,26 @@ import { Badge } from "@/components/ui/badge";
 import { BentoGridSection } from "@/components/ui/bento-grid";
 import { PageLayout } from "@/components/ui/page-layout";
 import { PanelCard } from "@/components/ui/panel-card";
+import { BidAskPressureCard } from "@/features/dashboard/components/BidAskPressureCard";
 import { DashboardMetricPanels } from "@/features/dashboard/components/DashboardMetricPanels";
+import { EstimatedVolumeCard } from "@/features/dashboard/components/EstimatedVolumeCard";
+import { OrderFlowCard } from "@/features/dashboard/components/OrderFlowCard";
 import {
   BreadthDistributionChart,
-  BidAskPressureChart,
-  ProgramActivityChart,
-  VolumeLadderChart,
 } from "@/features/dashboard/components/PanelCharts";
-import { EstimatedVolumeCard } from "@/features/dashboard/components/EstimatedVolumeCard";
+import { ProgramActivityCard } from "@/features/dashboard/components/ProgramActivityCard";
+import { VolumeLadderCard } from "@/features/dashboard/components/VolumeLadderCard";
+import { useBidAskPressureSeries } from "@/features/dashboard/hooks/use-bid-ask-pressure-series";
+import { useEstimatedVolumeTimeline } from "@/features/dashboard/hooks/use-estimated-volume-timeline";
 import { useParticipantAmplitude } from "@/features/dashboard/hooks/use-participant-amplitude";
+import { useProgramActivitySeries } from "@/features/dashboard/hooks/use-program-activity-series";
+import { useQuoteTimeline } from "@/features/dashboard/hooks/use-quote-timeline";
+import { useVolumeLadderSeries } from "@/features/dashboard/hooks/use-volume-ladder-series";
 import {
   type ParticipantSignalWithMaPoint,
   withAmplitudeMovingAverages,
 } from "@/features/dashboard/lib/participant-signals";
 import { useMarketOverviewTimeline } from "@/features/dashboard/hooks/use-market-overview-timeline";
-import { OrderFlowCard } from "@/features/dashboard/components/OrderFlowCard";
-import { useQuoteLatest } from "@/features/realtime/hooks/use-quote-latest";
 
 interface ParticipantSignalDatum {
   day: string;
@@ -110,11 +114,28 @@ export function RealtimeDashboardOverview(): JSX.Element {
     loading: participantLoading,
     error: participantError,
   } = useParticipantAmplitude();
+  const {
+    series: estimatedVolumeSeries,
+    latest: estimatedVolumeLatest,
+    loading: estimatedVolumeLoading,
+    error: estimatedVolumeError,
+  } = useEstimatedVolumeTimeline();
+  const {
+    mainChipByMinute,
+    longShortForceByMinute,
+    loading: quoteLoading,
+    error: quoteError,
+  } = useQuoteTimeline();
+  const volumeLadderSeries = useVolumeLadderSeries(tickSeries, mainChipByMinute);
+  const bidAskPressureSeries = useBidAskPressureSeries(
+    tickSeries,
+    longShortForceByMinute,
+  );
+  const programActivitySeries = useProgramActivitySeries(tickSeries);
   const participantChartData = useMemo(
     () => withAmplitudeMovingAverages(participantSignalData),
     [participantSignalData],
   );
-  const quoteLatest = useQuoteLatest("TXFD6");
   const participantAmplitudeMax = useMemo(() => {
     const maxValue = participantChartData.reduce((currentMax, point) => {
       const maMax = Math.max(point.ma3 ?? 0, point.ma5 ?? 0, point.ma10 ?? 0);
@@ -133,25 +154,30 @@ export function RealtimeDashboardOverview(): JSX.Element {
 
       <BentoGridSection title="MARKET OVERVIEW">
         <OrderFlowCard series={tickSeries} loading={tickLoading} error={tickError} />
-        <PanelCard title="Volume Ladder" span={4} meta="5m buckets">
-          <VolumeLadderChart
-            tickSeries={tickSeries}
-            quoteMainChip={quoteLatest?.main_chip}
-          />
-        </PanelCard>
-        <PanelCard title="Bid / Ask Pressure" span={4} meta="Depth skew">
-          <BidAskPressureChart
-            tickSeries={tickSeries}
-            quoteLongShortForce={quoteLatest?.long_short_force}
-          />
-        </PanelCard>
-        <PanelCard title="Program Activity" span={4} meta="Auto flow">
-          <ProgramActivityChart tickSeries={tickSeries} />
-        </PanelCard>
+        <VolumeLadderCard
+          series={volumeLadderSeries}
+          loading={tickLoading || quoteLoading}
+          error={tickError ?? quoteError}
+        />
+        <BidAskPressureCard
+          series={bidAskPressureSeries}
+          loading={tickLoading || quoteLoading}
+          error={tickError ?? quoteError}
+        />
+        <ProgramActivityCard
+          series={programActivitySeries}
+          loading={tickLoading}
+          error={tickError}
+        />
         <PanelCard title="漲跌家數" span={4} meta="Breadth distribution + swing">
           <BreadthDistributionChart />
         </PanelCard>
-        <EstimatedVolumeCard />
+        <EstimatedVolumeCard
+          series={estimatedVolumeSeries}
+          latest={estimatedVolumeLatest}
+          loading={estimatedVolumeLoading}
+          error={estimatedVolumeError}
+        />
       </BentoGridSection>
 
       <BentoGridSection title="PARTICIPANT OVERVIEW">

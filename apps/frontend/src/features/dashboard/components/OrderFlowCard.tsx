@@ -1,15 +1,7 @@
 import type { JSX } from "react";
-import { PanelCard } from "@/components/ui/panel-card";
+import { MarketOverviewChartCard } from "@/features/dashboard/components/MarketOverviewChartCard";
 import { OrderFlowChart } from "@/features/dashboard/components/PanelCharts";
 import type { OrderFlowSeriesPoint } from "@/features/dashboard/lib/market-overview-mapper";
-
-function OrderFlowState({ text }: { text: string }): JSX.Element {
-  return (
-    <div className="flex min-h-[180px] items-center justify-center text-xs text-muted-foreground">
-      {text}
-    </div>
-  );
-}
 
 interface OrderFlowCardProps {
   series: OrderFlowSeriesPoint[];
@@ -18,22 +10,21 @@ interface OrderFlowCardProps {
 }
 
 export function OrderFlowCard({ series, loading, error }: OrderFlowCardProps): JSX.Element {
-
   return (
-    <PanelCard
+    <MarketOverviewChartCard
       title="Order Flow"
+      testId="order-flow-card"
       note="Tracks near-month transaction imbalance and directional participation shifts."
       span={4}
       units={2}
-      data-testid="order-flow-card"
+      loading={loading}
+      error={error}
+      hasData={series.length > 0}
+      loadingText="Loading TXFD6 order flow..."
+      errorText="Unable to load order flow data."
+      emptyText="No order flow data available."
     >
-      {loading ? (
-        <OrderFlowState text="Loading TXFD6 order flow..." />
-      ) : error ? (
-        <OrderFlowState text="Unable to load order flow data." />
-      ) : (
-        <OrderFlowChart data={series} />
-      )}
-    </PanelCard>
+      <OrderFlowChart data={series} />
+    </MarketOverviewChartCard>
   );
 }

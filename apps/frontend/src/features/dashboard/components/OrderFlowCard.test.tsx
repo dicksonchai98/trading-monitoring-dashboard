@@ -28,6 +28,19 @@ describe("OrderFlowCard", () => {
     expect(screen.queryByTestId("order-flow-chart")).not.toBeInTheDocument();
   });
 
+  it("shows empty state when timeline has no points", () => {
+    render(
+      <OrderFlowCard
+        series={[]}
+        loading={false}
+        error={null}
+      />,
+    );
+
+    expect(screen.getByText("No order flow data available.")).toBeInTheDocument();
+    expect(screen.queryByTestId("order-flow-chart")).not.toBeInTheDocument();
+  });
+
   it("renders the chart with the supplied series when loading is complete", () => {
     render(
       <OrderFlowCard

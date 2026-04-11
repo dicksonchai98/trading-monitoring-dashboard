@@ -66,6 +66,27 @@ describe("getOrderFlowBaseline", () => {
     );
   });
 
+  it("falls back to empty kbar baseline when kbar endpoint returns 404", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ detail: "kbar_not_found" }), {
+          status: 404,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify([{ ts: 2, main_force_big_order: 3 }]), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+
+    await expect(getOrderFlowBaseline("token")).resolves.toEqual({
+      kbarToday: [],
+      metricToday: [{ ts: 2, main_force_big_order: 3 }],
+    });
+  });
+
   it("requests today and yesterday estimated volume baselines with bearer token headers", async () => {
     fetchMock
       .mockResolvedValueOnce(
@@ -114,6 +135,27 @@ describe("getOrderFlowBaseline", () => {
         },
       }),
     );
+  });
+
+  it("falls back to empty estimated volume baseline when one endpoint returns 404", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify([{ minute_ts: 1, estimated_turnover: 100 }]), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ detail: "summary_not_found" }), {
+          status: 404,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+
+    await expect(getEstimatedVolumeBaseline("token")).resolves.toEqual({
+      marketSummaryToday: [{ minute_ts: 1, estimated_turnover: 100 }],
+      marketSummaryYesterday: [],
+    });
   });
 
   it("caps estimated volume baseline query to 13:45 after day session close", async () => {

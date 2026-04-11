@@ -32,6 +32,18 @@ export interface OrderFlowBaselineResponse {
   metricToday: MetricTodayResponse;
 }
 
+export interface QuoteTodayPoint {
+  code?: string;
+  event_ts?: string;
+  ts?: number;
+  main_chip?: number;
+  long_short_force?: number;
+  main_chip_strength?: number;
+  long_short_force_strength?: number;
+}
+
+export type QuoteTodayResponse = QuoteTodayPoint[];
+
 export interface MarketSummaryPoint {
   code?: string;
   market_code?: string;
