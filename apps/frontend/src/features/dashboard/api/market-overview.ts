@@ -1,4 +1,4 @@
-import { getJson } from "@/lib/api/client";
+import { ApiError, getJson } from "@/lib/api/client";
 import type {
   DailyAmplitudeResponse,
   EstimatedVolumeBaselineResponse,
@@ -7,6 +7,7 @@ import type {
   MetricTodayResponse,
   OtcSummaryResponse,
   OrderFlowBaselineResponse,
+  QuoteTodayResponse,
 } from "@/features/dashboard/api/types";
 
 export const DEFAULT_ORDER_FLOW_CODE = "TXFD6";
@@ -18,6 +19,17 @@ const OTC_SESSION_OPEN_HOUR = 8;
 const OTC_SESSION_OPEN_MINUTE = 45;
 const OTC_SESSION_CLOSE_HOUR = 13;
 const OTC_SESSION_CLOSE_MINUTE = 44;
+
+async function resolveOrFallbackOnNotFound<T>(requestPromise: Promise<T>, fallback: T): Promise<T> {
+  try {
+    return await requestPromise;
+  } catch (error: unknown) {
+    if (error instanceof ApiError && error.status === 404) {
+      return fallback;
+    }
+    throw error;
+  }
+}
 
 function resolveDatePartInTaipei(tsMs: number): string {
   const now = new Date(tsMs);
@@ -72,12 +84,18 @@ export async function getEstimatedVolumeBaseline(
   const yesterdayQuery = `code=${encodeURIComponent(code)}&from_ms=${yesterdayFromMs}&to_ms=${yesterdayToMs}`;
 
   const [marketSummaryToday, marketSummaryYesterday] = await Promise.all([
-    getJson<MarketSummaryResponse>(`/v1/market-summary/today?${todayQuery}`, {
-      headers,
-    }),
-    getJson<MarketSummaryResponse>(`/v1/market-summary/history?${yesterdayQuery}`, {
-      headers,
-    }),
+    resolveOrFallbackOnNotFound(
+      getJson<MarketSummaryResponse>(`/v1/market-summary/today?${todayQuery}`, {
+        headers,
+      }),
+      [],
+    ),
+    resolveOrFallbackOnNotFound(
+      getJson<MarketSummaryResponse>(`/v1/market-summary/history?${yesterdayQuery}`, {
+        headers,
+      }),
+      [],
+    ),
   ]);
 
   return {
@@ -111,18 +129,38 @@ export async function getOrderFlowBaseline(
   const query = `code=${encodeURIComponent(code)}&from_ms=${fromMs}&to_ms=${toMs}`;
 
   const [kbarToday, metricToday] = await Promise.all([
-    getJson<KbarTodayResponse>(`/v1/kbar/1m/today?${query}`, {
-      headers,
-    }),
-    getJson<MetricTodayResponse>(`/v1/metric/bidask/today?${query}`, {
-      headers,
-    }),
+    resolveOrFallbackOnNotFound(
+      getJson<KbarTodayResponse>(`/v1/kbar/1m/today?${query}`, {
+        headers,
+      }),
+      [],
+    ),
+    resolveOrFallbackOnNotFound(
+      getJson<MetricTodayResponse>(`/v1/metric/bidask/today?${query}`, {
+        headers,
+      }),
+      [],
+    ),
   ]);
 
   return {
     kbarToday,
     metricToday,
   };
+}
+
+export async function getQuoteToday(
+  token: string,
+  code: string = DEFAULT_ORDER_FLOW_CODE,
+): Promise<QuoteTodayResponse> {
+  const headers = {
+    Authorization: `Bearer ${token}`,
+  };
+  const { fromMs, toMs } = resolveTodayRangeMs();
+  const query = `code=${encodeURIComponent(code)}&from_ms=${fromMs}&to_ms=${toMs}`;
+  return getJson<QuoteTodayResponse>(`/v1/quote/today?${query}`, {
+    headers,
+  });
 }
 
 export async function getOtcSummaryToday(

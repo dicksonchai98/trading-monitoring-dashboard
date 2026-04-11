@@ -97,6 +97,23 @@ export function buildOrderFlowSeries(
   return Array.from(series.values()).sort(compareMinuteTs);
 }
 
+export function buildOrderFlowSeriesFromTimelineMaps(
+  indexPriceByMinuteTs: Record<number, number>,
+  chipDeltaByMinuteTs: Record<number, number>,
+): OrderFlowSeriesPoint[] {
+  const minuteTsList = Object.keys(indexPriceByMinuteTs)
+    .map((minuteTs) => Number(minuteTs))
+    .filter((minuteTs) => Number.isFinite(minuteTs))
+    .sort((left, right) => left - right);
+
+  return minuteTsList.map((minuteTs) => ({
+    minuteTs,
+    time: formatMinuteLabel(minuteTs),
+    indexPrice: indexPriceByMinuteTs[minuteTs] ?? 0,
+    chipDelta: chipDeltaByMinuteTs[minuteTs] ?? 0,
+  }));
+}
+
 export function applyRealtimePatch(
   series: OrderFlowSeriesPoint[],
   patch: OrderFlowRealtimePatch,

@@ -21,6 +21,7 @@ import { useQuoteLatest } from "@/features/realtime/hooks/use-quote-latest";
 import { useSpotLatestList } from "@/features/realtime/hooks/use-spot-latest-list";
 import { useOtcIndexSeries } from "@/features/dashboard/hooks/use-otc-index-series";
 import { PanelCard } from "@/components/ui/panel-card";
+import { StrengthGaugePanelCard } from "@/features/dashboard/components/StrengthGaugePanelCard";
 
 interface MetricPanelConfig {
   key: string;
@@ -44,6 +45,7 @@ interface HalfGaugeGeometry {
 
 interface GapKlineDatum {
   symbol: string;
+  referencePrice: number;
   open: number;
   high: number;
   low: number;
@@ -108,6 +110,7 @@ function buildOtcIntradaySeries(): Array<{
 const otcIndexSeries = buildOtcIntradaySeries();
 const EMPTY_GAP_ROW: GapKlineDatum = {
   symbol: "",
+  referencePrice: 0,
   open: 0,
   high: 0,
   low: 0,
@@ -182,48 +185,6 @@ function formatCoreMetricValue(
     return formatYiUnit(value);
   }
   return formatFixed2(value);
-}
-
-function MainForceHalfGauge({
-  percent,
-}: {
-  percent: number | null;
-}): JSX.Element {
-  const value = percent === null ? 0 : Math.max(0, Math.min(100, percent));
-  const data: GaugeSegment[] = [
-    { name: "active", value, fill: "#22c55e" },
-    { name: "rest", value: 100 - value, fill: "rgba(148, 163, 184, 0.25)" },
-  ];
-
-  return (
-    <div
-      className="flex min-h-0 flex-1 flex-col justify-center overflow-hidden"
-      data-testid="live-metrics-main-force-gauge"
-    >
-      <div className="mx-auto w-full max-w-[240px]">
-        <div className="flex justify-center">
-          <PieChart width={240} height={132}>
-            <Pie
-              data={data}
-              dataKey="value"
-              startAngle={180}
-              endAngle={0}
-              cx={120}
-              cy={120}
-              innerRadius={66}
-              outerRadius={96}
-              stroke="none"
-              isAnimationActive={false}
-            >
-              {data.map((entry) => (
-                <Cell key={entry.name} fill={entry.fill} />
-              ))}
-            </Pie>
-          </PieChart>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 function Needle({
@@ -393,19 +354,6 @@ function OtcIndexLinePanel(): JSX.Element {
           chartData[chartData.length - 1]?.minuteTs,
         ].filter((value): value is number => typeof value === "number")
       : [];
-  const latest = chartData[chartData.length - 1];
-  const latestValue =
-    latest && Number.isFinite(latest.value) ? latest.value.toFixed(2) : "--";
-  const latestChange =
-    latest && Number.isFinite(latest.change)
-      ? `${latest.change >= 0 ? "+" : ""}${latest.change.toFixed(2)}`
-      : "--";
-  const latestChangeColor =
-    latest && Number.isFinite(latest.change)
-      ? latest.change >= 0
-        ? "text-red-500"
-        : "text-green-500"
-      : "text-muted-foreground";
 
   return (
     <PanelCard
@@ -416,14 +364,6 @@ function OtcIndexLinePanel(): JSX.Element {
       contentClassName="pt-[var(--panel-gap)]"
       data-testid="live-metrics-otc-line-panel"
     >
-      <div className="mb-1 flex items-center justify-end gap-2 text-xs">
-        <span className="font-semibold text-foreground" data-testid="otc-latest-value">
-          {latestValue}
-        </span>
-        <span className={latestChangeColor} data-testid="otc-latest-change">
-          {latestChange}
-        </span>
-      </div>
       {chartData.length === 0 ? (
         <div className="flex h-full min-h-[120px] items-center justify-center text-xs text-muted-foreground">
           No OTC data
@@ -448,10 +388,9 @@ function OtcIndexLinePanel(): JSX.Element {
               <YAxis
                 axisLine={false}
                 tickLine={false}
-                tick={{ fill: "hsl(var(--subtle-foreground))", fontSize: 10 }}
+                tick={false}
                 domain={["dataMin - 0.2", "dataMax + 0.2"]}
-                width={32}
-                tickFormatter={(value) => Number(value).toFixed(0)}
+                width={0}
               />
               <Tooltip
                 formatter={(value) => [Number(value).toFixed(2), "OTC"]}
@@ -570,10 +509,16 @@ function GapKlinePanelChart(): JSX.Element {
 
     const high = Math.max(highBase, open, resolvedClose);
     const low = Math.min(lowBase, open, resolvedClose);
-    const changePct = open === 0 ? 0 : ((resolvedClose - open) / open) * 100;
+    const referencePrice =
+      typeof latest?.reference_price === "number" && Number.isFinite(latest.reference_price)
+        ? latest.reference_price
+        : open;
+    const changePct =
+      referencePrice === 0 ? 0 : ((resolvedClose - referencePrice) / referencePrice) * 100;
 
     return {
       symbol,
+      referencePrice,
       open,
       high,
       low,
@@ -595,11 +540,43 @@ function GapKlinePanelChart(): JSX.Element {
       Number.isFinite(item.low) &&
       Number.isFinite(item.close),
   );
-  const baseMin = validRows.length > 0 ? Math.min(...validRows.map((item) => item.low)) : 0;
-  const baseMax = validRows.length > 0 ? Math.max(...validRows.map((item) => item.high)) : 1;
-  const range = Math.max(baseMax - baseMin, 1);
-  const paddedMin = baseMin - range * 0.08;
-  const paddedMax = baseMax + range * 0.08;
+  const validPctRows = validRows
+    .map((item) => {
+      if (item.open === 0) {
+        return null;
+      }
+      const basePrice =
+        item.referencePrice > 0 && Number.isFinite(item.referencePrice)
+          ? item.referencePrice
+          : item.open;
+      return {
+        openPct: ((item.open - basePrice) / basePrice) * 100,
+        highPct: ((item.high - basePrice) / basePrice) * 100,
+        lowPct: ((item.low - basePrice) / basePrice) * 100,
+        closePct: ((item.close - basePrice) / basePrice) * 100,
+      };
+    })
+    .filter(
+      (
+        item,
+      ): item is { openPct: number; highPct: number; lowPct: number; closePct: number } =>
+        item !== null &&
+        Number.isFinite(item.openPct) &&
+        Number.isFinite(item.highPct) &&
+        Number.isFinite(item.lowPct) &&
+        Number.isFinite(item.closePct),
+    );
+  const baseMin =
+    validPctRows.length > 0
+      ? Math.min(...validPctRows.flatMap((item) => [item.lowPct, item.openPct, item.closePct, 0]))
+      : -1;
+  const baseMax =
+    validPctRows.length > 0
+      ? Math.max(...validPctRows.flatMap((item) => [item.highPct, item.openPct, item.closePct, 0]))
+      : 1;
+  const range = Math.max(baseMax - baseMin, 0.8);
+  const paddedMin = baseMin - range * 0.12;
+  const paddedMax = baseMax + range * 0.12;
   const tickCount = 5;
   const step = plotWidth / gapKlineData.length;
   const bodyWidth = Math.min(34, step * 0.56);
@@ -640,10 +617,9 @@ function GapKlinePanelChart(): JSX.Element {
                   x={margin.left - 8}
                   y={y + 4}
                   fill="hsl(var(--subtle-foreground))"
-                  fontSize={10}
                   textAnchor="end"
                 >
-                  {`${pct.toFixed(1)}`}
+                  {`${pct.toFixed(1)}%`}
                 </text>
               </g>
             );
@@ -657,7 +633,6 @@ function GapKlinePanelChart(): JSX.Element {
                     x={centerX}
                     y={height / 2}
                     fill="hsl(var(--subtle-foreground))"
-                    fontSize={9}
                     textAnchor="middle"
                   >
                     --
@@ -666,7 +641,6 @@ function GapKlinePanelChart(): JSX.Element {
                     x={centerX}
                     y={height - 24}
                     fill="hsl(var(--subtle-foreground))"
-                    fontSize={10}
                     textAnchor="middle"
                   >
                     {item.symbol}
@@ -675,11 +649,22 @@ function GapKlinePanelChart(): JSX.Element {
               );
             }
             const centerX = margin.left + step * index + step / 2;
-            const openY = yScale(item.open);
-            const closeY = yScale(item.close);
-            const highY = yScale(item.high);
-            const lowY = yScale(item.low);
-            const isUp = item.close >= item.open;
+            if (item.open === 0) {
+              return null;
+            }
+            const basePrice =
+              item.referencePrice > 0 && Number.isFinite(item.referencePrice)
+                ? item.referencePrice
+                : item.open;
+            const openPct = ((item.open - basePrice) / basePrice) * 100;
+            const highPct = ((item.high - basePrice) / basePrice) * 100;
+            const lowPct = ((item.low - basePrice) / basePrice) * 100;
+            const closePct = ((item.close - basePrice) / basePrice) * 100;
+            const openY = yScale(openPct);
+            const closeY = yScale(closePct);
+            const highY = yScale(highPct);
+            const lowY = yScale(lowPct);
+            const isUp = closePct >= openPct;
             const bodyY = Math.min(openY, closeY);
             const bodyHeight = Math.max(2, Math.abs(closeY - openY));
             const fill = isUp ? KLINE_UP_COLOR : KLINE_DOWN_COLOR;
@@ -704,18 +689,16 @@ function GapKlinePanelChart(): JSX.Element {
                 />
                 <text
                   x={centerX}
-                  y={height - 24}
+                  y={height - 28}
                   fill="hsl(var(--subtle-foreground))"
-                  fontSize={10}
                   textAnchor="middle"
                 >
                   {item.symbol}
                 </text>
                 <text
                   x={centerX}
-                  y={height - 10}
+                  y={height - 8}
                   fill={item.changePct >= 0 ? KLINE_UP_COLOR : KLINE_DOWN_COLOR}
-                  fontSize={9}
                   textAnchor="middle"
                 >
                   {`${item.changePct >= 0 ? "+" : ""}${item.changePct.toFixed(1)}%`}
@@ -751,7 +734,6 @@ export function DashboardMetricPanels(): JSX.Element {
   const stickyLongShortForceStrength = useStickyLatestNumber(
     quote?.long_short_force_strength,
   );
-  let gaugeIndex = 0;
   const coreMetrics = [
     {
       label: "\u6210\u4ea4\u632f\u5e45",
@@ -773,56 +755,60 @@ export function DashboardMetricPanels(): JSX.Element {
         stickyMainChipStrength === null
           ? "--"
           : formatPercentage(stickyMainChipStrength),
-      testId: "live-metrics-main-chip-strength",
+      testId: "live-metrics-contribution-main-chip",
     },
-    { label: "\u6563\u6236\u5c0f\u55ae", value: "+176", testId: "live-metrics-retail-small-order" },
+    { label: "\u6563\u6236\u5c0f\u55ae", value: "--", testId: "live-metrics-contribution-retail-small-order" },
     {
       label: "\u591a\u7a7a\u529b\u9053",
       value:
         stickyLongShortForceStrength === null
           ? "--"
           : formatPercentage(stickyLongShortForceStrength),
-      testId: "live-metrics-long-short-force-strength",
+      testId: "live-metrics-contribution-long-short-force",
     },
   ];
+  const liveMetricStrengthByLabel: Record<string, number | null> = {
+    主力大戶: stickyMainForceStrength,
+    主力籌碼: stickyMainChipStrength,
+    多空力道: stickyLongShortForceStrength,
+    散戶小單: null,
+    大戶: null,
+  };
+  const liveMetricStrengthTestIdByLabel: Record<string, string> = {
+    主力大戶: "live-metrics-main-force-strength",
+    主力籌碼: "live-metrics-main-chip-strength",
+    多空力道: "live-metrics-long-short-force-strength",
+    散戶小單: "live-metrics-retail-small-order-strength",
+    大戶: "live-metrics-big-order-strength",
+  };
+  const liveMetricGaugeTestIdByLabel: Record<string, string> = {
+    主力大戶: "live-metrics-main-force-gauge",
+    主力籌碼: "live-metrics-main-chip-gauge",
+    多空力道: "live-metrics-long-short-force-gauge",
+    散戶小單: "live-metrics-retail-small-order-gauge",
+    大戶: "live-metrics-big-order-gauge",
+  };
 
   return (
     <BentoGridSection
       title="LIVE METRICS"
       gridClassName="h-full auto-rows-fr lg:grid-cols-12"
     >
-      {needlePanels.map((panel, index) => {
-        const mainForcePercent =
-          stickyMainForceStrength === null
-            ? null
-            : stickyMainForceStrength * 100;
-        const isMainForceCard = index === 0;
+      {needlePanels.map((panel) => {
+        const strength = liveMetricStrengthByLabel[panel.label] ?? null;
+        const strengthTestId = liveMetricStrengthTestIdByLabel[panel.label];
+        const gaugeTestId = liveMetricGaugeTestIdByLabel[panel.label];
         return (
-          <PanelCard
+          <StrengthGaugePanelCard
             key={panel.label}
             title={panel.label}
+            strength={strength}
             span={1}
             units={1}
-            className="h-full"
-            contentClassName="pt-[var(--panel-gap)]"
-            data-testid="dashboard-metric-panel"
-          >
-            {isMainForceCard ? (
-              <MainForceHalfGauge percent={mainForcePercent} />
-            ) : (
-              <MetricNeedleChart index={gaugeIndex++} />
-            )}
-            {isMainForceCard ? (
-              <p
-                className="mt-0 text-center text-[10px] font-semibold leading-none text-muted-foreground"
-                data-testid="live-metrics-main-force-strength"
-              >
-                {stickyMainForceStrength === null
-                  ? "--"
-                  : formatPercentage(stickyMainForceStrength)}
-              </p>
-            ) : null}
-          </PanelCard>
+            panelTestId="dashboard-metric-panel"
+            gaugeTestId={gaugeTestId}
+            strengthTestId={strengthTestId}
+          />
         );
       })}
       <div
@@ -854,7 +840,7 @@ export function DashboardMetricPanels(): JSX.Element {
       <OtcIndexLinePanel />
       <PanelCard
         title="6 Symbols Gap K"
-        meta="Daily open/close + current"
+        meta="Open-based % candlesticks"
         span={4}
         units={1}
         className="h-full"

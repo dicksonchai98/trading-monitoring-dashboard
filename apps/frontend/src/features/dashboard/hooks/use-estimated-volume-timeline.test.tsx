@@ -157,4 +157,36 @@ describe("useEstimatedVolumeTimeline", () => {
       }),
     );
   });
+
+  it("keeps realtime patching when baseline is empty at session open", async () => {
+    getEstimatedVolumeBaselineMock.mockResolvedValueOnce({
+      marketSummaryToday: [],
+      marketSummaryYesterday: [],
+    });
+
+    const { result } = renderHook(() => useEstimatedVolumeTimeline());
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.error).toBeNull();
+    expect(result.current.series).toEqual([]);
+
+    act(() => {
+      useRealtimeStore.getState().upsertMarketSummaryLatest("TXFD6", {
+        minute_ts: minute0,
+        estimated_turnover: 1300,
+      });
+    });
+
+    await waitFor(() =>
+      expect(result.current.latest).toEqual({
+        minuteTs: minute0,
+        minuteOfDay: 540,
+        time: "09:00",
+        yesterdayEstimated: 0,
+        todayEstimated: 1300,
+        positiveDiff: 1300,
+        negativeDiff: 0,
+      }),
+    );
+  });
 });

@@ -234,6 +234,52 @@ describe("useMarketOverviewTimeline", () => {
     );
   });
 
+  it("keeps realtime updates working when baseline is empty at session open", async () => {
+    getOrderFlowBaselineMock.mockResolvedValueOnce({
+      kbarToday: [],
+      metricToday: [],
+    });
+
+    const { result } = renderHook(() => useMarketOverviewTimeline());
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.error).toBeNull();
+    expect(result.current.series).toEqual([]);
+
+    act(() => {
+      useRealtimeStore.getState().upsertMetricLatest("TXFD6", {
+        main_force_big_order: 321,
+        ts: minute0 + 3000,
+      });
+    });
+
+    expect(result.current.series).toEqual([]);
+
+    act(() => {
+      useRealtimeStore.getState().upsertKbarCurrent({
+        code: "TXFD6",
+        trade_date: "2026-04-08",
+        minute_ts: minute0,
+        open: 22300,
+        high: 22320,
+        low: 22290,
+        close: 22310,
+        volume: 10,
+      });
+    });
+
+    await waitFor(() =>
+      expect(result.current.series).toEqual([
+        {
+          minuteTs: minute0,
+          time: "09:00",
+          indexPrice: 22310,
+          chipDelta: 321,
+        },
+      ]),
+    );
+  });
+
   it("skips baseline fetch when the user is a visitor", async () => {
     act(() => {
       useAuthStore.setState({
