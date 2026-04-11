@@ -157,27 +157,34 @@ class MarketIngestionRunner:
         self._futures_pipeline.enqueue(stream_key=stream_key, event=event)
 
     @staticmethod
-    def _extract_last_price(quote: Any, payload: dict[str, Any]) -> float | int:
-        for key in ("close", "last_price", "price", "avg_price"):
-            value = payload.get(key)
-            if isinstance(value, (int, float)):
-                return value
-            attr = getattr(quote, key, None)
-            if isinstance(attr, (int, float)):
-                return attr
-        return 0
+    def _coerce_float(value: Any) -> float | None:
+        try:
+            if value is None:
+                return None
+            return float(value)
+        except (TypeError, ValueError):
+            return None
 
-    @staticmethod
+    def _extract_last_price(self, quote: Any, payload: dict[str, Any]) -> float:
+        for key in ("close", "last_price", "price", "avg_price"):
+            value = self._coerce_float(payload.get(key))
+            if value is not None:
+                return value
+            attr = self._coerce_float(getattr(quote, key, None))
+            if attr is not None:
+                return attr
+        return 0.0
+
     def _extract_numeric_value(
-        payload: dict[str, Any], quote: Any, keys: tuple[str, ...]
+        self, payload: dict[str, Any], quote: Any, keys: tuple[str, ...]
     ) -> float | None:
         for key in keys:
-            value = payload.get(key)
-            if isinstance(value, (int, float)):
-                return float(value)
-            attr = getattr(quote, key, None)
-            if isinstance(attr, (int, float)):
-                return float(attr)
+            value = self._coerce_float(payload.get(key))
+            if value is not None:
+                return value
+            attr = self._coerce_float(getattr(quote, key, None))
+            if attr is not None:
+                return attr
         return None
 
     def _extract_spot_price_fields(self, quote: Any, payload: dict[str, Any]) -> dict[str, float]:
@@ -200,6 +207,16 @@ class MarketIngestionRunner:
                 "pre_close",
             ),
         )
+        price_chg = self._extract_numeric_value(
+            payload,
+            quote,
+            ("price_chg",),
+        )
+        pct_chg = self._extract_numeric_value(
+            payload,
+            quote,
+            ("pct_chg", "pcct_chg"),
+        )
 
         close = close if close is not None else last_price
         open_price = open_price if open_price is not None else close
@@ -215,6 +232,10 @@ class MarketIngestionRunner:
         }
         if reference_price is not None:
             result["reference_price"] = float(reference_price)
+        if price_chg is not None:
+            result["price_chg"] = float(price_chg)
+        if pct_chg is not None:
+            result["pct_chg"] = float(pct_chg)
         return result
 
     def _next_spot_ingest_seq(self, symbol: str) -> int:

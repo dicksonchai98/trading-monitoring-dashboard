@@ -52,10 +52,16 @@ def test_fetch_spot_latest_reads_redis_payload(monkeypatch) -> None:
                 "session_high": 620.0,
                 "session_low": 600.0,
                 "reference_price": 607.0,
+                "price_chg": 5.0,
+                "pct_chg": 0.82,
                 "gap_value": 3.0,
                 "gap_pct": 0.4942339373970346,
                 "is_gap_up": True,
                 "is_gap_down": False,
+                "is_new_high": True,
+                "is_new_low": False,
+                "strength_state": "new_high",
+                "strength_score": 2,
                 "updated_at": "2026-04-09T13:45:00+08:00",
             }
         ),
@@ -89,10 +95,16 @@ def test_fetch_spot_latest_list_keeps_registry_order_and_null_fallback(monkeypat
                     "session_high": 620.0,
                     "session_low": 600.0,
                     "reference_price": 607.0,
+                    "price_chg": 5.0,
+                    "pct_chg": 0.82,
                     "gap_value": 3.0,
                     "gap_pct": 0.4942339373970346,
                     "is_gap_up": True,
                     "is_gap_down": False,
+                    "is_new_high": True,
+                    "is_new_low": False,
+                    "strength_state": "new_high",
+                    "strength_score": 2,
                     "updated_at": "2026-04-09T13:45:00+08:00",
                 }
             }
@@ -101,6 +113,16 @@ def test_fetch_spot_latest_list_keeps_registry_order_and_null_fallback(monkeypat
 
     payload = serving_store.fetch_spot_latest_list()
     assert "ts" in payload
+    assert payload["market_strength_score"] == 2.0
+    assert payload["market_strength_pct"] == 100.0
+    assert payload["market_strength_count"] == 1
+    assert payload["market_strength_breakdown"] == {
+        "new_high": 1,
+        "strong_up": 0,
+        "flat": 0,
+        "strong_down": 0,
+        "new_low": 0,
+    }
     assert payload["items"] == [
         {
             "symbol": "2330",
@@ -112,10 +134,16 @@ def test_fetch_spot_latest_list_keeps_registry_order_and_null_fallback(monkeypat
             "session_high": 620.0,
             "session_low": 600.0,
             "reference_price": 607.0,
+            "price_chg": 5.0,
+            "pct_chg": 0.82,
             "gap_value": 3.0,
             "gap_pct": 0.4942339373970346,
             "is_gap_up": True,
             "is_gap_down": False,
+            "is_new_high": True,
+            "is_new_low": False,
+            "strength_state": "new_high",
+            "strength_score": 2,
             "updated_at": 1775713500000,
         },
         {
@@ -128,10 +156,16 @@ def test_fetch_spot_latest_list_keeps_registry_order_and_null_fallback(monkeypat
             "session_high": None,
             "session_low": None,
             "reference_price": None,
+            "price_chg": None,
+            "pct_chg": None,
             "gap_value": None,
             "gap_pct": None,
             "is_gap_up": None,
             "is_gap_down": None,
+            "is_new_high": None,
+            "is_new_low": None,
+            "strength_state": None,
+            "strength_score": None,
             "updated_at": None,
         },
     ]

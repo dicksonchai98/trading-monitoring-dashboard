@@ -161,7 +161,7 @@ def test_market_summary_computes_spread_when_futures_latest_available() -> None:
     redis = FakeRedis()
     runner = _build_runner(redis)
     trade_date = datetime.fromisoformat("2026-04-05").date()
-    futures_key = build_state_key("dev", "MTX", trade_date, "k:current")
+    futures_key = build_state_key("dev", runner._futures_code, trade_date, "k:current")
     redis.hashes[futures_key] = {
         "close": "20535.5",
         "event_ts": "2026-04-06T10:30:00+08:00",
@@ -273,3 +273,33 @@ def test_market_summary_computes_estimated_comparison_from_previous_trade_date()
     assert snapshot.estimated_turnover_diff is not None
     assert snapshot.estimated_turnover_ratio is not None
     assert snapshot.estimated_turnover_diff == snapshot.estimated_turnover - 1600.0
+
+
+def test_market_summary_writes_futures_code_alias_keys() -> None:
+    redis = FakeRedis()
+    runner = MarketSummaryRunner(
+        redis_client=redis,
+        session_factory=SessionLocal,
+        metrics=Metrics(),
+        env="dev",
+        code="TSE001",
+        group="agg:market",
+        consumer="agg-market-1",
+        read_count=100,
+        block_ms=0,
+        claim_idle_ms=1000,
+        claim_count=100,
+        ttl_seconds=3600,
+        futures_code="TXFD6",
+    )
+    runner.ensure_consumer_group()
+    stream_key = "dev:stream:market:TSE001"
+    redis.xadd(stream_key, _market_fields("2026-04-06T10:30:01+08:00"))
+
+    assert runner.consume_once() == 1
+
+    trade_date = datetime.fromisoformat("2026-04-05").date()
+    source_key = build_state_key("dev", "TSE001", trade_date, "market_summary:latest")
+    alias_key = build_state_key("dev", "TXFD6", trade_date, "market_summary:latest")
+    assert source_key in redis.strings
+    assert alias_key in redis.strings
