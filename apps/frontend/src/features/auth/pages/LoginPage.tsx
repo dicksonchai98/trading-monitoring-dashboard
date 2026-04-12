@@ -4,13 +4,16 @@ import type { JSX } from "react";
 import { useForm } from "react-hook-form";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { LoginForm } from "@/components/login-form";
+import { Typography } from "@/components/ui/typography";
 import { login } from "@/features/auth/api/auth";
 import { AuthSplitPageSkeleton } from "@/features/auth/components/AuthSplitPageSkeleton";
 import { applyAuthenticatedSession, formatAuthError, getRedirectTarget } from "@/features/auth/lib/auth-page-shared";
 import { loginSchema, type LoginFormValues } from "@/features/auth/validation/auth-schema";
+import { useT } from "@/lib/i18n";
 import { useAuthStore } from "@/lib/store/auth-store";
 
 export function LoginPage(): JSX.Element {
+  const t = useT();
   const navigate = useNavigate();
   const location = useLocation();
   const { role, resolved, setSession } = useAuthStore();
@@ -62,17 +65,21 @@ export function LoginPage(): JSX.Element {
         <div className="absolute inset-0">
           <img
             src="https://images.unsplash.com/photo-1559526324-593bc073d938?auto=format&fit=crop&w=1800&q=80"
-            alt="Trading dashboard cover"
+            alt={t("auth.hero.coverAlt")}
             className="h-full w-full object-cover"
           />
         </div>
         <div className="absolute inset-0 bg-black/25" />
         <div className="absolute bottom-10 left-10 right-10 text-white">
-          <p className="text-xs uppercase tracking-[0.18em] text-white/80">Trading Monitoring Console</p>
-          <h2 className="mt-3 text-3xl font-semibold leading-tight">A faster way to monitor futures market moves</h2>
-          <p className="mt-3 max-w-md text-sm text-white/90">
-            Real-time snapshots, role-based access, and subscription-aware dashboard delivery in a single platform.
-          </p>
+          <Typography as="p" variant="meta" className="text-white/80">
+            {t("app.console")}
+          </Typography>
+          <Typography as="h2" variant="h2" className="mt-3 text-white">
+            {t("auth.hero.login.title")}
+          </Typography>
+          <Typography as="p" variant="body" className="mt-3 max-w-md text-white/90">
+            {t("auth.hero.login.desc")}
+          </Typography>
         </div>
       </section>
     </div>

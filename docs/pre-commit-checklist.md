@@ -16,6 +16,7 @@ This repo enforces the following hooks from `.pre-commit-config.yaml`. Any backe
 1. Run formatting/linting on touched backend Python files before commit.
 2. Expect auto-fixes to change files; re-stage files after hooks run.
 3. If a commit fails due to hooks, do not bypass. Fix the issues and re-run.
+4. For frontend typography changes, run `npm run lint:typography` in `apps/frontend` before commit.
 
 ## Common Failures And Fixes
 
@@ -31,4 +32,8 @@ pre-commit run ruff-format --all-files
 
 # Or run the full hook set
 pre-commit run --all-files
+
+# Frontend: block new arbitrary typography classes in staged TSX changes
+cd apps/frontend
+npm run lint:typography
 ```

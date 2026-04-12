@@ -3,7 +3,9 @@ import { Badge } from "@/components/ui/badge";
 import { BentoGridSection } from "@/components/ui/bento-grid";
 import { PanelCard } from "@/components/ui/panel-card";
 import { PageLayout } from "@/components/ui/page-layout";
+import { Typography } from "@/components/ui/typography";
 import { MetricNeedleChart } from "@/features/dashboard/components/DashboardMetricPanels";
+import { useT } from "@/lib/i18n";
 
 interface StockPanelData {
   code: string;
@@ -15,18 +17,18 @@ interface StockPanelData {
   heatState: "newHigh" | "newLow" | "neutral";
 }
 
-const stockNames = [
-  "台積電",
-  "聯發科",
-  "鴻海",
-  "台達電",
-  "廣達",
-  "日月光投控",
-  "中信金",
-  "富邦金",
-  "國泰金",
-  "長榮",
-];
+const stockNameKeys = [
+  "dashboard.thermometer.stock.tsmc",
+  "dashboard.thermometer.stock.mediatek",
+  "dashboard.thermometer.stock.honhai",
+  "dashboard.thermometer.stock.delta",
+  "dashboard.thermometer.stock.quanta",
+  "dashboard.thermometer.stock.aseh",
+  "dashboard.thermometer.stock.ctbc",
+  "dashboard.thermometer.stock.fubon",
+  "dashboard.thermometer.stock.cathay",
+  "dashboard.thermometer.stock.evergreen",
+] as const;
 
 function buildSparkPoints(seed: number): string {
   const points: string[] = [];
@@ -44,7 +46,11 @@ function buildSparkPoints(seed: number): string {
   return points.join(" ");
 }
 
-function buildStockPanels(count: number): StockPanelData[] {
+function buildStockPanels(
+  stockNames: string[],
+  count: number,
+  fallbackName: (index: number) => string,
+): StockPanelData[] {
   const panels: StockPanelData[] = [];
 
   for (let i = 0; i < count; i += 1) {
@@ -53,7 +59,9 @@ function buildStockPanels(count: number): StockPanelData[] {
     const price = Number((basePrice + change).toFixed(1));
     const changePercent = Number(((change / basePrice) * 100).toFixed(2));
     const code = `${2000 + i}`;
-    const name = stockNames[i % stockNames.length] ?? `個股${i + 1}`;
+    const name =
+      stockNames[i % stockNames.length] ??
+      fallbackName(i + 1);
     const heatState =
       i % 5 === 0 ? "newHigh" : i % 5 === 1 ? "newLow" : "neutral";
 
@@ -71,18 +79,25 @@ function buildStockPanels(count: number): StockPanelData[] {
   return panels;
 }
 
-const marketHeatPanels = buildStockPanels(50);
 const marketContributionPoints = 173;
 
 export function MarketThermometerPage(): JSX.Element {
+  const t = useT();
+  const stockNames = stockNameKeys.map((key) => t(key));
+  const marketHeatPanels = buildStockPanels(
+    stockNames,
+    50,
+    (index) => t("dashboard.thermometer.stock.fallback", { index }),
+  );
+
   return (
     <PageLayout
-      title="大盤溫度計"
-      actions={<Badge variant="success">SSE Connected</Badge>}
+      title={t("dashboard.thermometer.title")}
+      actions={<Badge variant="success">{t("dashboard.thermometer.connected")}</Badge>}
       bodyClassName="space-y-[var(--section-gap)]"
     >
       <BentoGridSection
-        title="MARKET THERMOMETER"
+        title={t("dashboard.thermometer.sectionTitle")}
         gridClassName="h-full auto-rows-fr lg:grid-cols-12"
       >
         <div className="space-y-2 lg:col-span-10">
@@ -112,22 +127,19 @@ export function MarketThermometerPage(): JSX.Element {
                   style={{ backgroundColor: panelBackground }}
                 >
                   <div className="flex flex-col items-start">
-                    <p className="text-xs font-medium text-foreground">
+                    <Typography as="p" variant="caption" className="font-medium text-foreground">
                       {panel.code} {panel.name}
-                    </p>
-                    <span
-                      className="text-[11px] font-semibold"
-                      style={{ color: tone }}
-                    >
+                    </Typography>
+                    <Typography as="span" variant="caption" className="font-semibold" style={{ color: tone }}>
                       {signedPercent}
-                    </span>
+                    </Typography>
                   </div>
-                  <p className="mt-1 text-lg font-semibold tracking-tight text-foreground">
+                  <Typography as="p" variant="metric" className="mt-1 text-foreground">
                     {panel.price.toFixed(1)}
-                  </p>
-                  <p className="text-[11px]" style={{ color: tone }}>
+                  </Typography>
+                  <Typography as="p" variant="caption" style={{ color: tone }}>
                     {signedChange}
-                  </p>
+                  </Typography>
                   <svg
                     className="mt-2 h-10 w-full"
                     viewBox="0 0 120 40"
@@ -149,40 +161,42 @@ export function MarketThermometerPage(): JSX.Element {
 
         <div className="space-y-2 lg:col-span-2">
           <PanelCard
-            title="權值股"
-            note="Pie-with-needle metric A."
+            title={t("dashboard.thermometer.panel.weighted")}
+            note={t("dashboard.thermometer.panel.weightedNote")}
             span={12}
             units={1}
           >
             <MetricNeedleChart index={0} />
           </PanelCard>
           <PanelCard
-            title="科技股"
-            note="Pie-with-needle metric B."
+            title={t("dashboard.thermometer.panel.tech")}
+            note={t("dashboard.thermometer.panel.techNote")}
             span={12}
             units={1}
           >
             <MetricNeedleChart index={1} />
           </PanelCard>
           <PanelCard
-            title="金融股"
-            note="Pie-with-needle metric C."
+            title={t("dashboard.thermometer.panel.finance")}
+            note={t("dashboard.thermometer.panel.financeNote")}
             span={12}
             units={1}
           >
             <MetricNeedleChart index={2} />
           </PanelCard>
           <PanelCard
-            title="大盤貢獻點數"
-            note="振幅即為大盤貢獻點數。"
+            title={t("dashboard.thermometer.panel.points")}
+            note={t("dashboard.thermometer.panel.pointsNote")}
             span={12}
             units={2}
           >
             <div className="mt-[var(--panel-gap)] flex h-full min-h-[130px] flex-col items-center justify-center text-center">
-              <p className="text-xs text-muted-foreground">振幅 = 大盤貢獻點數（points）</p>
-              <p className="mt-2 text-4xl font-semibold tracking-tight text-[#ef4444]">
+              <Typography as="p" variant="caption" className="text-muted-foreground">
+                {t("dashboard.thermometer.panel.pointsFormula")}
+              </Typography>
+              <Typography as="p" variant="display" className="mt-2 text-[#ef4444]">
                 +{marketContributionPoints}
-              </p>
+              </Typography>
             </div>
           </PanelCard>
         </div>

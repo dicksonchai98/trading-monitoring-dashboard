@@ -1,4 +1,4 @@
-import type { JSX } from "react";
+﻿import type { JSX } from "react";
 import {
   Bar,
   CartesianGrid,
@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { BentoGridSection } from "@/components/ui/bento-grid";
 import { PageLayout } from "@/components/ui/page-layout";
 import { PanelCard } from "@/components/ui/panel-card";
+import { Typography } from "@/components/ui/typography";
 import { DashboardMetricPanels } from "@/features/dashboard/components/DashboardMetricPanels";
 import { RealtimeSseChartsSection } from "@/features/dashboard/components/RealtimeSseChartsSection";
 import { useRealtimeConnection } from "@/features/realtime/hooks/use-realtime-connection";
@@ -24,6 +25,7 @@ import {
   ProgramActivityChart,
   VolumeLadderChart,
 } from "@/features/dashboard/components/PanelCharts";
+import { useT } from "@/lib/i18n";
 
 interface ParticipantSignalDatum {
   day: string;
@@ -60,7 +62,7 @@ function movingAverage(values: number[], index: number, windowSize: number): num
 
 const participantSignalData: ParticipantSignalDatum[] = participantRawData.map(
   (item, index, all) => {
-    const amplitudes = all.slice(0, index + 1).map((x, i, arr) => {
+    const amplitudes = all.slice(0, index + 1).map((x) => {
       return x.high - x.low;
     });
     const amplitude = item.high - item.low;
@@ -131,72 +133,93 @@ function statusBadgeVariant(status: string): "success" | "warning" | "danger" | 
 }
 
 export function RealtimeDashboardOverview(): JSX.Element {
+  const t = useT();
   const { connectionStatus } = useRealtimeConnection();
 
   return (
     <PageLayout
-      title="Futures Dashboard"
+      title={t("dashboard.realtime.title")}
       actions={<Badge variant={statusBadgeVariant(connectionStatus)}>{connectionStatus.toUpperCase()}</Badge>}
       bodyClassName="space-y-[var(--section-gap)]"
     >
       <DashboardMetricPanels />
 
-      <BentoGridSection title="MARKET OVERVIEW">
+      <BentoGridSection title={t("dashboard.realtime.marketOverview")}>
         <PanelCard
-          title="Order Flow"
-          note="Tracks near-month transaction imbalance and directional participation shifts."
+          title={t("dashboard.realtime.orderFlow.title")}
+          note={t("dashboard.realtime.orderFlow.note")}
           span={4}
           units={2}
         >
           <OrderFlowChart />
         </PanelCard>
-        <PanelCard title="Volume Ladder" span={4} meta="5m buckets">
+        <PanelCard title={t("dashboard.realtime.volumeLadder.title")} span={4} meta={t("dashboard.realtime.volumeLadder.meta")}>
           <VolumeLadderChart />
         </PanelCard>
-        <PanelCard title="Bid / Ask Pressure" span={4} meta="Depth skew">
+        <PanelCard title={t("dashboard.realtime.bidAsk.title")} span={4} meta={t("dashboard.realtime.bidAsk.meta")}>
           <BidAskPressureChart />
         </PanelCard>
-        <PanelCard title="Program Activity" span={4} meta="Auto flow">
+        <PanelCard title={t("dashboard.realtime.programActivity.title")} span={4} meta={t("dashboard.realtime.programActivity.meta")}>
           <ProgramActivityChart />
         </PanelCard>
-        <PanelCard title="漲跌家數" span={4} meta="Breadth distribution + swing">
+        <PanelCard title={t("dashboard.realtime.breadth.title")} span={4} meta={t("dashboard.realtime.breadth.meta")}>
           <BreadthDistributionChart />
         </PanelCard>
-        <PanelCard title="成交量量比" span={4} meta="昨日 vs 今日預估成交量">
+        <PanelCard title={t("dashboard.realtime.estimatedVolume.title")} span={4} meta={t("dashboard.realtime.estimatedVolume.meta")}>
           <EstimatedVolumeCompareChart />
         </PanelCard>
       </BentoGridSection>
 
-      <BentoGridSection title="PARTICIPANT OVERVIEW">
+      <BentoGridSection title={t("dashboard.realtime.participantOverview")}>
         <PanelCard
-          title="Amplitude Summary"
+          title={t("dashboard.realtime.amplitudeSummary.title")}
           span={2}
-          note="Displays key amplitude references for short-term volatility context."
+          note={t("dashboard.realtime.amplitudeSummary.note")}
         >
-          <div className="space-y-2 pt-[var(--panel-gap)] text-xs">
+          <div className="space-y-2 pt-[var(--panel-gap)]">
             <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">5日均振幅</span>
-              <span className="font-semibold text-foreground">2.48%</span>
+              <Typography as="span" variant="caption" className="text-muted-foreground">
+                {t("dashboard.realtime.amplitudeSummary.fiveDay")}
+              </Typography>
+              <Typography as="span" variant="caption" className="font-semibold text-foreground">
+                2.48%
+              </Typography>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">10日平均振幅</span>
-              <span className="font-semibold text-foreground">2.13%</span>
+              <Typography as="span" variant="caption" className="text-muted-foreground">
+                {t("dashboard.realtime.amplitudeSummary.tenDayAvg")}
+              </Typography>
+              <Typography as="span" variant="caption" className="font-semibold text-foreground">
+                2.13%
+              </Typography>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">昨日振幅</span>
-              <span className="font-semibold text-foreground">2.92%</span>
+              <Typography as="span" variant="caption" className="text-muted-foreground">
+                {t("dashboard.realtime.amplitudeSummary.yesterday")}
+              </Typography>
+              <Typography as="span" variant="caption" className="font-semibold text-foreground">
+                2.92%
+              </Typography>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">5日最高振幅</span>
-              <span className="font-semibold text-[#ef4444]">3.34%</span>
+              <Typography as="span" variant="caption" className="text-muted-foreground">
+                {t("dashboard.realtime.amplitudeSummary.fiveDayHigh")}
+              </Typography>
+              <Typography as="span" variant="caption" className="font-semibold text-[#ef4444]">
+                3.34%
+              </Typography>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">5日最低振幅</span>
-              <span className="font-semibold text-[#22c55e]">1.76%</span>
+              <Typography as="span" variant="caption" className="text-muted-foreground">
+                {t("dashboard.realtime.amplitudeSummary.fiveDayLow")}
+              </Typography>
+              <Typography as="span" variant="caption" className="font-semibold text-[#22c55e]">
+                1.76%
+              </Typography>
             </div>
           </div>
         </PanelCard>
-        <PanelCard title="Participant Signals" span={10} units={2} meta="Foreign / Dealer / Retail / Sentiment">
+        <PanelCard title={t("dashboard.realtime.participantSignals.title")} span={10} units={2} meta={t("dashboard.realtime.participantSignals.meta")}>
           <div className="mt-[var(--panel-gap)] w-full" data-testid="participant-amplitude-chart">
             <div data-testid="panel-chart" className="h-[240px] w-full">
               <ResponsiveContainer width="100%" height="100%" minWidth={0}>
@@ -243,18 +266,24 @@ export function RealtimeDashboardOverview(): JSX.Element {
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
-            <div className="mt-2 flex flex-wrap items-center gap-4 text-[11px] text-muted-foreground">
+            <div className="mt-2 flex flex-wrap items-center gap-4 text-muted-foreground">
               <span className="inline-flex items-center gap-1.5">
                 <span className="h-[2px] w-4 bg-[#f59e0b]" />
-                當日振幅
+                <Typography as="span" variant="caption" className="text-muted-foreground">
+                  {t("dashboard.realtime.participantSignals.legend.daily")}
+                </Typography>
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <span className="h-[2px] w-4 bg-[#38bdf8]" />
-                5日平均振幅
+                <Typography as="span" variant="caption" className="text-muted-foreground">
+                  {t("dashboard.realtime.participantSignals.legend.fiveDay")}
+                </Typography>
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <span className="h-[2px] w-4 bg-[#a78bfa]" />
-                3日平均振幅
+                <Typography as="span" variant="caption" className="text-muted-foreground">
+                  {t("dashboard.realtime.participantSignals.legend.threeDay")}
+                </Typography>
               </span>
             </div>
           </div>

@@ -5,9 +5,11 @@ import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { SignupForm } from "@/components/signup-form";
 import { PageSkeleton } from "@/components/ui/page-skeleton";
+import { Typography } from "@/components/ui/typography";
 import { register, sendEmailOtp, verifyEmailOtp } from "@/features/auth/api/auth";
 import { applyAuthenticatedSession, formatAuthError, getRedirectTarget } from "@/features/auth/lib/auth-page-shared";
 import type { RegisterFormValues } from "@/features/auth/validation/auth-schema";
+import { useT } from "@/lib/i18n";
 import { useAuthStore } from "@/lib/store/auth-store";
 
 const OTP_RESEND_COOLDOWN_SECONDS = 60;
@@ -32,6 +34,7 @@ function getPageState(state: unknown): SignupVerifyPageState | null {
 }
 
 export function SignupEmailVerificationPage(): JSX.Element {
+  const t = useT();
   const navigate = useNavigate();
   const location = useLocation();
   const { role, resolved, setSession } = useAuthStore();
@@ -46,7 +49,7 @@ export function SignupEmailVerificationPage(): JSX.Element {
     mutationFn: sendEmailOtp,
     onSuccess: () => {
       setResendCooldownSeconds(OTP_RESEND_COOLDOWN_SECONDS);
-      toast.success("Verification code sent. Check your email inbox.");
+      toast.success(t("auth.verify.sent"));
       setLocalError(null);
     },
   });
@@ -67,7 +70,7 @@ export function SignupEmailVerificationPage(): JSX.Element {
         return;
       }
       setLocalError(null);
-      toast.success("Email verified. Creating account...");
+      toast.success(t("auth.verify.creating"));
       registerMutation.mutate({
         user_id: pageState.registration.user_id,
         email: pageState.registration.email,
@@ -90,8 +93,8 @@ export function SignupEmailVerificationPage(): JSX.Element {
       return;
     }
     hasShownInitialToast.current = true;
-    toast.success("Verification code sent. Check your email inbox.");
-  }, []);
+    toast.success(t("auth.verify.sent"));
+  }, [t]);
 
   if (!resolved) {
     return <PageSkeleton />;
@@ -134,7 +137,7 @@ export function SignupEmailVerificationPage(): JSX.Element {
             verifyMutation.reset();
             registerMutation.reset();
             if (otpCode.trim().length !== 6) {
-              setLocalError("Verification code is required.");
+              setLocalError(t("auth.verify.required"));
               return;
             }
             verifyMutation.mutate({ email: pageState.registration.email, otp_code: otpCode.trim() });
@@ -146,17 +149,21 @@ export function SignupEmailVerificationPage(): JSX.Element {
         <div className="absolute inset-0">
           <img
             src="https://images.unsplash.com/photo-1559526324-593bc073d938?auto=format&fit=crop&w=1800&q=80"
-            alt="Trading dashboard cover"
+            alt={t("auth.hero.coverAlt")}
             className="h-full w-full object-cover"
           />
         </div>
         <div className="absolute inset-0 bg-black/25" />
         <div className="absolute bottom-10 left-10 right-10 text-white">
-          <p className="text-xs uppercase tracking-[0.18em] text-white/80">Trading Monitoring Console</p>
-          <h2 className="mt-3 text-3xl font-semibold leading-tight">Verify your email and activate your account</h2>
-          <p className="mt-3 max-w-md text-sm text-white/90">
-            Enter your OTP and complete account creation for secure dashboard access.
-          </p>
+          <Typography as="p" variant="meta" className="text-white/80">
+            {t("app.console")}
+          </Typography>
+          <Typography as="h2" variant="h2" className="mt-3 text-white">
+            {t("auth.hero.verify.title")}
+          </Typography>
+          <Typography as="p" variant="body" className="mt-3 max-w-md text-white/90">
+            {t("auth.hero.verify.desc")}
+          </Typography>
         </div>
       </section>
     </div>

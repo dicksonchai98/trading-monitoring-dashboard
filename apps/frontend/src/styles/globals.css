@@ -115,8 +115,8 @@
 }
 
 body {
-  @apply bg-background font-mono text-foreground antialiased;
-  font-family: var(--font-mono);
+  @apply bg-background text-foreground antialiased;
+  font-family: var(--font-sans);
 }
 
 #root {
@@ -141,7 +141,6 @@ body {
 @layer base {
   .theme {
     --font-heading: var(--font-sans);
-    --font-sans: 'Geist Variable', sans-serif;
   }
   * {
     @apply border-border;
@@ -151,5 +150,43 @@ body {
   }
   html {
     @apply font-sans;
+  }
+}
+
+@layer components {
+  .typo-display {
+    @apply font-sans text-4xl leading-tight font-semibold tracking-tight;
+  }
+
+  .typo-h1 {
+    @apply font-sans text-[28px] leading-tight font-semibold tracking-tight;
+  }
+
+  .typo-h2 {
+    @apply font-sans text-2xl leading-tight font-semibold tracking-tight;
+  }
+
+  .typo-title {
+    @apply font-sans text-base leading-snug font-semibold;
+  }
+
+  .typo-body {
+    @apply font-sans text-sm leading-normal font-normal;
+  }
+
+  .typo-caption {
+    @apply font-sans text-xs leading-normal font-normal;
+  }
+
+  .typo-overline {
+    @apply font-mono text-[11px] leading-none font-semibold uppercase tracking-[0.08em];
+  }
+
+  .typo-meta {
+    @apply font-mono text-[11px] leading-none font-medium uppercase tracking-[0.12em];
+  }
+
+  .typo-metric {
+    @apply font-mono text-lg leading-tight font-semibold tracking-tight tabular-nums;
   }
 }

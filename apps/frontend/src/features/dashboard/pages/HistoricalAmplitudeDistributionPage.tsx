@@ -16,6 +16,8 @@ import { BentoGridSection } from "@/components/ui/bento-grid";
 import { Button } from "@/components/ui/button";
 import { PageLayout } from "@/components/ui/page-layout";
 import { PanelCard } from "@/components/ui/panel-card";
+import { Typography } from "@/components/ui/typography";
+import { useT } from "@/lib/i18n";
 
 type WeekdayKey = "mon" | "tue" | "wed" | "thu" | "fri";
 type DateSelectMode = "all" | "custom";
@@ -33,30 +35,6 @@ interface HistogramBin {
   count: number;
   label: string;
 }
-
-const weekdayOptions: Array<{ key: WeekdayKey; label: string }> = [
-  { key: "mon", label: "Monday" },
-  { key: "tue", label: "Tuesday" },
-  { key: "wed", label: "Wednesday" },
-  { key: "thu", label: "Thursday" },
-  { key: "fri", label: "Friday" },
-];
-
-const monthOptions = [
-  { value: "all", label: "All Months" },
-  { value: "1", label: "Jan" },
-  { value: "2", label: "Feb" },
-  { value: "3", label: "Mar" },
-  { value: "4", label: "Apr" },
-  { value: "5", label: "May" },
-  { value: "6", label: "Jun" },
-  { value: "7", label: "Jul" },
-  { value: "8", label: "Aug" },
-  { value: "9", label: "Sep" },
-  { value: "10", label: "Oct" },
-  { value: "11", label: "Nov" },
-  { value: "12", label: "Dec" },
-];
 
 const BIN_SIZE = 40;
 const BIN_MIN = -520;
@@ -149,6 +127,29 @@ function buildHistogram(rows: DailyAmplitudeDatum[]): HistogramBin[] {
 }
 
 export function HistoricalAmplitudeDistributionPage(): JSX.Element {
+  const t = useT();
+  const weekdayOptions: Array<{ key: WeekdayKey; label: string }> = [
+    { key: "mon", label: t("dashboard.amplitude.weekday.mon") },
+    { key: "tue", label: t("dashboard.amplitude.weekday.tue") },
+    { key: "wed", label: t("dashboard.amplitude.weekday.wed") },
+    { key: "thu", label: t("dashboard.amplitude.weekday.thu") },
+    { key: "fri", label: t("dashboard.amplitude.weekday.fri") },
+  ];
+  const monthOptions = [
+    { value: "all", label: t("dashboard.amplitude.month.all") },
+    { value: "1", label: t("dashboard.amplitude.month.jan") },
+    { value: "2", label: t("dashboard.amplitude.month.feb") },
+    { value: "3", label: t("dashboard.amplitude.month.mar") },
+    { value: "4", label: t("dashboard.amplitude.month.apr") },
+    { value: "5", label: t("dashboard.amplitude.month.may") },
+    { value: "6", label: t("dashboard.amplitude.month.jun") },
+    { value: "7", label: t("dashboard.amplitude.month.jul") },
+    { value: "8", label: t("dashboard.amplitude.month.aug") },
+    { value: "9", label: t("dashboard.amplitude.month.sep") },
+    { value: "10", label: t("dashboard.amplitude.month.oct") },
+    { value: "11", label: t("dashboard.amplitude.month.nov") },
+    { value: "12", label: t("dashboard.amplitude.month.dec") },
+  ];
   const [monthFilter, setMonthFilter] = useState<string>("all");
   const [weekdayFilter, setWeekdayFilter] = useState<WeekdayKey | "all">("all");
   const [dateSelectMode, setDateSelectMode] = useState<DateSelectMode>("all");
@@ -172,7 +173,6 @@ export function HistoricalAmplitudeDistributionPage(): JSX.Element {
   }, [candidateRows, dateSelectMode, selectedDates]);
 
   const histogramData = useMemo(() => buildHistogram(visibleRows), [visibleRows]);
-
   const availableDates = useMemo(
     () => candidateRows.map((row) => row.date),
     [candidateRows],
@@ -183,21 +183,21 @@ export function HistoricalAmplitudeDistributionPage(): JSX.Element {
 
   return (
     <PageLayout
-      title="歷史振幅分佈圖"
-      actions={<Badge variant="info">Histogram</Badge>}
+      title={t("dashboard.amplitude.title")}
+      actions={<Badge variant="info">{t("dashboard.amplitude.badge")}</Badge>}
       bodyClassName="space-y-[var(--section-gap)]"
     >
-      <BentoGridSection title="HISTORICAL AMPLITUDE DISTRIBUTION">
+      <BentoGridSection title={t("dashboard.amplitude.sectionTitle")}>
         <PanelCard
-          title="Filter Controls"
+          title={t("dashboard.amplitude.filter.title")}
           span={3}
-          note="Default: all months and all trading days. You can filter by month, weekday, and custom dates."
+          note={t("dashboard.amplitude.filter.note")}
         >
           <div className="mt-[var(--panel-gap)] space-y-4 text-sm">
             <label className="flex flex-col gap-1">
-              <span className="text-xs uppercase tracking-[0.08em] text-muted-foreground">
-                Month
-              </span>
+              <Typography as="span" variant="overline" className="text-muted-foreground">
+                {t("dashboard.amplitude.month")}
+              </Typography>
               <select
                 className="h-9 rounded-sm border border-border bg-card px-3 text-sm text-foreground"
                 onChange={(event) => setMonthFilter(event.target.value)}
@@ -212,9 +212,9 @@ export function HistoricalAmplitudeDistributionPage(): JSX.Element {
             </label>
 
             <label className="flex flex-col gap-1">
-              <span className="text-xs uppercase tracking-[0.08em] text-muted-foreground">
-                Weekday
-              </span>
+              <Typography as="span" variant="overline" className="text-muted-foreground">
+                {t("dashboard.amplitude.weekday")}
+              </Typography>
               <select
                 className="h-9 rounded-sm border border-border bg-card px-3 text-sm text-foreground"
                 onChange={(event) =>
@@ -222,7 +222,7 @@ export function HistoricalAmplitudeDistributionPage(): JSX.Element {
                 }
                 value={weekdayFilter}
               >
-                <option value="all">All Weekdays</option>
+                <option value="all">{t("dashboard.amplitude.weekday.all")}</option>
                 {weekdayOptions.map((option) => (
                   <option key={option.key} value={option.key}>
                     {option.label}
@@ -232,9 +232,9 @@ export function HistoricalAmplitudeDistributionPage(): JSX.Element {
             </label>
 
             <fieldset className="space-y-2">
-              <legend className="text-xs uppercase tracking-[0.08em] text-muted-foreground">
-                Date Selection
-              </legend>
+              <Typography as="legend" variant="overline" className="text-muted-foreground">
+                {t("dashboard.amplitude.dateSelection")}
+              </Typography>
               <label className="flex items-center gap-2">
                 <input
                   checked={dateSelectMode === "all"}
@@ -242,7 +242,7 @@ export function HistoricalAmplitudeDistributionPage(): JSX.Element {
                   onChange={() => setDateSelectMode("all")}
                   type="radio"
                 />
-                All Trading Dates
+                {t("dashboard.amplitude.dateMode.all")}
               </label>
               <label className="flex items-center gap-2">
                 <input
@@ -251,7 +251,7 @@ export function HistoricalAmplitudeDistributionPage(): JSX.Element {
                   onChange={() => setDateSelectMode("custom")}
                   type="radio"
                 />
-                Custom Dates
+                {t("dashboard.amplitude.dateMode.custom")}
               </label>
             </fieldset>
 
@@ -264,7 +264,7 @@ export function HistoricalAmplitudeDistributionPage(): JSX.Element {
                     type="button"
                     variant="outline"
                   >
-                    全選日期
+                    {t("dashboard.amplitude.selectAllDates")}
                   </Button>
                   <Button
                     onClick={() => setSelectedDates([])}
@@ -272,12 +272,12 @@ export function HistoricalAmplitudeDistributionPage(): JSX.Element {
                     type="button"
                     variant="ghost"
                   >
-                    清空
+                    {t("dashboard.amplitude.clear")}
                   </Button>
                 </div>
                 <div className="max-h-52 space-y-1 overflow-y-auto rounded-sm border border-border p-2">
                   {availableDates.map((date) => (
-                    <label className="flex items-center gap-2 text-xs" key={date}>
+                    <label className="flex items-center gap-2" key={date}>
                       <input
                         checked={selectedDates.includes(date)}
                         onChange={() => {
@@ -289,7 +289,9 @@ export function HistoricalAmplitudeDistributionPage(): JSX.Element {
                         }}
                         type="checkbox"
                       />
-                      {date}
+                      <Typography as="span" variant="caption">
+                        {date}
+                      </Typography>
                     </label>
                   ))}
                 </div>
@@ -299,17 +301,17 @@ export function HistoricalAmplitudeDistributionPage(): JSX.Element {
         </PanelCard>
 
         <PanelCard
-          title="Distribution Histogram"
+          title={t("dashboard.amplitude.hist.title")}
           span={9}
-          note="Center(0): neutral. Left side: down days. Right side: up days."
-          meta={`${visibleRows.length} trading days`}
+          note={t("dashboard.amplitude.hist.note")}
+          meta={t("dashboard.amplitude.hist.meta", { days: visibleRows.length })}
           units={2}
         >
           <div className="mt-[var(--panel-gap)] space-y-3">
             <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              <Badge variant="danger">Up Days: {upDays}</Badge>
-              <Badge variant="success">Down Days: {downDays}</Badge>
-              <Badge variant="neutral">Net: {upDays - downDays}</Badge>
+              <Badge variant="danger">{t("dashboard.amplitude.upDays")}: {upDays}</Badge>
+              <Badge variant="success">{t("dashboard.amplitude.downDays")}: {downDays}</Badge>
+              <Badge variant="neutral">{t("dashboard.amplitude.net")}: {upDays - downDays}</Badge>
             </div>
             <div className="h-[300px] w-full" data-testid="amplitude-histogram-chart">
               <ResponsiveContainer width="100%" height="100%" minWidth={0}>
@@ -341,8 +343,13 @@ export function HistoricalAmplitudeDistributionPage(): JSX.Element {
                       borderRadius: "4px",
                       color: "hsl(var(--foreground))",
                     }}
-                    formatter={(value: number) => [`${value} days`, "Count"]}
-                    labelFormatter={(label) => `Amplitude bucket: ${label} pts`}
+                    formatter={(value: number) => [
+                      t("dashboard.amplitude.tooltip.days", { value }),
+                      t("dashboard.amplitude.tooltip.count"),
+                    ]}
+                    labelFormatter={(label) =>
+                      t("dashboard.amplitude.tooltip.bucket", { label })
+                    }
                   />
                   <Bar dataKey="count">
                     {histogramData.map((bin) => {

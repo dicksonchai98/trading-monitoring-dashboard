@@ -1,6 +1,7 @@
 import type { JSX, ReactNode } from "react";
 import { useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils/cn";
+import { Typography } from "@/components/ui/typography";
 
 interface PageHeaderProps {
   title: string;
@@ -21,10 +22,12 @@ export function PageHeader({
   return (
     <header className={cn("flex items-start justify-between gap-4", className)}>
       <div className="space-y-1">
-        <h1 className="text-[28px]  tracking-tight text-foreground">{title}</h1>
-        <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+        <Typography as="h1" variant="h1" className="text-foreground">
+          {title}
+        </Typography>
+        <Typography as="p" variant="meta" className="text-muted-foreground">
           {resolvedContext}
-        </p>
+        </Typography>
       </div>
       {actions ? <div className="shrink-0">{actions}</div> : null}
     </header>

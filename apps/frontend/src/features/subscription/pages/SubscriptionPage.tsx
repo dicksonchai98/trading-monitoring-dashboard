@@ -4,6 +4,7 @@ import { CheckIcon } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Typography } from "@/components/ui/typography";
 import {
   getBillingPlans,
   getBillingStatus,
@@ -14,30 +15,18 @@ import {
   mapEntitlement,
   resolveEntitlementFromBillingStatus,
 } from "@/features/subscription/lib/entitlement";
+import { useT } from "@/lib/i18n";
 import { useAuthStore } from "@/lib/store/auth-store";
-
-const FREE_FEATURES = [
-  "Unlimited members",
-  "2 teams",
-  "500 issues",
-  "Slack and Github integrations",
-];
-const STARTUP_FEATURES = [
-  "All free plan features and...",
-  "AI Assistant",
-  "Unlimited teams",
-  "Unlimited issues and file uploads",
-  "Advanced Insights",
-  "Admin roles",
-];
 
 function FeatureList({ items }: { items: string[] }): JSX.Element {
   return (
-    <ul className="flex flex-col gap-2.5 text-sm text-muted-foreground">
+    <ul className="flex flex-col gap-2.5 text-muted-foreground">
       {items.map((item) => (
         <li key={item} className="flex items-start gap-2.5">
           <CheckIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-          <span>{item}</span>
+          <Typography as="span" variant="body" className="text-muted-foreground">
+            {item}
+          </Typography>
         </li>
       ))}
     </ul>
@@ -45,6 +34,7 @@ function FeatureList({ items }: { items: string[] }): JSX.Element {
 }
 
 export function SubscriptionPage(): JSX.Element {
+  const t = useT();
   const navigate = useNavigate();
   const { token, setSession, setCheckoutSessionId, role, entitlement } =
     useAuthStore();
@@ -61,9 +51,23 @@ export function SubscriptionPage(): JSX.Element {
 
   const currentStatus = statusQuery.data?.status ?? entitlement;
   const isProCurrentPlan = String(currentStatus) === "active";
-  const proCtaLabel = isProCurrentPlan ? "Current plan" : "Get started";
+  const proCtaLabel = isProCurrentPlan ? t("subscription.currentPlan") : t("subscription.getStarted");
   const isBootstrapLoading =
     plansQuery.isLoading || (Boolean(token) && statusQuery.isLoading);
+  const freeFeatures = [
+    t("subscription.feature.unlimitedMembers"),
+    t("subscription.feature.twoTeams"),
+    t("subscription.feature.fiveHundredIssues"),
+    t("subscription.feature.slackGithub"),
+  ];
+  const startupFeatures = [
+    t("subscription.feature.allFree"),
+    t("subscription.feature.aiAssistant"),
+    t("subscription.feature.unlimitedTeams"),
+    t("subscription.feature.unlimitedIssuesUploads"),
+    t("subscription.feature.advancedInsights"),
+    t("subscription.feature.adminRoles"),
+  ];
 
   const checkoutMutation = useMutation({
     mutationFn: () => startCheckout(token ?? ""),
@@ -101,31 +105,40 @@ export function SubscriptionPage(): JSX.Element {
     >
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-8">
         <section className="flex flex-col items-center gap-2 text-center">
-          <h1 className="text-4xl font-semibold tracking-tight text-foreground md:text-5xl">
-            Pricing
-          </h1>
-          <p className="max-w-xl text-base text-muted-foreground md:text-lg">
-            Use for free with your whole team. Upgrade to enable unlimited
-            issues, enhanced security controls, and additional features.
-          </p>
+          <Typography as="h1" variant="display" className="text-foreground md:text-5xl">
+            {t("subscription.title")}
+          </Typography>
+          <Typography as="p" variant="title" className="max-w-xl text-muted-foreground md:text-lg">
+            {t("subscription.subtitle")}
+          </Typography>
         </section>
 
         <section className="grid gap-4 md:grid-cols-2">
           <Card className="flex min-h-[600px] flex-col gap-4 rounded-2xl border bg-background p-6 shadow-none hover:bg-background">
             <div className="flex flex-col gap-2">
-              <p className="text-xl font-semibold text-foreground">Free</p>
-              <p className="text-3xl font-semibold text-foreground">$0</p>
+              <Typography as="p" variant="h2" className="text-foreground">
+                {t("subscription.free")}
+              </Typography>
+              <Typography as="p" variant="display" className="text-foreground text-3xl">
+                {t("subscription.freePrice")}
+              </Typography>
             </div>
-            <p className="text-sm text-muted-foreground">Free for everyone</p>
-            <FeatureList items={FREE_FEATURES} />
+            <Typography as="p" variant="body" className="text-muted-foreground">
+              {t("subscription.freeDesc")}
+            </Typography>
+            <FeatureList items={freeFeatures} />
           </Card>
 
           <Card className="flex min-h-[400px] flex-col gap-4 rounded-2xl border-2 border-foreground bg-background p-6 shadow-none hover:bg-background">
             <div className="flex flex-col gap-2">
-              <p className="text-xl font-semibold text-foreground">Pro Plan</p>
-              <p className="text-3xl font-semibold text-foreground">$6 per user/year</p>
+              <Typography as="p" variant="h2" className="text-foreground">
+                {t("subscription.proPlan")}
+              </Typography>
+              <Typography as="p" variant="display" className="text-foreground text-3xl">
+                {t("subscription.proPrice")}
+              </Typography>
             </div>
-            <FeatureList items={STARTUP_FEATURES} />
+            <FeatureList items={startupFeatures} />
             <Button
               className="mt-auto w-fit rounded-xl bg-zinc-900 text-white hover:bg-zinc-800"
               disabled={checkoutMutation.isPending || isProCurrentPlan}
