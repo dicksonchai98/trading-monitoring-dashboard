@@ -55,3 +55,8 @@ def test_otp_email_migration_file_exists() -> None:
 
 def test_otp_email_ops_doc_exists() -> None:
     assert Path("docs/otp-email-ops.md").exists()
+
+
+def test_index_contribution_snapshot_migration_file_exists() -> None:
+    path = Path("alembic/versions/20260406_01_add_index_contribution_snapshots.py")
+    assert path.exists()
