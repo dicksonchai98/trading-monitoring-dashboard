@@ -74,12 +74,12 @@ describe("Auth pages", () => {
     renderAuthPages("/signup");
 
     const signupPassword = screen.getByLabelText(/^password$/i);
-    const signupConfirmPassword = screen.getByLabelText(/confirm password/i);
+    const signupConfirmPassword = screen.getByLabelText(/^confirm password$/i);
     expect(signupPassword).toHaveAttribute("type", "password");
     expect(signupConfirmPassword).toHaveAttribute("type", "password");
 
     fireEvent.click(screen.getByRole("button", { name: /show password/i }));
-    fireEvent.click(screen.getByRole("button", { name: /show confirm secret/i }));
+    fireEvent.click(screen.getByRole("button", { name: /show confirm password/i }));
     expect(signupPassword).toHaveAttribute("type", "text");
     expect(signupConfirmPassword).toHaveAttribute("type", "text");
   });
@@ -142,7 +142,7 @@ describe("Auth pages", () => {
     fireEvent.change(screen.getByLabelText(/user id/i), { target: { value: "admin1" } });
     fireEvent.change(screen.getByLabelText(/^email$/i), { target: { value: "admin1@example.com" } });
     fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: "AdminPass1" } });
-    fireEvent.change(screen.getByLabelText(/confirm password/i), { target: { value: "AdminPass1" } });
+    fireEvent.change(screen.getByLabelText(/^confirm password$/i), { target: { value: "AdminPass1" } });
     fireEvent.click(screen.getByRole("button", { name: /continue to email verification/i }));
 
     expect(await screen.findByRole("heading", { level: 1, name: "Verify your email" })).toBeInTheDocument();

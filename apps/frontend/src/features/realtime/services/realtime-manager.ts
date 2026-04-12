@@ -5,6 +5,7 @@ import {
 } from "@/features/realtime/schemas/serving-event.schema";
 import { useRealtimeStore } from "@/features/realtime/store/realtime.store";
 import type { ServingSseEventName } from "@/features/realtime/types/realtime.types";
+import { shouldBlockInsecureTransport } from "@/lib/api/transport";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api";
 const STREAM_PATH = "/v1/stream/sse";
@@ -155,6 +156,11 @@ class RealtimeManager {
         return;
       }
 
+      if (error instanceof Error && error.message === "insecure_transport") {
+        useRealtimeStore.getState().setConnectionStatus("error", "stream_disconnected");
+        return;
+      }
+
       const status = typeof error === "object" && error !== null && "status" in error
         ? Number((error as StreamHttpError).status)
         : null;
@@ -193,6 +199,13 @@ class RealtimeManager {
   }
 
   private async stream(signal: AbortSignal, token: string): Promise<void> {
+    if (
+      typeof window !== "undefined" &&
+      shouldBlockInsecureTransport(API_BASE_URL, window.location.protocol, import.meta.env.PROD)
+    ) {
+      throw new Error("insecure_transport");
+    }
+
     const response = await fetch(`${API_BASE_URL}${STREAM_PATH}`, {
       method: "GET",
       signal,

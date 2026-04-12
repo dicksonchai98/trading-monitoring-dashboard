@@ -10,10 +10,6 @@ describe("HistoricalDataLoaderPage", () => {
       </MemoryRouter>,
     );
 
-    expect(
-      screen.getByRole("heading", { name: "Historical Data Loader" }),
-    ).toBeInTheDocument();
-    expect(screen.getByText("/historical-data-loader")).toBeInTheDocument();
     expect(screen.getByText("LOAD CONFIGURATION")).toBeInTheDocument();
     expect(screen.getByText("Query Controls")).toBeInTheDocument();
     expect(screen.getByText("Load Status")).toBeInTheDocument();

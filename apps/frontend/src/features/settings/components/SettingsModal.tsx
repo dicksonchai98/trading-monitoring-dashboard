@@ -1,4 +1,4 @@
-﻿import type { JSX } from "react";
+import type { JSX } from "react";
 import { useEffect, useMemo, useState } from "react";
 import {
   AppWindowIcon,
@@ -24,10 +24,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { type LanguagePreset, useI18n } from "@/lib/i18n";
 import { useAuthStore } from "@/lib/store/auth-store";
 import { cn } from "@/lib/utils";
-
-type LanguagePreset = "en" | "zh-TW";
 
 export type SettingsSection =
   | "general"
@@ -40,14 +39,6 @@ export type SettingsSection =
   | "parental"
   | "account";
 
-const LANGUAGE_STORAGE_KEY = "ui.language.preset";
-
-function applyLanguagePreset(value: LanguagePreset): void {
-  if (typeof document === "undefined") return;
-  document.documentElement.setAttribute("lang", value);
-  document.documentElement.setAttribute("data-language", value);
-}
-
 export function SettingsModal({
   open,
   onOpenChange,
@@ -58,18 +49,13 @@ export function SettingsModal({
   initialSection?: SettingsSection;
 }): JSX.Element {
   const { role } = useAuthStore();
-  const [activeSection, setActiveSection] =
-    useState<SettingsSection>(initialSection);
-  const [languagePreset, setLanguagePreset] = useState<LanguagePreset>("en");
+  const { locale, setLocale, t } = useI18n();
+  const [activeSection, setActiveSection] = useState<SettingsSection>(initialSection);
+  const [languagePreset, setLanguagePreset] = useState<LanguagePreset>(locale);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const savedLanguage = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
-    const nextLanguage: LanguagePreset =
-      savedLanguage === "zh-TW" ? "zh-TW" : "en";
-    setLanguagePreset(nextLanguage);
-    applyLanguagePreset(nextLanguage);
-  }, []);
+    setLanguagePreset(locale);
+  }, [locale]);
 
   useEffect(() => {
     if (!open) return;
@@ -78,25 +64,22 @@ export function SettingsModal({
 
   function updateLanguagePreset(nextLanguage: LanguagePreset): void {
     setLanguagePreset(nextLanguage);
-    applyLanguagePreset(nextLanguage);
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(LANGUAGE_STORAGE_KEY, nextLanguage);
-    }
+    setLocale(nextLanguage);
   }
 
   const sections = useMemo(
     () => [
-      { id: "general" as const, label: "常规", icon: Settings2Icon },
-      { id: "notifications" as const, label: "通知", icon: BellIcon },
-      { id: "personalization" as const, label: "个性化", icon: PaletteIcon },
-      { id: "apps" as const, label: "应用", icon: AppWindowIcon },
-      { id: "schedule" as const, label: "安排", icon: Clock3Icon },
-      { id: "data" as const, label: "数据管理", icon: DatabaseIcon },
-      { id: "security" as const, label: "安全", icon: ShieldIcon },
-      { id: "parental" as const, label: "家长控制", icon: UserRoundCogIcon },
-      { id: "account" as const, label: "账户", icon: CircleUserRoundIcon },
+      { id: "general" as const, label: t("modal.general"), icon: Settings2Icon },
+      { id: "notifications" as const, label: t("modal.notifications"), icon: BellIcon },
+      { id: "personalization" as const, label: t("modal.personalization"), icon: PaletteIcon },
+      { id: "apps" as const, label: t("modal.apps"), icon: AppWindowIcon },
+      { id: "schedule" as const, label: t("modal.schedule"), icon: Clock3Icon },
+      { id: "data" as const, label: t("modal.data"), icon: DatabaseIcon },
+      { id: "security" as const, label: t("modal.security"), icon: ShieldIcon },
+      { id: "parental" as const, label: t("modal.parental"), icon: UserRoundCogIcon },
+      { id: "account" as const, label: t("modal.account"), icon: CircleUserRoundIcon },
     ],
-    [],
+    [t],
   );
 
   return (
@@ -107,15 +90,15 @@ export function SettingsModal({
         className="h-[88vh] max-h-[760px] w-[92vw] max-w-[800px] overflow-hidden p-0 sm:max-w-[800px]"
       >
         <DialogHeader className="sr-only">
-          <DialogTitle>设置</DialogTitle>
-          <DialogDescription>应用设置与账户偏好配置。</DialogDescription>
+          <DialogTitle>{t("modal.title")}</DialogTitle>
+          <DialogDescription>{t("modal.desc")}</DialogDescription>
         </DialogHeader>
 
         <div className="flex h-full min-h-0 bg-background">
           <aside className="flex w-52 shrink-0 flex-col border-r border-border bg-muted/30 p-3">
             <button
               type="button"
-              aria-label="关闭设置"
+              aria-label={t("modal.close")}
               className="mb-2 inline-flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
               onClick={() => onOpenChange(false)}
             >
@@ -149,7 +132,7 @@ export function SettingsModal({
             <div className="mt-4 flex min-h-0 flex-1 flex-col overflow-y-auto pr-1">
               {activeSection === "general" ? (
                 <div className="flex flex-col gap-4">
-                <h3 className="text-base font-semibold text-foreground">常规</h3>
+                  <h3 className="text-base font-semibold text-foreground">{t("modal.general")}</h3>
                   <div className="rounded-xl border border-border bg-muted/40 p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-start gap-3">
@@ -158,21 +141,21 @@ export function SettingsModal({
                         </div>
                         <div className="flex flex-col gap-1">
                           <h3 className="text-base font-semibold text-foreground">
-                            保护你的账户
+                            {t("modal.protectTitle")}
                           </h3>
                           <p className="text-sm text-muted-foreground">
-                            添加多因素身份验证（MFA），为登录过程提供额外保护。
+                            {t("modal.protectDesc")}
                           </p>
                           <div>
                             <Button variant="outline" size="sm">
-                              设置 MFA
+                              {t("modal.setupMfa")}
                             </Button>
                           </div>
                         </div>
                       </div>
                       <button
                         type="button"
-                        aria-label="关闭保护卡片"
+                        aria-label={t("modal.closeProtection")}
                         className="inline-flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-background hover:text-foreground"
                       >
                         <XIcon className="size-4" />
@@ -184,144 +167,134 @@ export function SettingsModal({
                     <div className="flex items-center justify-between px-4 py-3">
                       <div className="flex items-center gap-2 text-sm text-foreground">
                         <MonitorIcon className="size-4 text-muted-foreground" />
-                        <span>外观</span>
+                        <span>{t("modal.appearance")}</span>
                       </div>
-                      <span className="text-sm text-muted-foreground">
-                        系统
-                      </span>
+                      <span className="text-sm text-muted-foreground">{t("modal.system")}</span>
                     </div>
                     <div className="flex items-center justify-between px-4 py-3">
                       <div className="flex items-center gap-2 text-sm text-foreground">
                         <ContrastIcon className="size-4 text-muted-foreground" />
-                        <span>对比度</span>
+                        <span>{t("modal.contrast")}</span>
                       </div>
-                      <span className="text-sm text-muted-foreground">
-                        系统
-                      </span>
+                      <span className="text-sm text-muted-foreground">{t("modal.system")}</span>
                     </div>
                     <div className="flex items-center justify-between px-4 py-3">
                       <div className="flex items-center gap-2 text-sm text-foreground">
                         <PaletteIcon className="size-4 text-muted-foreground" />
-                        <span>重点色</span>
+                        <span>{t("modal.accentColor")}</span>
                       </div>
                       <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
                         <span className="size-2 rounded-full bg-muted-foreground" />
-                        默认
+                        {t("modal.default")}
                       </span>
                     </div>
                     <div className="flex items-center justify-between gap-3 px-4 py-3">
                       <div className="flex items-center gap-2 text-sm text-foreground">
                         <LanguagesIcon className="size-4 text-muted-foreground" />
-                        <span>语言</span>
+                        <span>{t("settings.language")}</span>
                       </div>
                       <select
                         className="h-8 rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none"
                         value={languagePreset}
                         onChange={(event) =>
-                          updateLanguagePreset(
-                            event.target.value as LanguagePreset,
-                          )
+                          updateLanguagePreset(event.target.value as LanguagePreset)
                         }
                       >
-                        <option value="zh-TW">自动检测</option>
-                        <option value="en">English</option>
+                        <option value="en">{t("settings.langEnglish")}</option>
+                        <option value="zh-TW">{t("settings.langTraditionalChinese")}</option>
                       </select>
                     </div>
                     <div className="flex items-center justify-between gap-3 px-4 py-3">
                       <div className="flex items-center gap-2 text-sm text-foreground">
                         <UserRoundCheckIcon className="size-4 text-muted-foreground" />
-                        <span>口语</span>
+                        <span>{t("modal.spokenLanguage")}</span>
                       </div>
-                      <span className="text-sm text-muted-foreground">
-                        自动检测
-                      </span>
+                      <span className="text-sm text-muted-foreground">{t("modal.autoDetect")}</span>
                     </div>
                   </div>
 
-                  <p className="text-xs text-muted-foreground">
-                    为获得最佳结果，请选择你的主要语言。即使未列出的语言也可能通过自动检测功能被识别。
-                  </p>
+                  <p className="text-xs text-muted-foreground">{t("modal.languageHint")}</p>
                 </div>
               ) : null}
 
               {activeSection === "notifications" ? (
                 <div className="mt-6 flex flex-col gap-3">
-                <h3 className="text-base font-semibold text-foreground">通知</h3>
-                <div className="rounded-xl border border-border bg-muted/40 p-4">
-                  <p className="text-sm font-medium text-foreground">通知偏好</p>
-                  <p className="mt-1 text-sm text-muted-foreground">该区域将在后续版本接入策略化通知配置。</p>
-                </div>
+                  <h3 className="text-base font-semibold text-foreground">{t("modal.notifications")}</h3>
+                  <div className="rounded-xl border border-border bg-muted/40 p-4">
+                    <p className="text-sm font-medium text-foreground">{t("modal.notificationPrefs")}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{t("modal.notificationDesc")}</p>
+                  </div>
                 </div>
               ) : null}
 
               {activeSection === "personalization" ? (
                 <div className="mt-6 flex flex-col gap-3">
-                <h3 className="text-base font-semibold text-foreground">个性化</h3>
-                <div className="rounded-xl border border-border bg-muted/40 p-4">
-                  <p className="text-sm font-medium text-foreground">开发中</p>
-                  <p className="mt-1 text-sm text-muted-foreground">此分栏内容将按产品节奏逐步开放。</p>
-                </div>
+                  <h3 className="text-base font-semibold text-foreground">{t("modal.personalization")}</h3>
+                  <div className="rounded-xl border border-border bg-muted/40 p-4">
+                    <p className="text-sm font-medium text-foreground">{t("modal.inDevelopment")}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{t("modal.rolloutDesc")}</p>
+                  </div>
                 </div>
               ) : null}
 
               {activeSection === "apps" ? (
                 <div className="mt-6 flex flex-col gap-3">
-                <h3 className="text-base font-semibold text-foreground">应用</h3>
-                <div className="rounded-xl border border-border bg-muted/40 p-4">
-                  <p className="text-sm font-medium text-foreground">开发中</p>
-                  <p className="mt-1 text-sm text-muted-foreground">此分栏内容将按产品节奏逐步开放。</p>
-                </div>
+                  <h3 className="text-base font-semibold text-foreground">{t("modal.apps")}</h3>
+                  <div className="rounded-xl border border-border bg-muted/40 p-4">
+                    <p className="text-sm font-medium text-foreground">{t("modal.inDevelopment")}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{t("modal.rolloutDesc")}</p>
+                  </div>
                 </div>
               ) : null}
 
               {activeSection === "schedule" ? (
                 <div className="mt-6 flex flex-col gap-3">
-                <h3 className="text-base font-semibold text-foreground">安排</h3>
-                <div className="rounded-xl border border-border bg-muted/40 p-4">
-                  <p className="text-sm font-medium text-foreground">开发中</p>
-                  <p className="mt-1 text-sm text-muted-foreground">此分栏内容将按产品节奏逐步开放。</p>
-                </div>
+                  <h3 className="text-base font-semibold text-foreground">{t("modal.schedule")}</h3>
+                  <div className="rounded-xl border border-border bg-muted/40 p-4">
+                    <p className="text-sm font-medium text-foreground">{t("modal.inDevelopment")}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{t("modal.rolloutDesc")}</p>
+                  </div>
                 </div>
               ) : null}
 
               {activeSection === "data" ? (
                 <div className="mt-6 flex flex-col gap-3">
-                <h3 className="text-base font-semibold text-foreground">数据管理</h3>
-                <div className="rounded-xl border border-border bg-muted/40 p-4">
-                  <p className="text-sm font-medium text-foreground">开发中</p>
-                  <p className="mt-1 text-sm text-muted-foreground">此分栏内容将按产品节奏逐步开放。</p>
-                </div>
+                  <h3 className="text-base font-semibold text-foreground">{t("modal.data")}</h3>
+                  <div className="rounded-xl border border-border bg-muted/40 p-4">
+                    <p className="text-sm font-medium text-foreground">{t("modal.inDevelopment")}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{t("modal.rolloutDesc")}</p>
+                  </div>
                 </div>
               ) : null}
 
               {activeSection === "security" ? (
                 <div className="mt-6 flex flex-col gap-3">
-                <h3 className="text-base font-semibold text-foreground">安全</h3>
-                <div className="rounded-xl border border-border bg-muted/40 p-4">
-                  <p className="text-sm font-medium text-foreground">开发中</p>
-                  <p className="mt-1 text-sm text-muted-foreground">此分栏内容将按产品节奏逐步开放。</p>
-                </div>
+                  <h3 className="text-base font-semibold text-foreground">{t("modal.security")}</h3>
+                  <div className="rounded-xl border border-border bg-muted/40 p-4">
+                    <p className="text-sm font-medium text-foreground">{t("modal.inDevelopment")}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{t("modal.rolloutDesc")}</p>
+                  </div>
                 </div>
               ) : null}
 
               {activeSection === "parental" ? (
                 <div className="mt-6 flex flex-col gap-3">
-                <h3 className="text-base font-semibold text-foreground">家长控制</h3>
-                <div className="rounded-xl border border-border bg-muted/40 p-4">
-                  <p className="text-sm font-medium text-foreground">开发中</p>
-                  <p className="mt-1 text-sm text-muted-foreground">此分栏内容将按产品节奏逐步开放。</p>
-                </div>
+                  <h3 className="text-base font-semibold text-foreground">{t("modal.parental")}</h3>
+                  <div className="rounded-xl border border-border bg-muted/40 p-4">
+                    <p className="text-sm font-medium text-foreground">{t("modal.inDevelopment")}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{t("modal.rolloutDesc")}</p>
+                  </div>
                 </div>
               ) : null}
 
               {activeSection === "account" ? (
                 <div className="mt-6 mb-2 flex flex-col gap-3">
-                <h3 className="text-base font-semibold text-foreground">账户</h3>
-                <div className="rounded-xl border border-border bg-muted/40 p-4">
-                  <p className="text-sm text-muted-foreground">当前角色</p>
-                  <p className="mt-1 text-base font-medium text-foreground">{role}</p>
-                </div>
-                <p className="text-sm text-muted-foreground">账户详情将通过 profile API 同步更新。</p>
+                  <h3 className="text-base font-semibold text-foreground">{t("modal.account")}</h3>
+                  <div className="rounded-xl border border-border bg-muted/40 p-4">
+                    <p className="text-sm text-muted-foreground">{t("modal.currentRole")}</p>
+                    <p className="mt-1 text-base font-medium text-foreground">{role}</p>
+                  </div>
+                  <p className="text-sm text-muted-foreground">{t("modal.accountSync")}</p>
                 </div>
               ) : null}
             </div>

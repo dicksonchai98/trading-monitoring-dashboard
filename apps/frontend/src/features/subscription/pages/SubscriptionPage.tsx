@@ -24,7 +24,11 @@ function FeatureList({ items }: { items: string[] }): JSX.Element {
       {items.map((item) => (
         <li key={item} className="flex items-start gap-2.5">
           <CheckIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-          <Typography as="span" variant="body" className="text-muted-foreground">
+          <Typography
+            as="span"
+            variant="body"
+            className="text-muted-foreground"
+          >
             {item}
           </Typography>
         </li>
@@ -51,7 +55,9 @@ export function SubscriptionPage(): JSX.Element {
 
   const currentStatus = statusQuery.data?.status ?? entitlement;
   const isProCurrentPlan = String(currentStatus) === "active";
-  const proCtaLabel = isProCurrentPlan ? t("subscription.currentPlan") : t("subscription.getStarted");
+  const proCtaLabel = isProCurrentPlan
+    ? t("subscription.currentPlan")
+    : t("subscription.getStarted");
   const isBootstrapLoading =
     plansQuery.isLoading || (Boolean(token) && statusQuery.isLoading);
   const freeFeatures = [
@@ -105,10 +111,14 @@ export function SubscriptionPage(): JSX.Element {
     >
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-8">
         <section className="flex flex-col items-center gap-2 text-center">
-          <Typography as="h1" variant="display" className="text-foreground md:text-5xl">
+          <Typography as="h1" variant="display" className="text-foreground ">
             {t("subscription.title")}
           </Typography>
-          <Typography as="p" variant="title" className="max-w-xl text-muted-foreground md:text-lg">
+          <Typography
+            as="p"
+            variant="title"
+            className="max-w-xl text-muted-foreground "
+          >
             {t("subscription.subtitle")}
           </Typography>
         </section>
@@ -119,12 +129,15 @@ export function SubscriptionPage(): JSX.Element {
               <Typography as="p" variant="h2" className="text-foreground">
                 {t("subscription.free")}
               </Typography>
-              <Typography as="p" variant="display" className="text-foreground text-3xl">
+              <Typography as="p" variant="display" className="text-foreground ">
                 {t("subscription.freePrice")}
               </Typography>
             </div>
             <Typography as="p" variant="body" className="text-muted-foreground">
               {t("subscription.freeDesc")}
+            </Typography>
+            <Typography as="p" variant="body" className="text-foreground ">
+              {t("subscription.title")}
             </Typography>
             <FeatureList items={freeFeatures} />
           </Card>
@@ -134,7 +147,7 @@ export function SubscriptionPage(): JSX.Element {
               <Typography as="p" variant="h2" className="text-foreground">
                 {t("subscription.proPlan")}
               </Typography>
-              <Typography as="p" variant="display" className="text-foreground text-3xl">
+              <Typography as="p" variant="display" className="text-foreground ">
                 {t("subscription.proPrice")}
               </Typography>
             </div>

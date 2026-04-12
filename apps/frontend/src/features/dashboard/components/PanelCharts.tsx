@@ -17,6 +17,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { useT } from "@/lib/i18n";
 
 const axisTick = { fill: "hsl(var(--subtle-foreground))", fontSize: 11 };
 const tooltipStyle = {
@@ -273,6 +274,8 @@ const breadthDistributionData: BreadthDistributionDatum[] = Array.from(
 );
 
 export function BreadthDistributionChart(): JSX.Element {
+  const t = useT();
+
   return (
     <ChartShell testId="breadth-distribution-chart">
       <ResponsiveContainer width="100%" height="100%" minHeight={180} minWidth={0}>
@@ -291,7 +294,7 @@ export function BreadthDistributionChart(): JSX.Element {
             tick={axisTick}
             tickLine={false}
             width={44}
-            label={{ value: "家數", angle: -90, position: "insideLeft", offset: 6, fill: "hsl(var(--subtle-foreground))", fontSize: 10 }}
+            label={{ value: t("dashboard.chart.breadth.countAxis"), angle: -90, position: "insideLeft", offset: 6, fill: "hsl(var(--subtle-foreground))", fontSize: 10 }}
           />
           <YAxis
             yAxisId="breadth"
@@ -306,10 +309,12 @@ export function BreadthDistributionChart(): JSX.Element {
             labelStyle={{ color: "hsl(var(--foreground))" }}
             formatter={(value, name) => {
               const normalized = typeof value === "number" ? value : Number(value ?? 0);
-              if (name === "count") return [normalized, "漲跌家數"];
-              return [normalized, "總漲跌家數變化"];
+              if (name === "count") return [normalized, t("dashboard.chart.breadth.count")];
+              return [normalized, t("dashboard.chart.breadth.swing")];
             }}
-            labelFormatter={(value) => `漲跌幅度 ${String(value)}`}
+            labelFormatter={(value) =>
+              `${t("dashboard.chart.breadth.labelPrefix")} ${String(value)}`
+            }
           />
           <Bar yAxisId="count" dataKey="count" barSize={12} radius={[2, 2, 0, 0]}>
             {breadthDistributionData.map((entry) => (
@@ -369,6 +374,8 @@ const estimatedVolumeData: EstimatedVolumeDatum[] = Array.from(
 });
 
 export function EstimatedVolumeCompareChart(): JSX.Element {
+  const t = useT();
+
   return (
     <ChartShell testId="estimated-volume-compare-chart">
       <ResponsiveContainer width="100%" height="100%" minHeight={180} minWidth={0}>
@@ -410,15 +417,15 @@ export function EstimatedVolumeCompareChart(): JSX.Element {
             labelStyle={{ color: "hsl(var(--foreground))" }}
             formatter={(value, name) => {
               const normalized = typeof value === "number" ? value : Number(value ?? 0);
-              if (name === "yesterdayEstimated") return [normalized, "昨日預估成交量"];
-              if (name === "todayEstimated") return [normalized, "今日即時預估成交量"];
-              if (name === "positiveDiff") return [normalized, "高於昨日"];
-              if (name === "negativeDiff") return [Math.abs(normalized), "低於昨日"];
+              if (name === "yesterdayEstimated") return [normalized, t("dashboard.chart.volume.yesterday")];
+              if (name === "todayEstimated") return [normalized, t("dashboard.chart.volume.today")];
+              if (name === "positiveDiff") return [normalized, t("dashboard.chart.volume.aboveYesterday")];
+              if (name === "negativeDiff") return [Math.abs(normalized), t("dashboard.chart.volume.belowYesterday")];
               return [normalized, name];
             }}
             labelFormatter={(value) => {
               const matched = estimatedVolumeData.find((item) => item.minute === value);
-              return `時間 ${matched?.time ?? value}`;
+              return `${t("dashboard.chart.volume.timePrefix")} ${matched?.time ?? value}`;
             }}
           />
           <Area yAxisId="diff" dataKey="positiveDiff" type="linear" stroke="none" fill="#ef4444" fillOpacity={0.3} />

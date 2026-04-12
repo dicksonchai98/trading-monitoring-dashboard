@@ -15,6 +15,7 @@ import {
   SidebarMenuSubItem,
 } from "@/components/ui/sidebar"
 import { ChevronRightIcon } from "lucide-react"
+import { useT } from "@/lib/i18n"
 
 export function NavMain({
   items,
@@ -32,9 +33,10 @@ export function NavMain({
   }[]
   pathname: string
 }) {
+  const t = useT();
   return (
     <SidebarGroup>
-      <SidebarGroupLabel>Monitoring</SidebarGroupLabel>
+      <SidebarGroupLabel>{t("nav.monitoring")}</SidebarGroupLabel>
       <SidebarMenu>
         {items.map((item) => (
           <Collapsible

@@ -1,7 +1,7 @@
 import type { ApiErrorPayload, ApiRequestOptions } from "@/lib/api/types";
+import { shouldBlockInsecureTransport } from "@/lib/api/transport";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api";
-const ABSOLUTE_HTTP_PATTERN = /^http:\/\//i;
 
 export class ApiError extends Error {
   code: string;
@@ -32,10 +32,9 @@ async function parseError(response: Response): Promise<ApiError> {
 async function request<TResponse>(path: string, init: RequestInit): Promise<TResponse> {
   if (
     typeof window !== "undefined" &&
-    window.location.protocol === "https:" &&
-    ABSOLUTE_HTTP_PATTERN.test(API_BASE_URL)
+    shouldBlockInsecureTransport(API_BASE_URL, window.location.protocol, import.meta.env.PROD)
   ) {
-    throw new ApiError("insecure_transport", 0, "API base URL must use HTTPS when app is served over HTTPS.");
+    throw new ApiError("insecure_transport", 0, "API base URL must use HTTPS (except localhost for local development).");
   }
 
   const response = await fetch(`${API_BASE_URL}${path}`, {

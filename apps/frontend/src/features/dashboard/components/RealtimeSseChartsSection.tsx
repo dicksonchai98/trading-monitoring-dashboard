@@ -14,6 +14,7 @@ import { BentoGridSection } from "@/components/ui/bento-grid";
 import { PanelCard } from "@/components/ui/panel-card";
 import { useRealtimeConnection } from "@/features/realtime/hooks/use-realtime-connection";
 import { useRealtimeStore } from "@/features/realtime/store/realtime.store";
+import { useT } from "@/lib/i18n";
 
 interface SeriesPoint {
   ts: number;
@@ -83,6 +84,7 @@ function EmptyState(): JSX.Element {
 }
 
 export function RealtimeSseChartsSection(): JSX.Element {
+  const t = useT();
   const { connectionStatus } = useRealtimeConnection();
   const kbarCurrentByCode = useRealtimeStore(
     (state) => state.kbarCurrentByCode,
@@ -163,8 +165,8 @@ export function RealtimeSseChartsSection(): JSX.Element {
 
   return (
     <BentoGridSection
-      title="SSE LIVE STREAM"
-      subtitle="Added for phase-2 integration validation"
+      title={t("dashboard.sse.title")}
+      subtitle={t("dashboard.sse.subtitle")}
       actions={
         <Badge variant={statusBadgeVariant(connectionStatus)}>
           {connectionStatus.toUpperCase()}
@@ -172,8 +174,8 @@ export function RealtimeSseChartsSection(): JSX.Element {
       }
     >
       <PanelCard
-        title={`Near-Month Close (${activeCode})`}
-        meta={latestPrice ? `Latest ${latestPrice}` : "Waiting for ticks"}
+        title={t("dashboard.sse.close.title", { code: activeCode })}
+        meta={latestPrice ? t("dashboard.sse.close.latest", { price: latestPrice }) : t("dashboard.sse.close.waiting")}
         span={4}
         units={2}
         data-testid="sse-close-trend-panel"
@@ -219,7 +221,7 @@ export function RealtimeSseChartsSection(): JSX.Element {
       </PanelCard>
 
       <PanelCard
-        title="Spread & Mid"
+        title={t("dashboard.sse.spread.title")}
         span={4}
         units={2}
         data-testid="sse-spread-panel"
@@ -272,7 +274,7 @@ export function RealtimeSseChartsSection(): JSX.Element {
       </PanelCard>
 
       <PanelCard
-        title="Bid/Ask Size"
+        title={t("dashboard.sse.depth.title")}
         span={4}
         units={2}
         data-testid="sse-depth-panel"

@@ -7,6 +7,7 @@ import type { UserRole } from "@/lib/types/auth";
 interface GuardedRouteProps extends PropsWithChildren {
   requiredRole: UserRole;
   requireActiveEntitlement?: boolean;
+  allowAdminBypassEntitlement?: boolean;
 }
 
 const roleRank: Record<UserRole, number> = {
@@ -18,6 +19,7 @@ const roleRank: Record<UserRole, number> = {
 export function GuardedRoute({
   requiredRole,
   requireActiveEntitlement = false,
+  allowAdminBypassEntitlement = true,
   children,
 }: GuardedRouteProps): JSX.Element {
   const location = useLocation();
@@ -31,7 +33,11 @@ export function GuardedRoute({
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
 
-  if (requireActiveEntitlement && entitlement !== "active") {
+  if (
+    requireActiveEntitlement &&
+    entitlement !== "active" &&
+    !(allowAdminBypassEntitlement && role === "admin")
+  ) {
     return <Navigate to="/subscription" replace />;
   }
 

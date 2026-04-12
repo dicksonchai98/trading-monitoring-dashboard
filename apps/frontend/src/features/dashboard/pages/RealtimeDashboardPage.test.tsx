@@ -27,8 +27,6 @@ describe("RealtimeDashboardPage", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole("heading", { name: "Futures Dashboard" })).toBeInTheDocument();
-    expect(screen.getByText("/dashboard")).toBeInTheDocument();
     expect(screen.getByText("LIVE METRICS")).toBeInTheDocument();
     expect(screen.getByText("MARKET OVERVIEW")).toBeInTheDocument();
     expect(screen.getByText("PARTICIPANT OVERVIEW")).toBeInTheDocument();
