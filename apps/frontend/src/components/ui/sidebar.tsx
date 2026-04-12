@@ -22,21 +22,11 @@ import { cn } from "@/lib/utils/cn";
 
 const nav = [
   { to: "/dashboard", label: "Dashboard", icon: BarChart3 },
-  {
-    to: "/historical-data-analysis",
-    label: "Historical Data Analysis",
-    icon: Database,
-  },
-  {
-    to: "/historical-data-loader",
-    label: "Historical Data Loader",
-    icon: History,
-  },
-  {
-    to: "/historical-amplitude-distribution",
-    label: "歷史振幅分佈圖",
-    icon: BarChart3,
-  },
+  { to: "/historical-data-analysis", label: "Historical Data Analysis", icon: Database },
+  { to: "/historical-data-loader", label: "Historical Data Loader", icon: History },
+  { to: "/historical-amplitude-distribution", label: "Historical Amplitude Distribution", icon: BarChart3 },
+  { to: "/analytics/events", label: "Event Analytics", icon: BarChart3 },
+  { to: "/analytics/distributions", label: "Distribution Analytics", icon: BarChart3 },
   { to: "/market-thermometer", label: "Market Thermometer", icon: Gauge },
   { to: "/subscription", label: "Subscription", icon: CreditCard },
   { to: "/admin/audit", label: "Admin Audit", icon: ClipboardList },
@@ -84,7 +74,6 @@ export function Sidebar({
   const [portalUrl, setPortalUrl] = useState<string | null>(null);
   const [portalLoading, setPortalLoading] = useState(false);
   const [portalError, setPortalError] = useState<string | null>(null);
-  console.log(role);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -270,7 +259,7 @@ export function Sidebar({
               className="flex h-10 w-full items-center justify-center rounded-sm border border-primary bg-primary text-sm font-medium text-primary-foreground transition-colors hover:brightness-110"
               to="/login"
             >
-              登入 / 註冊
+              ?�入 / 註�?
             </Link>
           )}
         </div>
@@ -379,3 +368,4 @@ export function Sidebar({
     </aside>
   );
 }
+

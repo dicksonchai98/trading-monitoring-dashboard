@@ -12,6 +12,8 @@ import { HistoricalDataAnalysisPage } from "@/features/dashboard/pages/Historica
 import { MarketThermometerPage } from "@/features/dashboard/pages/MarketThermometerPage";
 import { HistoricalDataLoaderPage } from "@/features/dashboard/pages/HistoricalDataLoaderPage";
 import { HistoricalAmplitudeDistributionPage } from "@/features/dashboard/pages/HistoricalAmplitudeDistributionPage";
+import { EventAnalyticsPage } from "@/features/analytics/pages/EventAnalyticsPage";
+import { DistributionAnalyticsPage } from "@/features/analytics/pages/DistributionAnalyticsPage";
 import { SubscriptionPage } from "@/features/subscription/pages/SubscriptionPage";
 import {
   CheckoutCancelPage,
@@ -78,6 +80,22 @@ const router = createBrowserRouter([
         element: (
           <GuardedRoute requiredRole="visitor">
             <HistoricalAmplitudeDistributionPage />
+          </GuardedRoute>
+        ),
+      },
+      {
+        path: "/analytics/events",
+        element: (
+          <GuardedRoute requiredRole="member">
+            <EventAnalyticsPage />
+          </GuardedRoute>
+        ),
+      },
+      {
+        path: "/analytics/distributions",
+        element: (
+          <GuardedRoute requiredRole="member">
+            <DistributionAnalyticsPage />
           </GuardedRoute>
         ),
       },
