@@ -70,7 +70,7 @@ const router = createBrowserRouter([
       {
         path: "/historical-data-analysis",
         element: (
-          <GuardedRoute requiredRole="visitor">
+          <GuardedRoute requiredRole="member" requireActiveEntitlement>
             <HistoricalDataAnalysisPage />
           </GuardedRoute>
         ),
@@ -78,7 +78,7 @@ const router = createBrowserRouter([
       {
         path: "/market-thermometer",
         element: (
-          <GuardedRoute requiredRole="visitor">
+          <GuardedRoute requiredRole="member" requireActiveEntitlement>
             <MarketThermometerPage />
           </GuardedRoute>
         ),
@@ -86,7 +86,7 @@ const router = createBrowserRouter([
       {
         path: "/historical-data-loader",
         element: (
-          <GuardedRoute requiredRole="visitor">
+          <GuardedRoute requiredRole="admin">
             <HistoricalDataLoaderPage />
           </GuardedRoute>
         ),
@@ -94,7 +94,7 @@ const router = createBrowserRouter([
       {
         path: "/historical-amplitude-distribution",
         element: (
-          <GuardedRoute requiredRole="visitor">
+          <GuardedRoute requiredRole="member" requireActiveEntitlement>
             <HistoricalAmplitudeDistributionPage />
           </GuardedRoute>
         ),

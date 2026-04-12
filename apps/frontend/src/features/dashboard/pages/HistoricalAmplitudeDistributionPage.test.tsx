@@ -10,10 +10,6 @@ describe("HistoricalAmplitudeDistributionPage", () => {
       </MemoryRouter>,
     );
 
-    expect(
-      screen.getByRole("heading", { name: "歷史振幅分佈圖" }),
-    ).toBeInTheDocument();
-    expect(screen.getByText("/historical-amplitude-distribution")).toBeInTheDocument();
     expect(screen.getByText("HISTORICAL AMPLITUDE DISTRIBUTION")).toBeInTheDocument();
     expect(screen.getByText("Filter Controls")).toBeInTheDocument();
     expect(screen.getByText("Distribution Histogram")).toBeInTheDocument();

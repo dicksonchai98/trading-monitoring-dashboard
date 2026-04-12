@@ -1,11 +1,7 @@
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@/components/ui/avatar"
-import { useState } from "react"
-import { useNavigate } from "react-router-dom"
-import { toast } from "sonner"
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
+import { NavUserTrigger, type SidebarUserIdentity } from "@/components/nav-user-trigger";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,69 +10,64 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+} from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { SidebarMenu, SidebarMenuItem, useSidebar } from "@/components/ui/sidebar";
+import { logout } from "@/features/auth/api/auth";
+import { SettingsModal, type SettingsSection } from "@/features/settings/components/SettingsModal";
+import { createPortalSession } from "@/features/subscription/api/billing";
+import { useT } from "@/lib/i18n";
+import { useAuthStore } from "@/lib/store/auth-store";
 import {
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  useSidebar,
-} from "@/components/ui/sidebar"
-import { logout } from "@/features/auth/api/auth"
-import { SettingsModal, type SettingsSection } from "@/features/settings/components/SettingsModal"
-import { createPortalSession } from "@/features/subscription/api/billing"
-import { useT } from "@/lib/i18n"
-import { useAuthStore } from "@/lib/store/auth-store"
-import { ChevronsUpDownIcon, SparklesIcon, BadgeCheckIcon, CreditCardIcon, BellIcon, LogOutIcon, Settings2Icon } from "lucide-react"
+  BadgeCheckIcon,
+  BellIcon,
+  CreditCardIcon,
+  LogOutIcon,
+  Settings2Icon,
+  SparklesIcon,
+} from "lucide-react";
 
-export function NavUser({
-  user,
-}: {
-  user: {
-    name: string
-    email: string
-    avatar: string
-  }
-}) {
+export function NavUserAuthenticated({ user }: { user: SidebarUserIdentity }) {
   const t = useT();
-  const { isMobile } = useSidebar()
-  const navigate = useNavigate()
-  const { token, clearSession } = useAuthStore()
-  const [portalLoading, setPortalLoading] = useState(false)
-  const [settingsOpen, setSettingsOpen] = useState(false)
-  const [initialSettingsSection, setInitialSettingsSection] = useState<SettingsSection>("general")
+  const { isMobile } = useSidebar();
+  const navigate = useNavigate();
+  const { token, clearSession } = useAuthStore();
+  const [portalLoading, setPortalLoading] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [initialSettingsSection, setInitialSettingsSection] = useState<SettingsSection>("general");
 
   function openSettings(section: SettingsSection): void {
-    setInitialSettingsSection(section)
-    setSettingsOpen(true)
+    setInitialSettingsSection(section);
+    setSettingsOpen(true);
   }
 
   async function handleOpenPortal(): Promise<void> {
     if (!token || portalLoading) {
-      return
+      return;
     }
-    setPortalLoading(true)
+    setPortalLoading(true);
     try {
-      const result = await createPortalSession(token)
-      toast.success(t("user.portalOpened"))
+      const result = await createPortalSession(token);
+      toast.success(t("user.portalOpened"));
       if (typeof window !== "undefined" && result.portal_url) {
-        window.open(result.portal_url, "_blank", "noopener,noreferrer")
+        window.open(result.portal_url, "_blank", "noopener,noreferrer");
       }
     } catch {
-      toast.error(t("user.portalOpenFailed"))
+      toast.error(t("user.portalOpenFailed"));
     } finally {
-      setPortalLoading(false)
+      setPortalLoading(false);
     }
   }
 
   async function handleLogout(): Promise<void> {
     try {
-      await logout()
-      toast.success(t("user.loggedOut"))
+      await logout();
+      toast.success(t("user.loggedOut"));
     } catch {
-      toast.error(t("user.logoutFailed"))
+      toast.error(t("user.logoutFailed"));
     }
-    clearSession()
-    navigate("/login", { replace: true })
+    clearSession();
+    navigate("/login", { replace: true });
   }
 
   return (
@@ -84,20 +75,7 @@ export function NavUser({
       <SidebarMenuItem>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <SidebarMenuButton
-              size="lg"
-              className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground focus-visible:ring-0 focus-visible:ring-offset-0"
-            >
-              <Avatar className="h-8 w-8 rounded-lg">
-                <AvatarImage src={user.avatar} alt={user.name} />
-                <AvatarFallback className="rounded-lg">{t("user.avatarFallback")}</AvatarFallback>
-              </Avatar>
-              <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-medium">{user.name}</span>
-                <span className="truncate text-xs">{user.email}</span>
-              </div>
-              <ChevronsUpDownIcon className="ml-auto size-4" />
-            </SidebarMenuButton>
+            <NavUserTrigger user={user} />
           </DropdownMenuTrigger>
           <DropdownMenuContent
             className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-56 rounded-lg"
@@ -120,38 +98,32 @@ export function NavUser({
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
               <DropdownMenuItem onClick={() => navigate("/subscription")}>
-                <SparklesIcon
-                />
+                <SparklesIcon />
                 {t("user.upgradeToPro")}
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
               <DropdownMenuItem onClick={() => openSettings("account")}>
-                <BadgeCheckIcon
-                />
+                <BadgeCheckIcon />
                 {t("user.account")}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => openSettings("general")}>
-                <Settings2Icon
-                />
+                <Settings2Icon />
                 {t("user.settings")}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => void handleOpenPortal()} disabled={!token || portalLoading}>
-                <CreditCardIcon
-                />
+                <CreditCardIcon />
                 {portalLoading ? t("user.openingBillingPortal") : t("user.billingPortal")}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => openSettings("notifications")}>
-                <BellIcon
-                />
+                <BellIcon />
                 {t("user.notifications")}
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => void handleLogout()} disabled={!token}>
-              <LogOutIcon
-              />
+              <LogOutIcon />
               {t("user.logout")}
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -163,7 +135,5 @@ export function NavUser({
         />
       </SidebarMenuItem>
     </SidebarMenu>
-  )
+  );
 }
-
-

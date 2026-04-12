@@ -6,6 +6,7 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 import { Link } from "react-router-dom"
+import { useT } from "@/lib/i18n"
 
 export function NavProjects({
   projects,
@@ -18,9 +19,10 @@ export function NavProjects({
   }[]
   pathname: string
 }) {
+  const t = useT();
   return (
     <SidebarGroup>
-      <SidebarGroupLabel>Utilities</SidebarGroupLabel>
+      <SidebarGroupLabel>{t("nav.utilities")}</SidebarGroupLabel>
       <SidebarMenu>
         {projects.map((item) => (
           <SidebarMenuItem key={item.name}>
