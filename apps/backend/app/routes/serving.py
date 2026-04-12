@@ -521,6 +521,7 @@ async def stream_sse(
                 except Exception:
                     metrics.inc("serving_redis_errors_total")
                     break
+                now = asyncio.get_running_loop().time()
 
                 if current_k and current_k != last_kbar:
                     last_kbar = current_k

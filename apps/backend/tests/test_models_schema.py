@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from app.models.analytics_job import AnalyticsJobModel
 from app.models.batch_job import BatchJobModel
 from app.models.bidask_metric_1s import BidAskMetric1sModel
 from app.models.billing_event import BillingEventModel
@@ -7,6 +8,10 @@ from app.models.email_delivery_log import EmailDeliveryLogModel
 from app.models.email_outbox import EmailOutboxModel
 from app.models.kbar_1m import Kbar1mModel
 from app.models.market_summary_1m import MarketSummary1mModel
+from app.models.kbar_daily_feature import KbarDailyFeatureModel
+from app.models.kbar_distribution_stat import KbarDistributionStatModel
+from app.models.kbar_event_sample import KbarEventSampleModel
+from app.models.kbar_event_stat import KbarEventStatModel
 from app.models.otp_challenge import OtpChallengeModel
 from app.models.otp_verification_token import OtpVerificationTokenModel
 from app.models.quote_feature_1m import QuoteFeature1mModel
@@ -34,6 +39,18 @@ def test_billing_event_model_table_name() -> None:
 
 def test_kbar_1m_model_table_name() -> None:
     assert Kbar1mModel.__tablename__ == "kbars_1m"
+
+
+def test_kbar_analytics_table_names() -> None:
+    assert KbarDailyFeatureModel.__tablename__ == "kbar_daily_features"
+    assert KbarEventSampleModel.__tablename__ == "kbar_event_samples"
+    assert KbarEventStatModel.__tablename__ == "kbar_event_stats"
+    assert KbarDistributionStatModel.__tablename__ == "kbar_distribution_stats"
+    assert AnalyticsJobModel.__tablename__ == "analytics_jobs"
+
+
+def test_kbar_analytics_job_has_retry_counter() -> None:
+    assert "retry_count" in AnalyticsJobModel.__table__.columns
 
 
 def test_bidask_metric_1s_model_table_name() -> None:

@@ -12,9 +12,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { BentoGridSection } from "@/components/ui/bento-grid";
 import { PanelCard } from "@/components/ui/panel-card";
-import { useKbarCurrent } from "@/features/realtime/hooks/use-kbar-current";
-import { useMetricLatest } from "@/features/realtime/hooks/use-metric-latest";
 import { useRealtimeConnection } from "@/features/realtime/hooks/use-realtime-connection";
+import { useRealtimeStore } from "@/features/realtime/store/realtime.store";
 
 interface SeriesPoint {
   ts: number;
@@ -44,7 +43,11 @@ function formatLabel(ts: number): string {
   return `${hh}:${mm}:${ss}`;
 }
 
-function appendPoint<T extends { ts: number }>(list: T[], next: T, cap = 40): T[] {
+function appendPoint<T extends { ts: number }>(
+  list: T[],
+  next: T,
+  cap = 40,
+): T[] {
   if (list.length > 0 && list[list.length - 1]?.ts === next.ts) {
     const copied = [...list];
     copied[copied.length - 1] = next;
@@ -54,7 +57,9 @@ function appendPoint<T extends { ts: number }>(list: T[], next: T, cap = 40): T[
   return merged.length > cap ? merged.slice(merged.length - cap) : merged;
 }
 
-function statusBadgeVariant(status: string): "success" | "warning" | "danger" | "neutral" {
+function statusBadgeVariant(
+  status: string,
+): "success" | "warning" | "danger" | "neutral" {
   if (status === "connected") {
     return "success";
   }
@@ -114,7 +119,10 @@ export function RealtimeSseChartsSection(): JSX.Element {
       };
       setSpreadSeries((current) => appendPoint(current, point));
     }
-    if (typeof metric.bid_size === "number" && typeof metric.ask_size === "number") {
+    if (
+      typeof metric.bid_size === "number" &&
+      typeof metric.ask_size === "number"
+    ) {
       const point: DepthPoint = {
         ts: baseTs,
         label: formatLabel(baseTs),
@@ -136,10 +144,14 @@ export function RealtimeSseChartsSection(): JSX.Element {
     <BentoGridSection
       title="SSE LIVE STREAM"
       subtitle="Added for phase-2 integration validation"
-      actions={<Badge variant={statusBadgeVariant(connectionStatus)}>{connectionStatus.toUpperCase()}</Badge>}
+      actions={
+        <Badge variant={statusBadgeVariant(connectionStatus)}>
+          {connectionStatus.toUpperCase()}
+        </Badge>
+      }
     >
       <PanelCard
-        title="Near-Month Close (TXFD6)"
+        title={`Near-Month Close (${activeCode})`}
         meta={latestPrice ? `Latest ${latestPrice}` : "Waiting for ticks"}
         span={4}
         units={2}
@@ -150,10 +162,27 @@ export function RealtimeSseChartsSection(): JSX.Element {
         ) : (
           <div className="h-[220px] w-full" data-testid="sse-close-trend-chart">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={closeSeries} margin={{ top: 8, right: 8, bottom: 0, left: -8 }}>
-                <CartesianGrid vertical={false} stroke="hsl(var(--border-strong))" strokeDasharray="3 3" />
-                <XAxis dataKey="label" tick={{ fill: "hsl(var(--subtle-foreground))", fontSize: 10 }} tickLine={false} axisLine={false} />
-                <YAxis tick={{ fill: "hsl(var(--subtle-foreground))", fontSize: 10 }} tickLine={false} axisLine={false} width={56} />
+              <LineChart
+                data={closeSeries}
+                margin={{ top: 8, right: 8, bottom: 0, left: -8 }}
+              >
+                <CartesianGrid
+                  vertical={false}
+                  stroke="hsl(var(--border-strong))"
+                  strokeDasharray="3 3"
+                />
+                <XAxis
+                  dataKey="label"
+                  tick={{ fill: "hsl(var(--subtle-foreground))", fontSize: 10 }}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <YAxis
+                  tick={{ fill: "hsl(var(--subtle-foreground))", fontSize: 10 }}
+                  tickLine={false}
+                  axisLine={false}
+                  width={56}
+                />
                 <Tooltip />
                 <Line dataKey="value" type="monotone" stroke="hsl(var(--primary))" dot={false} strokeWidth={2} isAnimationActive={false} />
               </LineChart>
@@ -162,16 +191,38 @@ export function RealtimeSseChartsSection(): JSX.Element {
         )}
       </PanelCard>
 
-      <PanelCard title="Spread & Mid" span={4} units={2} data-testid="sse-spread-panel">
+      <PanelCard
+        title="Spread & Mid"
+        span={4}
+        units={2}
+        data-testid="sse-spread-panel"
+      >
         {spreadSeries.length === 0 ? (
           <EmptyState text="Waiting for spread/mid metrics..." />
         ) : (
           <div className="h-[220px] w-full" data-testid="sse-spread-chart">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={spreadSeries} margin={{ top: 8, right: 8, bottom: 0, left: -8 }}>
-                <CartesianGrid vertical={false} stroke="hsl(var(--border-strong))" strokeDasharray="3 3" />
-                <XAxis dataKey="label" tick={{ fill: "hsl(var(--subtle-foreground))", fontSize: 10 }} tickLine={false} axisLine={false} />
-                <YAxis tick={{ fill: "hsl(var(--subtle-foreground))", fontSize: 10 }} tickLine={false} axisLine={false} width={56} />
+              <LineChart
+                data={spreadSeries}
+                margin={{ top: 8, right: 8, bottom: 0, left: -8 }}
+              >
+                <CartesianGrid
+                  vertical={false}
+                  stroke="hsl(var(--border-strong))"
+                  strokeDasharray="3 3"
+                />
+                <XAxis
+                  dataKey="label"
+                  tick={{ fill: "hsl(var(--subtle-foreground))", fontSize: 10 }}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <YAxis
+                  tick={{ fill: "hsl(var(--subtle-foreground))", fontSize: 10 }}
+                  tickLine={false}
+                  axisLine={false}
+                  width={56}
+                />
                 <Tooltip />
                 <Line dataKey="mid" type="monotone" stroke="#38bdf8" dot={false} strokeWidth={2} isAnimationActive={false} />
                 <Line dataKey="spread" type="monotone" stroke="#f59e0b" dot={false} strokeWidth={2} isAnimationActive={false} />
@@ -181,16 +232,38 @@ export function RealtimeSseChartsSection(): JSX.Element {
         )}
       </PanelCard>
 
-      <PanelCard title="Bid/Ask Size" span={4} units={2} data-testid="sse-depth-panel">
+      <PanelCard
+        title="Bid/Ask Size"
+        span={4}
+        units={2}
+        data-testid="sse-depth-panel"
+      >
         {depthSeries.length === 0 ? (
           <EmptyState text="Waiting for depth size metrics..." />
         ) : (
           <div className="h-[220px] w-full" data-testid="sse-depth-chart">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={depthSeries} margin={{ top: 8, right: 8, bottom: 0, left: -8 }}>
-                <CartesianGrid vertical={false} stroke="hsl(var(--border-strong))" strokeDasharray="3 3" />
-                <XAxis dataKey="label" tick={{ fill: "hsl(var(--subtle-foreground))", fontSize: 10 }} tickLine={false} axisLine={false} />
-                <YAxis tick={{ fill: "hsl(var(--subtle-foreground))", fontSize: 10 }} tickLine={false} axisLine={false} width={56} />
+              <LineChart
+                data={depthSeries}
+                margin={{ top: 8, right: 8, bottom: 0, left: -8 }}
+              >
+                <CartesianGrid
+                  vertical={false}
+                  stroke="hsl(var(--border-strong))"
+                  strokeDasharray="3 3"
+                />
+                <XAxis
+                  dataKey="label"
+                  tick={{ fill: "hsl(var(--subtle-foreground))", fontSize: 10 }}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <YAxis
+                  tick={{ fill: "hsl(var(--subtle-foreground))", fontSize: 10 }}
+                  tickLine={false}
+                  axisLine={false}
+                  width={56}
+                />
                 <Tooltip />
                 <Line dataKey="bidSize" type="monotone" stroke="#22c55e" dot={false} strokeWidth={2} isAnimationActive={false} />
                 <Line dataKey="askSize" type="monotone" stroke="#ef4444" dot={false} strokeWidth={2} isAnimationActive={false} />

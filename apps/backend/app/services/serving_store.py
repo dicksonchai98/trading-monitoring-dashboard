@@ -94,16 +94,26 @@ def _discover_code_from_streams() -> str | None:
     scan_iter = getattr(redis_client, "scan_iter", None)
     if not callable(scan_iter):
         return None
+    latest_candidate: tuple[int, int, str] | None = None
     for key in scan_iter(pattern):
         key_str = key.decode("utf-8") if isinstance(key, bytes) else str(key)
         if not _stream_has_entries(redis_client, key_str):
             continue
         entry = _latest_stream_entry(redis_client, key_str)
-        if entry:
-            _DEFAULT_CODE_CACHE["code"] = entry
-            _DEFAULT_CODE_CACHE["ts"] = now
-            return entry
-    return None
+        if not entry:
+            continue
+        code, stream_id = entry
+        score = _parse_stream_id(stream_id)
+        if score is None:
+            continue
+        if latest_candidate is None or score > (latest_candidate[0], latest_candidate[1]):
+            latest_candidate = (score[0], score[1], code)
+    if latest_candidate is None:
+        return None
+    resolved_code = latest_candidate[2]
+    _DEFAULT_CODE_CACHE["code"] = resolved_code
+    _DEFAULT_CODE_CACHE["ts"] = now
+    return resolved_code
 
 
 def _stream_has_entries(redis_client: Any, key: str) -> bool:
@@ -116,7 +126,7 @@ def _stream_has_entries(redis_client: Any, key: str) -> bool:
     return True
 
 
-def _latest_stream_entry(redis_client: Any, key: str) -> str | None:
+def _latest_stream_entry(redis_client: Any, key: str) -> tuple[str, str] | None:
     xrevrange = getattr(redis_client, "xrevrange", None)
     if not callable(xrevrange):
         return None
@@ -126,7 +136,8 @@ def _latest_stream_entry(redis_client: Any, key: str) -> str | None:
         return None
     if not entries:
         return None
-    _entry_id, fields = entries[0]
+    entry_id, fields = entries[0]
+    entry_id_str = entry_id.decode("utf-8") if isinstance(entry_id, bytes) else str(entry_id)
     decoded = {
         (k.decode("utf-8") if isinstance(k, bytes) else str(k)): (
             v.decode("utf-8") if isinstance(v, bytes) else str(v)
@@ -135,8 +146,18 @@ def _latest_stream_entry(redis_client: Any, key: str) -> str | None:
     }
     code = decoded.get("code")
     if isinstance(code, str) and code.strip():
-        return code.strip()
+        return code.strip(), entry_id_str
     return None
+
+
+def _parse_stream_id(stream_id: str) -> tuple[int, int] | None:
+    parts = stream_id.split("-", 1)
+    if len(parts) != 2:
+        return None
+    try:
+        return int(parts[0]), int(parts[1])
+    except ValueError:
+        return None
 
 
 def normalize_kbar(record: dict[str, Any]) -> dict[str, Any]:
