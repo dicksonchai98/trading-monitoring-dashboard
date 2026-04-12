@@ -45,12 +45,52 @@ describe("realtime-manager", () => {
     expect(state.lastHeartbeatTs).toBe(1774233600999);
   });
 
+  it("writes validated index contribution events into realtime store", () => {
+    applyServingSseEvent("index_contrib_ranking", {
+      index_code: "TSE001",
+      trade_date: "2026-04-10",
+      top: [{ rank_no: 1, symbol: "2330", contribution_points: 3.19 }],
+      bottom: [{ rank_no: 1, symbol: "2881", contribution_points: -0.82 }],
+      ts: 1775802833106,
+    });
+    applyServingSseEvent("index_contrib_sector", {
+      index_code: "TSE001",
+      trade_date: "2026-04-10",
+      sectors: {
+        Semiconductor: 4.3,
+        Finance: -1.2,
+      },
+      ts: 1775802833106,
+    });
+
+    const state = useRealtimeStore.getState();
+    expect(state.indexContribRanking?.top[0]?.symbol).toBe("2330");
+    expect(state.indexContribSector?.sectors.Semiconductor).toBe(4.3);
+  });
+
   it("ignores invalid payloads without mutating store", () => {
     applyServingSseEvent("kbar_current", { code: "MTX" });
     applyServingSseEvent("heartbeat", { ts: "bad" });
+    applyServingSseEvent("index_contrib_ranking", {
+      index_code: "TSE001",
+      trade_date: "2026-04-10",
+      top: [],
+      bottom: [],
+      ts: "bad",
+    });
+    applyServingSseEvent("index_contrib_sector", {
+      index_code: "TSE001",
+      trade_date: "2026-04-10",
+      sectors: {
+        Semiconductor: "bad",
+      },
+      ts: 1775802833106,
+    });
 
     const state = useRealtimeStore.getState();
     expect(Object.keys(state.kbarCurrentByCode)).toHaveLength(0);
     expect(state.lastHeartbeatTs).toBeNull();
+    expect(state.indexContribRanking).toBeNull();
+    expect(state.indexContribSector).toBeNull();
   });
 });

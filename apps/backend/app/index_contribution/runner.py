@@ -23,6 +23,37 @@ except ZoneInfoNotFoundError:  # pragma: no cover - runtime env specific
 logger = logging.getLogger(__name__)
 
 
+def _decode(value: Any) -> str:
+    if isinstance(value, bytes):
+        return value.decode("utf-8")
+    return str(value)
+
+
+def _parse_json(value: str) -> Any:
+    try:
+        return json.loads(value)
+    except json.JSONDecodeError:
+        return None
+
+
+def _parse_float(value: Any) -> float | None:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed
+
+
+def parse_event_ts(event_ts: str) -> datetime | None:
+    try:
+        parsed = datetime.fromisoformat(event_ts.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=TZ_TAIPEI)
+    return parsed
+
+
 class IndexContributionRunner:
     """Lightweight worker runner with managed lifecycle."""
 
@@ -52,6 +83,7 @@ class IndexContributionRunner:
         alarm_sink: Any | None = None,
         redis_failure_alarm_threshold: int = 3,
         db_failure_alarm_threshold: int = 3,
+        stream_key: str | None = None,
     ) -> None:
         self._redis = redis_client
         self._metrics = metrics
@@ -62,6 +94,7 @@ class IndexContributionRunner:
         self._block_ms = block_ms
         self._claim_idle_ms = claim_idle_ms
         self._claim_count = claim_count
+        self._stream_key = stream_key or f"{env}:stream:spot"
         self._redis_ttl_seconds = max(1, redis_ttl_seconds)
         self._redis_max_retries = max(1, redis_max_retries)
         self._redis_retry_backoff_seconds = max(0, redis_retry_backoff_ms) / 1000.0
@@ -80,6 +113,7 @@ class IndexContributionRunner:
         self._active_trade_date: date | None = None
         self._constituents: dict[str, dict[str, Any]] = {}
         self._sector_mapping: dict[str, str] = {}
+        self._last_ingest_seq: dict[str, int] = {}
         self._consecutive_redis_failures = 0
         self._consecutive_db_failures = 0
         self.engine = IndexContributionEngine(
@@ -89,6 +123,7 @@ class IndexContributionRunner:
 
     async def start(self) -> None:
         self.initialize_daily_inputs()
+        self._ensure_consumer_group()
         self._stop = False
         self._task = asyncio.create_task(self._run_loop())
 
@@ -101,7 +136,153 @@ class IndexContributionRunner:
 
     async def _run_loop(self) -> None:
         while not self._stop:
-            await asyncio.sleep(0.1)
+            processed = self.consume_once()
+            _ = self.flush_minute_snapshots(now=datetime.now(tz=timezone.utc))
+            if processed == 0:
+                await asyncio.sleep(0.1)
+            await asyncio.sleep(0)
+
+    def consume_once(self) -> int:
+        processed = 0
+        for entry_id, fields in self._claim_pending():
+            if self._handle_spot_entry(entry_id, fields):
+                self._redis.xack(self._stream_key, self._group, entry_id)
+                processed += 1
+        for entry_id, fields in self._read_new():
+            if self._handle_spot_entry(entry_id, fields):
+                self._redis.xack(self._stream_key, self._group, entry_id)
+                processed += 1
+        return processed
+
+    def _claim_pending(self) -> list[tuple[str, dict[str, Any]]]:
+        try:
+            _next, entries, _deleted = self._redis.xautoclaim(
+                self._stream_key,
+                self._group,
+                self._consumer,
+                min_idle_time=self._claim_idle_ms,
+                start_id="0-0",
+                count=self._claim_count,
+            )
+            return list(entries)
+        except Exception:
+            return []
+
+    def _read_new(self) -> list[tuple[str, dict[str, Any]]]:
+        try:
+            entries = self._redis.xreadgroup(
+                groupname=self._group,
+                consumername=self._consumer,
+                streams={self._stream_key: ">"},
+                count=self._read_count,
+                block=self._block_ms,
+            )
+        except Exception:
+            return []
+        result: list[tuple[str, dict[str, Any]]] = []
+        for _stream, messages in entries or []:
+            for entry_id, fields in messages:
+                result.append((entry_id, fields))
+        return result
+
+    def _ensure_consumer_group(self) -> None:
+        try:
+            self._redis.xgroup_create(self._stream_key, self._group, id="0-0", mkstream=True)
+        except Exception as err:  # pragma: no cover - depends on redis behavior
+            if "BUSYGROUP" in str(err).upper():
+                return
+            raise
+
+    def _parse_spot_entry(self, entry_id: str, fields: dict[str, Any]) -> dict[str, Any] | None:
+        data = {_decode(k): _decode(v) for k, v in fields.items()}
+        symbol = str(data.get("symbol") or "").strip()
+        if not symbol:
+            return None
+        event_ts_raw = str(data.get("event_ts") or "")
+        event_ts = parse_event_ts(event_ts_raw)
+        if event_ts is None:
+            return None
+
+        payload: dict[str, Any] = {}
+        payload_raw = data.get("payload")
+        if isinstance(payload_raw, str):
+            parsed_payload = _parse_json(payload_raw)
+            if isinstance(parsed_payload, dict):
+                payload = parsed_payload
+
+        last_price = _parse_float(data.get("last_price"))
+        if last_price is None or last_price <= 0:
+            raw_quote = payload.get("raw_quote", {})
+            if isinstance(raw_quote, dict):
+                last_price = _parse_float(raw_quote.get("close"))
+        if last_price is None or last_price <= 0:
+            return None
+
+        prev_close = _parse_float(data.get("prev_close"))
+        if prev_close is None or prev_close <= 0:
+            prev_close = _parse_float(payload.get("prev_close"))
+        if prev_close is None or prev_close <= 0:
+            raw_quote = payload.get("raw_quote", {})
+            if isinstance(raw_quote, dict):
+                close_value = _parse_float(raw_quote.get("close"))
+                price_chg = _parse_float(raw_quote.get("price_chg"))
+                if close_value is not None and price_chg is not None:
+                    derived_prev = close_value - price_chg
+                    if derived_prev > 0:
+                        prev_close = derived_prev
+        if prev_close is None or prev_close <= 0:
+            return None
+
+        ingest_seq_value = _parse_float(data.get("ingest_seq"))
+        ingest_seq = int(ingest_seq_value) if ingest_seq_value is not None else None
+        return {
+            "entry_id": entry_id,
+            "symbol": symbol,
+            "event_ts": event_ts,
+            "last_price": last_price,
+            "prev_close": prev_close,
+            "ingest_seq": ingest_seq,
+        }
+
+    def _handle_spot_entry(self, entry_id: str, fields: dict[str, Any]) -> bool:
+        try:
+            parsed = self._parse_spot_entry(entry_id, fields)
+            if parsed is None:
+                self._metrics.inc("index_contribution_events_dropped_invalid_total")
+                return True
+
+            symbol = str(parsed["symbol"])
+            updated_at = parsed["event_ts"]
+            ingest_seq = parsed["ingest_seq"]
+            if isinstance(ingest_seq, int):
+                last_seq = self._last_ingest_seq.get(symbol, -1)
+                if ingest_seq <= last_seq:
+                    self._metrics.inc("index_contribution_events_dropped_ingest_seq_total")
+                    return True
+
+            accepted = self.process_market_update(
+                symbol=symbol,
+                last_price=float(parsed["last_price"]),
+                prev_close=float(parsed["prev_close"]),
+                updated_at=updated_at,
+                event_id=entry_id,
+            )
+            if not accepted:
+                return True
+
+            trade_date = self.floor_minute_taipei(updated_at).date()
+            self.publish_symbol_latest(trade_date=trade_date, symbol=symbol)
+            self.publish_rankings(trade_date=trade_date, limit=20)
+            self.publish_sector_aggregate(trade_date=trade_date)
+            if isinstance(ingest_seq, int):
+                self._last_ingest_seq[symbol] = ingest_seq
+            return True
+        except Exception:
+            logger.exception(
+                "index-contribution stream entry processing failed entry_id=%s", entry_id
+            )
+            self._metrics.inc("index_contribution_events_process_errors_total")
+            return False
 
     def initialize_daily_inputs(self) -> None:
         if self._daily_input_loader is None:
@@ -356,6 +537,7 @@ class IndexContributionRunner:
         self.engine.symbol_state.clear()
         self.engine.sector_aggregate.clear()
         self.engine._processed_event_ids.clear()  # noqa: SLF001
+        self._last_ingest_seq.clear()
         self._last_flushed_minute_ts = None
         self._active_trade_date = new_trade_date
         self.initialize_daily_inputs()
