@@ -12,6 +12,7 @@ from app.services.metrics import Metrics
 class _FakeQuote:
     def __init__(self) -> None:
         self.tick_fop_callback = None
+        self.quote_fop_callback = None
         self.tick_stk_callback = None
         self.bidask_fop_callback = None
         self.subscriptions: list[tuple[object, object, object | None]] = []
@@ -21,6 +22,9 @@ class _FakeQuote:
 
     def set_on_tick_stk_v1_callback(self, callback) -> None:
         self.tick_stk_callback = callback
+
+    def set_on_quote_fop_v1_callback(self, callback) -> None:
+        self.quote_fop_callback = callback
 
     def set_on_bidask_fop_v1_callback(self, callback) -> None:
         self.bidask_fop_callback = callback
@@ -39,8 +43,14 @@ class _FakeAPI:
             "Contracts",
             (),
             {
-                "Futures": {"MTXR1": object(), "MTX": object()},
+                "Futures": {
+                    "TXFR1": object(),
+                    "TXF": object(),
+                    "MTXR1": object(),
+                    "MTX": object(),
+                },
                 "Stocks": {"2330": object()},
+                "Indexs": {"001": object()},
             },
         )
 
@@ -57,12 +67,40 @@ class _FakeAPI:
 class _FakeSpotTick:
     def __init__(self, code: str, price: float) -> None:
         self.code = code
+        self.open = price - 2
+        self.high = price + 3
+        self.low = price - 4
         self.close = price
+        self.reference_price = price - 5
         self.datetime = datetime.now(tz=timezone.utc)
 
     def to_dict(self, raw: bool = True):
         _ = raw
-        return {"close": self.close}
+        return {
+            "open": self.open,
+            "high": self.high,
+            "low": self.low,
+            "close": self.close,
+            "reference_price": self.reference_price,
+        }
+
+
+class _FakeSpotTickStringPayload:
+    def __init__(self, code: str) -> None:
+        self.code = code
+        self.datetime = datetime.now(tz=timezone.utc)
+
+    def to_dict(self, raw: bool = True):
+        _ = raw
+        return {
+            "open": "899.5",
+            "high": "904.5",
+            "low": "897.5",
+            "close": "901.5",
+            "reference_price": "896.5",
+            "price_chg": "5.0",
+            "pcct_chg": "0.56",
+        }
 
 
 class _FakeFuturesTick:
@@ -76,13 +114,25 @@ class _FakeFuturesTick:
         return {"price": self.price}
 
 
+class _FakeFuturesQuote:
+    def __init__(self, code: str, price: float, volume: int) -> None:
+        self.code = code
+        self.price = price
+        self.volume = volume
+        self.datetime = datetime.now(tz=timezone.utc)
+
+    def to_dict(self, raw: bool = True):
+        _ = raw
+        return {"price": self.price, "volume": self.volume}
+
+
 class _SelectiveRedis:
     def __init__(self) -> None:
         self.writes: list[tuple[str, dict[str, str]]] = []
 
     def xadd(self, key, fields, maxlen, approximate):
         _ = (maxlen, approximate)
-        if ":stream:spot:" in key:
+        if key.endswith(":stream:spot"):
             raise RuntimeError("spot write failure")
         self.writes.append((key, fields))
         return f"{len(self.writes)}-0"
@@ -144,13 +194,40 @@ def test_spot_stream_contract_and_ingest_seq_monotonic(tmp_path) -> None:
 
     first = runner._spot_pipeline.queue.get_nowait()
     second = runner._spot_pipeline.queue.get_nowait()
-    assert first.stream_key == "dev:stream:spot:2330"
+    assert first.stream_key == "dev:stream:spot"
     assert first.event.payload["symbol"] == "2330"
     assert first.event.payload["source"] == "shioaji"
     assert "event_ts" in first.event.payload
     assert "last_price" in first.event.payload
+    assert first.event.payload["open"] == 899.5
+    assert first.event.payload["high"] == 904.5
+    assert first.event.payload["low"] == 897.5
+    assert first.event.payload["close"] == 901.5
+    assert first.event.payload["reference_price"] == 896.5
     assert first.event.payload["ingest_seq"] == 1
     assert second.event.payload["ingest_seq"] == 2
+
+
+def test_spot_price_fields_support_numeric_strings_in_raw_payload(tmp_path) -> None:
+    symbols_file = tmp_path / "symbols.txt"
+    symbols_file.write_text("2330\n", encoding="utf-8")
+    runner = _build_runner(
+        _SelectiveRedis(), str(symbols_file), expected_count=1, spot_required=True
+    )
+    runner._spot_enabled = True
+
+    runner._on_spot_quote(_FakeSpotTickStringPayload("2330"))
+
+    first = runner._spot_pipeline.queue.get_nowait()
+    assert first.stream_key == "dev:stream:spot"
+    assert first.event.payload["last_price"] == 901.5
+    assert first.event.payload["open"] == 899.5
+    assert first.event.payload["high"] == 904.5
+    assert first.event.payload["low"] == 897.5
+    assert first.event.payload["close"] == 901.5
+    assert first.event.payload["reference_price"] == 896.5
+    assert first.event.payload["price_chg"] == 5.0
+    assert first.event.payload["pct_chg"] == 0.56
 
 
 def test_futures_path_continues_when_spot_publish_fails(tmp_path, caplog) -> None:
@@ -174,3 +251,21 @@ def test_futures_path_continues_when_spot_publish_fails(tmp_path, caplog) -> Non
     assert runner._metrics.counters["ingestion_spot_publish_errors_total"] >= 1
     assert "asset_type=spot" in caplog.text
     assert "symbol=2330" in caplog.text
+
+
+def test_quote_callback_publishes_to_quote_stream(tmp_path) -> None:
+    symbols_file = tmp_path / "symbols.txt"
+    symbols_file.write_text("2330\n", encoding="utf-8")
+    redis = _SelectiveRedis()
+    runner = _build_runner(redis, str(symbols_file), expected_count=1, spot_required=True)
+
+    async def _scenario() -> None:
+        await runner.start()
+        quote = runner._client.api.quote
+        assert quote.quote_fop_callback is not None
+        quote.quote_fop_callback(None, _FakeFuturesQuote("MTX", 20000, 7))
+        await asyncio.sleep(0.05)
+        await runner.stop()
+
+    asyncio.run(_scenario())
+    assert any(stream == "dev:stream:quote:MTX" for stream, _ in redis.writes)
