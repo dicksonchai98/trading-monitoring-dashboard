@@ -6,6 +6,7 @@ import hashlib
 import json
 from dataclasses import dataclass
 
+from app.modules.batch_shared.jobs.interfaces import JobStatus
 from app.modules.batch_shared.repositories.job_repository import JobRepository
 from app.modules.batch_shared.services.admin_jobs import BatchJobAdminService
 from app.modules.historical_backfill.schemas import (
@@ -84,12 +85,20 @@ class HistoricalBackfillService:
             job_type="historical-backfill",
             dedupe_key=dedupe_key,
         )
-        created = existing or self.batch_admin_service.create_and_enqueue(
-            worker_type="historical_backfill",
-            job_type="historical-backfill",
-            dedupe_key=dedupe_key,
-            metadata=metadata,
-        )
+        if existing is None:
+            created = self.batch_admin_service.create_and_enqueue(
+                worker_type="historical_backfill",
+                job_type="historical-backfill",
+                dedupe_key=dedupe_key,
+                metadata=metadata,
+            )
+        else:
+            if existing.status == JobStatus.CREATED.value and existing.started_at is None:
+                self.batch_admin_service.ensure_enqueued(
+                    worker_type="historical_backfill",
+                    job_id=existing.id,
+                )
+            created = existing
         self.audit_log.record(
             event_type="historical_backfill_triggered",
             path="/api/admin/batch/backfill/jobs",

@@ -135,3 +135,177 @@ def test_portal_requires_customer_mapping() -> None:
 
     res = client.post("/billing/portal-session", headers=headers)
     assert res.status_code == 409
+
+
+def test_checkout_does_not_downgrade_active_subscription() -> None:
+    billing_service._stripe = FakeStripeProvider()
+    client = TestClient(app)
+    token = _register_and_login(client, "already-active@example.com")
+    headers = {"Authorization": f"Bearer {token}"}
+
+    checkout = client.post("/billing/checkout", headers=headers, json={"price_id": "price_local"})
+    assert checkout.status_code == 200
+
+    user = billing_service._users.get_by_username("already-active@example.com")
+    completed_payload = {
+        "id": "evt_active_seed",
+        "type": "checkout.session.completed",
+        "data": {
+            "object": {
+                "customer": "cus_already-active@example.com",
+                "subscription": "sub_active_seed",
+                "metadata": {"user_id": user.id},
+                "current_period_end": 1924992000,
+            }
+        },
+    }
+    completed = client.post(
+        "/billing/webhooks/stripe",
+        data=json.dumps(completed_payload),
+        headers={"Stripe-Signature": "valid", "Content-Type": "application/json"},
+    )
+    assert completed.status_code == 200
+    assert completed.json()["status"] == "processed"
+
+    status_before = client.get("/billing/status", headers=headers).json()
+    assert status_before["status"] == "active"
+    assert status_before["entitlement_active"] is True
+
+    second_checkout = client.post(
+        "/billing/checkout", headers=headers, json={"price_id": "price_local"}
+    )
+    assert second_checkout.status_code == 200
+    status_after = client.get("/billing/status", headers=headers).json()
+    assert status_after["status"] == "active"
+    assert status_after["entitlement_active"] is True
+
+
+def test_customer_subscription_updated_updates_local_state() -> None:
+    billing_service._stripe = FakeStripeProvider()
+    client = TestClient(app)
+    token = _register_and_login(client, "updated-user@example.com")
+    headers = {"Authorization": f"Bearer {token}"}
+    checkout = client.post("/billing/checkout", headers=headers, json={"price_id": "price_local"})
+    assert checkout.status_code == 200
+
+    user = billing_service._users.get_by_username("updated-user@example.com")
+    completed_payload = {
+        "id": "evt_updated_seed",
+        "type": "checkout.session.completed",
+        "data": {
+            "object": {
+                "customer": "cus_updated-user@example.com",
+                "subscription": "sub_updated_seed",
+                "metadata": {"user_id": user.id},
+                "current_period_end": 1924992000,
+            }
+        },
+    }
+    completed = client.post(
+        "/billing/webhooks/stripe",
+        data=json.dumps(completed_payload),
+        headers={"Stripe-Signature": "valid", "Content-Type": "application/json"},
+    )
+    assert completed.status_code == 200
+
+    updated_payload = {
+        "id": "evt_subscription_updated_1",
+        "type": "customer.subscription.updated",
+        "data": {
+            "object": {
+                "id": "sub_updated_seed",
+                "customer": "cus_updated-user@example.com",
+                "status": "past_due",
+                "current_period_end": 1925992000,
+            }
+        },
+    }
+    updated = client.post(
+        "/billing/webhooks/stripe",
+        data=json.dumps(updated_payload),
+        headers={"Stripe-Signature": "valid", "Content-Type": "application/json"},
+    )
+    assert updated.status_code == 200
+    assert updated.json()["status"] == "processed"
+
+    status = client.get("/billing/status", headers=headers)
+    assert status.status_code == 200
+    assert status.json()["status"] == "past_due"
+    assert status.json()["entitlement_active"] is False
+
+
+def test_checkout_session_expired_marks_pending_without_entitlement() -> None:
+    billing_service._stripe = FakeStripeProvider()
+    client = TestClient(app)
+    token = _register_and_login(client, "expired-user@example.com")
+    headers = {"Authorization": f"Bearer {token}"}
+    checkout = client.post("/billing/checkout", headers=headers, json={"price_id": "price_local"})
+    assert checkout.status_code == 200
+
+    user = billing_service._users.get_by_username("expired-user@example.com")
+    expired_payload = {
+        "id": "evt_checkout_expired_1",
+        "type": "checkout.session.expired",
+        "data": {
+            "object": {
+                "customer": "cus_expired-user@example.com",
+                "metadata": {"user_id": user.id},
+            }
+        },
+    }
+    expired = client.post(
+        "/billing/webhooks/stripe",
+        data=json.dumps(expired_payload),
+        headers={"Stripe-Signature": "valid", "Content-Type": "application/json"},
+    )
+    assert expired.status_code == 200
+    assert expired.json()["status"] == "processed"
+
+    status = client.get("/billing/status", headers=headers)
+    assert status.status_code == 200
+    assert status.json()["status"] == "pending"
+    assert status.json()["entitlement_active"] is False
+
+
+def test_duplicate_event_id_with_different_payload_is_rejected() -> None:
+    billing_service._stripe = FakeStripeProvider()
+    client = TestClient(app)
+
+    payload_1 = {
+        "id": "evt_conflict_1",
+        "type": "checkout.session.expired",
+        "data": {"object": {"customer": "cus_x", "metadata": {"user_id": "u1"}}},
+    }
+    payload_2 = {
+        "id": "evt_conflict_1",
+        "type": "checkout.session.expired",
+        "data": {"object": {"customer": "cus_y", "metadata": {"user_id": "u2"}}},
+    }
+
+    first = client.post(
+        "/billing/webhooks/stripe",
+        data=json.dumps(payload_1),
+        headers={"Stripe-Signature": "valid", "Content-Type": "application/json"},
+    )
+    assert first.status_code == 200
+
+    second = client.post(
+        "/billing/webhooks/stripe",
+        data=json.dumps(payload_2),
+        headers={"Stripe-Signature": "valid", "Content-Type": "application/json"},
+    )
+    assert second.status_code == 400
+    assert second.json()["detail"] == "invalid_event"
+
+
+def test_plans_endpoint_returns_real_plan_fields() -> None:
+    client = TestClient(app)
+    res = client.get("/billing/plans")
+    assert res.status_code == 200
+    plans = res.json()["plans"]
+    assert len(plans) == 1
+    plan = plans[0]
+    assert plan["name"] == "Basic"
+    assert plan["price_id"] == "price_local"
+    assert plan["currency"] == "usd"
+    assert plan["interval"] == "month"

@@ -19,6 +19,8 @@ class PortalSessionResult:
 
 class StripeProvider:
     def __init__(self, secret_key: str) -> None:
+        if not secret_key.startswith("sk_"):
+            raise ValueError("Stripe secret key is invalid: expected key starting with 'sk_'")
         self._secret_key = secret_key
 
     def _client(self) -> Any:

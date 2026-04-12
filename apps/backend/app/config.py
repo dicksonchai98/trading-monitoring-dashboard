@@ -30,6 +30,13 @@ def _env_int(name: str, default: int) -> int:
     return int(raw)
 
 
+def _env_optional_int(name: str) -> int | None:
+    raw = os.getenv(name)
+    if raw is None or not raw.strip():
+        return None
+    return int(raw)
+
+
 def _env_list(name: str, default: list[str]) -> list[str]:
     raw = os.getenv(name)
     if raw is None or not raw.strip():
@@ -190,12 +197,23 @@ SERVING_CORS_ALLOW_ORIGINS = _env_list(
     ["*"],
 )
 
+KBAR_ANALYTICS_RETRY_MAX_ATTEMPTS = _env_int("KBAR_ANALYTICS_RETRY_MAX_ATTEMPTS", 3)
+KBAR_ANALYTICS_RETRY_BACKOFF_SECONDS = _env_int("KBAR_ANALYTICS_RETRY_BACKOFF_SECONDS", 1)
+KBAR_ANALYTICS_CRON_ENABLED = _env_bool("KBAR_ANALYTICS_CRON_ENABLED", False)
+KBAR_ANALYTICS_CRON_INTERVAL_SECONDS = _env_int("KBAR_ANALYTICS_CRON_INTERVAL_SECONDS", 86400)
+KBAR_ANALYTICS_CRON_WINDOW_DAYS = _env_int("KBAR_ANALYTICS_CRON_WINDOW_DAYS", 30)
+KBAR_ANALYTICS_CRON_CODE = os.getenv("KBAR_ANALYTICS_CRON_CODE", "TXF")
+
 
 @dataclass(frozen=True)
 class StripeSettings:
     secret_key: str
     webhook_secret: str
     price_id: str
+    plan_name: str
+    price_amount: int | None
+    price_currency: str
+    price_interval: str
     success_url: str
     cancel_url: str
     portal_return_url: str
@@ -206,6 +224,10 @@ def get_stripe_settings() -> StripeSettings:
         secret_key=os.getenv("STRIPE_SECRET_KEY", ""),
         webhook_secret=os.getenv("STRIPE_WEBHOOK_SECRET", ""),
         price_id=os.getenv("STRIPE_PRICE_ID", ""),
+        plan_name=os.getenv("STRIPE_PLAN_NAME", "Basic"),
+        price_amount=_env_optional_int("STRIPE_PRICE_AMOUNT"),
+        price_currency=os.getenv("STRIPE_PRICE_CURRENCY", "usd"),
+        price_interval=os.getenv("STRIPE_PRICE_INTERVAL", "month"),
         success_url=os.getenv("STRIPE_SUCCESS_URL", ""),
         cancel_url=os.getenv("STRIPE_CANCEL_URL", ""),
         portal_return_url=os.getenv(
@@ -230,3 +252,9 @@ def validate_stripe_settings() -> None:
     if missing:
         missing_env = ", ".join(missing)
         raise RuntimeError(f"missing required stripe configuration: {missing_env}")
+    if not settings.secret_key.startswith("sk_"):
+        raise RuntimeError("invalid STRIPE_SECRET_KEY: expected key starting with 'sk_'")
+    if not settings.webhook_secret.startswith("whsec_"):
+        raise RuntimeError(
+            "invalid STRIPE_WEBHOOK_SECRET: expected key starting with 'whsec_'"
+        )

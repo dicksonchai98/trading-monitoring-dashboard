@@ -21,7 +21,8 @@ function statusVariant(status: string): "neutral" | "warning" | "success" {
 }
 
 function isFreePlan(plan: BillingPlan): boolean {
-  return plan.id.toLowerCase() === "free" || plan.price.toLowerCase() === "free";
+  const normalizedPrice = String((plan as { price?: string }).price ?? "").toLowerCase();
+  return plan.id.toLowerCase() === "free" || normalizedPrice === "free";
 }
 
 export function SubscriptionPage(): JSX.Element {
@@ -90,7 +91,9 @@ export function SubscriptionPage(): JSX.Element {
                   <Badge variant={statusVariant(String(currentStatus))}>Entitlement: {currentStatus}</Badge>
                 </div>
               </div>
-              <p className="text-sm text-muted-foreground">Price: {plan.price}</p>
+              <p className="text-sm text-muted-foreground">
+                Price: {String((plan as { price?: string }).price ?? "configured")}
+              </p>
               <p className="text-sm text-muted-foreground">
                 {freePlan
                   ? "Free plan does not require checkout."
