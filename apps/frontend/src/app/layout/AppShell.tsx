@@ -1,23 +1,28 @@
 import type { JSX } from "react";
-import { useEffect, useState } from "react";
-import { Menu } from "lucide-react";
-import { Outlet, useLocation } from "react-router-dom";
+import { Fragment, useEffect, useState } from "react";
+import { Outlet, Link, useLocation } from "react-router-dom";
+import { AppSidebar } from "@/components/app-sidebar";
 import { PageSkeleton } from "@/components/ui/page-skeleton";
-import { Sidebar } from "@/components/ui/sidebar";
+import { SidebarInset, SidebarProvider, SidebarSeparator, SidebarTrigger } from "@/components/ui/sidebar";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 
-function readIsMobileViewport(): boolean {
-  if (typeof window === "undefined") {
-    return false;
-  }
-  return window.innerWidth <= 768;
-}
+const BREADCRUMB_LABELS: Record<string, string> = {
+  dashboard: "Dashboard",
+  "historical-data-analysis": "Historical Data Analysis",
+  "market-thermometer": "Market Thermometer",
+  "historical-data-loader": "Historical Data Loader",
+  "historical-amplitude-distribution": "Amplitude Distribution",
+  subscription: "Subscription",
+  admin: "Admin",
+  audit: "Audit Log",
+  settings: "Settings",
+};
 
 export function AppShell(): JSX.Element {
   const location = useLocation();
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [isMobile, setIsMobile] = useState(readIsMobileViewport);
-  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [routeLoading, setRouteLoading] = useState(true);
+  const segments = location.pathname.split("/").filter(Boolean);
 
   useEffect(() => {
     setRouteLoading(true);
@@ -25,83 +30,52 @@ export function AppShell(): JSX.Element {
     return () => window.clearTimeout(timerId);
   }, [location.pathname]);
 
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    const updateViewport = (): void => {
-      const nextMobile = readIsMobileViewport();
-      setIsMobile(nextMobile);
-      if (!nextMobile) {
-        setMobileSidebarOpen(false);
-      }
-    };
-
-    updateViewport();
-    window.addEventListener("resize", updateViewport);
-    return () => window.removeEventListener("resize", updateViewport);
-  }, []);
-
-  const sidebarWidth = sidebarCollapsed ? "var(--sidebar-w-collapsed)" : "var(--sidebar-w-expanded)";
-
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <div className="min-h-screen w-full">
-        {isMobile ? (
-          <>
-            <header className="fixed inset-x-0 top-0 z-30 flex h-14 items-center border-b border-border bg-shell/95 px-3 backdrop-blur">
-              <button
-                type="button"
-                aria-label="Open sidebar"
-                className="inline-flex h-9 w-9 items-center justify-center rounded-sm border border-border bg-shell text-muted-foreground transition-colors hover:bg-panel-hover hover:text-foreground"
-                onClick={() => setMobileSidebarOpen(true)}
-              >
-                <Menu className="h-5 w-5" />
-              </button>
-              <div className="pointer-events-none absolute inset-x-0 text-center">
-                <span className="text-sm font-semibold text-foreground">Trading Monitor</span>
-              </div>
-            </header>
-            {mobileSidebarOpen ? (
-              <>
-                <button
-                  type="button"
-                  aria-label="Close sidebar overlay"
-                  className="fixed inset-0 z-20 bg-black/40"
-                  onClick={() => setMobileSidebarOpen(false)}
-                />
-                <Sidebar
-                  mobile
-                  mobileOpen
-                  className="fixed inset-y-0 left-0 z-30 h-screen w-[var(--sidebar-w-expanded)] rounded-none border-y-0 border-l-0"
-                  onCloseMobile={() => setMobileSidebarOpen(false)}
-                />
-              </>
-            ) : null}
-          </>
-        ) : (
-          <Sidebar
-            className={
-              sidebarCollapsed
-                ? "fixed inset-y-0 left-0 z-20 h-screen w-[var(--sidebar-w-collapsed)] rounded-none border-y-0 border-l-0"
-                : "fixed inset-y-0 left-0 z-20 h-screen w-[var(--sidebar-w-expanded)] rounded-none border-y-0 border-l-0"
-            }
-            collapsed={sidebarCollapsed}
-            onToggle={() => setSidebarCollapsed((current) => !current)}
-          />
-        )}
-
-        <main
-          className="min-h-screen min-w-0 bg-background p-[var(--shell-padding)] transition-[margin-left,padding-top] duration-300 ease-out"
-          style={{
-            marginLeft: isMobile ? "0px" : sidebarWidth,
-            paddingTop: isMobile ? "calc(var(--shell-padding) + 56px)" : undefined,
-          }}
-        >
-          {routeLoading ? <PageSkeleton className="px-0 py-0" /> : <Outlet />}
-        </main>
-      </div>
-    </div>
+    <TooltipProvider delayDuration={0}>
+      <SidebarProvider defaultOpen={true}>
+        <AppSidebar />
+        <SidebarInset className="min-h-screen bg-background">
+          <header className="sticky top-0 z-20 hidden h-14 items-center gap-2 border-b border-border bg-shell/95 px-4 backdrop-blur md:flex">
+            <SidebarTrigger aria-label="Toggle sidebar" className="h-8 w-8 rounded-sm border border-border bg-shell text-muted-foreground hover:bg-panel-hover hover:text-foreground" />
+            <SidebarSeparator orientation="vertical" className="mr-1 h-5" />
+            <Breadcrumb>
+              <BreadcrumbList>
+                <BreadcrumbItem>
+                  <BreadcrumbLink asChild>
+                    <Link to="/dashboard">Trading Monitor</Link>
+                  </BreadcrumbLink>
+                </BreadcrumbItem>
+                {segments.map((segment, index) => {
+                  const href = `/${segments.slice(0, index + 1).join("/")}`;
+                  const label = BREADCRUMB_LABELS[segment] ?? segment;
+                  const isLast = index === segments.length - 1;
+                  return (
+                    <Fragment key={href}>
+                      <BreadcrumbSeparator />
+                      <BreadcrumbItem>
+                        {isLast ? (
+                          <BreadcrumbPage>{label}</BreadcrumbPage>
+                        ) : (
+                          <BreadcrumbLink asChild>
+                            <Link to={href}>{label}</Link>
+                          </BreadcrumbLink>
+                        )}
+                      </BreadcrumbItem>
+                    </Fragment>
+                  );
+                })}
+              </BreadcrumbList>
+            </Breadcrumb>
+          </header>
+          <header className="sticky top-0 z-20 flex h-14 items-center gap-2 border-b border-border bg-shell/95 px-3 backdrop-blur md:hidden">
+            <SidebarTrigger aria-label="Open sidebar" className="h-9 w-9 rounded-sm border border-border bg-shell text-muted-foreground hover:bg-panel-hover hover:text-foreground" />
+            <span className="text-sm font-semibold text-foreground">Trading Monitor</span>
+          </header>
+          <div className="min-h-screen min-w-0 bg-background p-[var(--shell-padding)]">
+            {routeLoading ? <PageSkeleton className="px-0 py-0" /> : <Outlet />}
+          </div>
+        </SidebarInset>
+      </SidebarProvider>
+    </TooltipProvider>
   );
 }

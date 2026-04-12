@@ -22,7 +22,7 @@ describe("SettingsPage", () => {
 
     expect(screen.getAllByRole("heading", { name: "Settings" }).length).toBeGreaterThan(0);
     expect(screen.getByText("Language")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Open Billing Portal" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Logout" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Open Billing Portal" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Logout" })).not.toBeInTheDocument();
   });
 });
