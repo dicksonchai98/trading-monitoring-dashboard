@@ -75,7 +75,10 @@ function statusBadgeVariant(
 
 function EmptyState(): JSX.Element {
   return (
-    <div className="flex h-full min-h-[180px] flex-col justify-center gap-3" data-testid="sse-panel-skeleton">
+    <div
+      className="flex h-full min-h-[180px] flex-col justify-center gap-3"
+      data-testid="sse-panel-skeleton"
+    >
       <div className="h-3 w-2/3 animate-pulse rounded-sm bg-muted/80" />
       <div className="h-3 w-1/2 animate-pulse rounded-sm bg-muted/70" />
       <div className="h-20 w-full animate-pulse rounded-md bg-muted/60" />
@@ -86,27 +89,8 @@ function EmptyState(): JSX.Element {
 export function RealtimeSseChartsSection(): JSX.Element {
   const t = useT();
   const { connectionStatus } = useRealtimeConnection();
-  const kbarCurrentByCode = useRealtimeStore(
-    (state) => state.kbarCurrentByCode,
-  );
-  const metricLatestByCode = useRealtimeStore(
-    (state) => state.metricLatestByCode,
-  );
-
-  const activeCode = useMemo(() => {
-    const kbarCodes = Object.keys(kbarCurrentByCode);
-    if (kbarCodes.length > 0) {
-      return kbarCodes[0];
-    }
-    const metricCodes = Object.keys(metricLatestByCode);
-    if (metricCodes.length > 0) {
-      return metricCodes[0];
-    }
-    return "TXFD6";
-  }, [kbarCurrentByCode, metricLatestByCode]);
-
-  const kbar = kbarCurrentByCode[activeCode] ?? null;
-  const metric = metricLatestByCode[activeCode] ?? null;
+  const kbar = useKbarCurrent("TXFD6");
+  const metric = useMetricLatest("TXFD6");
 
   const [closeSeries, setCloseSeries] = useState<SeriesPoint[]>([]);
   const [spreadSeries, setSpreadSeries] = useState<SpreadPoint[]>([]);
@@ -175,7 +159,11 @@ export function RealtimeSseChartsSection(): JSX.Element {
     >
       <PanelCard
         title={t("dashboard.sse.close.title", { code: activeCode })}
-        meta={latestPrice ? t("dashboard.sse.close.latest", { price: latestPrice }) : t("dashboard.sse.close.waiting")}
+        meta={
+          latestPrice
+            ? t("dashboard.sse.close.latest", { price: latestPrice })
+            : t("dashboard.sse.close.waiting")
+        }
         span={4}
         units={2}
         data-testid="sse-close-trend-panel"
@@ -213,6 +201,7 @@ export function RealtimeSseChartsSection(): JSX.Element {
                   stroke="hsl(var(--primary))"
                   dot={false}
                   strokeWidth={2}
+                  isAnimationActive={false}
                 />
               </LineChart>
             </ResponsiveContainer>
@@ -259,6 +248,7 @@ export function RealtimeSseChartsSection(): JSX.Element {
                   stroke="#38bdf8"
                   dot={false}
                   strokeWidth={2}
+                  isAnimationActive={false}
                 />
                 <Line
                   dataKey="spread"
@@ -266,6 +256,7 @@ export function RealtimeSseChartsSection(): JSX.Element {
                   stroke="#f59e0b"
                   dot={false}
                   strokeWidth={2}
+                  isAnimationActive={false}
                 />
               </LineChart>
             </ResponsiveContainer>
@@ -312,6 +303,7 @@ export function RealtimeSseChartsSection(): JSX.Element {
                   stroke="#22c55e"
                   dot={false}
                   strokeWidth={2}
+                  isAnimationActive={false}
                 />
                 <Line
                   dataKey="askSize"
@@ -319,6 +311,7 @@ export function RealtimeSseChartsSection(): JSX.Element {
                   stroke="#ef4444"
                   dot={false}
                   strokeWidth={2}
+                  isAnimationActive={false}
                 />
               </LineChart>
             </ResponsiveContainer>

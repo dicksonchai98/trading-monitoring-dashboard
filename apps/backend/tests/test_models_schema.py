@@ -1,14 +1,21 @@
 from __future__ import annotations
 
+from app.models.analytics_job import AnalyticsJobModel
 from app.models.batch_job import BatchJobModel
 from app.models.bidask_metric_1s import BidAskMetric1sModel
-from app.models.billing_plan import BillingPlanModel
 from app.models.billing_event import BillingEventModel
+from app.models.billing_plan import BillingPlanModel
 from app.models.email_delivery_log import EmailDeliveryLogModel
 from app.models.email_outbox import EmailOutboxModel
 from app.models.kbar_1m import Kbar1mModel
+from app.models.kbar_daily_feature import KbarDailyFeatureModel
+from app.models.kbar_distribution_stat import KbarDistributionStatModel
+from app.models.kbar_event_sample import KbarEventSampleModel
+from app.models.kbar_event_stat import KbarEventStatModel
+from app.models.market_summary_1m import MarketSummary1mModel
 from app.models.otp_challenge import OtpChallengeModel
 from app.models.otp_verification_token import OtpVerificationTokenModel
+from app.models.quote_feature_1m import QuoteFeature1mModel
 from app.models.refresh_denylist import RefreshTokenDenylistModel
 from app.models.subscription import SubscriptionModel
 from app.models.user import UserModel
@@ -39,8 +46,60 @@ def test_kbar_1m_model_table_name() -> None:
     assert Kbar1mModel.__tablename__ == "kbars_1m"
 
 
+def test_kbar_analytics_table_names() -> None:
+    assert KbarDailyFeatureModel.__tablename__ == "kbar_daily_features"
+    assert KbarEventSampleModel.__tablename__ == "kbar_event_samples"
+    assert KbarEventStatModel.__tablename__ == "kbar_event_stats"
+    assert KbarDistributionStatModel.__tablename__ == "kbar_distribution_stats"
+    assert AnalyticsJobModel.__tablename__ == "analytics_jobs"
+
+
+def test_kbar_analytics_job_has_retry_counter() -> None:
+    assert "retry_count" in AnalyticsJobModel.__table__.columns
+
+
 def test_bidask_metric_1s_model_table_name() -> None:
     assert BidAskMetric1sModel.__tablename__ == "bidask_metrics_1s"
+
+
+def test_quote_feature_1m_model_table_name() -> None:
+    assert QuoteFeature1mModel.__tablename__ == "quote_features_1m"
+
+
+def test_bidask_metric_1s_model_includes_event_second_identity() -> None:
+    columns = BidAskMetric1sModel.__table__.columns.keys()
+    assert "event_second" in columns
+    constraints = {
+        constraint.name
+        for constraint in BidAskMetric1sModel.__table__.constraints
+        if getattr(constraint, "name", None)
+    }
+    assert "uq_bidask_metrics_1s_code_event_second" in constraints
+
+
+def test_quote_feature_1m_model_table_name() -> None:
+    assert QuoteFeature1mModel.__tablename__ == "quote_features_1m"
+
+
+def test_market_summary_1m_model_table_name() -> None:
+    assert MarketSummary1mModel.__tablename__ == "market_summary_1m"
+
+
+def test_kbar_and_market_summary_models_include_extension_columns() -> None:
+    kbar_columns = Kbar1mModel.__table__.columns.keys()
+    market_columns = MarketSummary1mModel.__table__.columns.keys()
+    assert "amplitude" in kbar_columns
+    assert "amplitude_pct" in kbar_columns
+    assert "futures_code" in market_columns
+    assert "futures_price" in market_columns
+    assert "spread" in market_columns
+    assert "spread_day_high" in market_columns
+    assert "spread_day_low" in market_columns
+    assert "spread_strength" in market_columns
+    assert "spread_status" in market_columns
+    assert "yesterday_estimated_turnover" in market_columns
+    assert "estimated_turnover_diff" in market_columns
+    assert "estimated_turnover_ratio" in market_columns
 
 
 def test_batch_job_status_column_allows_longest_status_value() -> None:
