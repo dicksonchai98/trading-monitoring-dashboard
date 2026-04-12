@@ -53,5 +53,10 @@ def test_otp_email_migration_file_exists() -> None:
     assert path.exists()
 
 
+def test_kbar_analytics_migration_file_exists() -> None:
+    path = Path("alembic/versions/20260406_01_add_kbar_analytics_tables.py")
+    assert path.exists()
+
+
 def test_otp_email_ops_doc_exists() -> None:
     assert Path("docs/otp-email-ops.md").exists()
