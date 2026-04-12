@@ -30,6 +30,15 @@ def _plan_price_text(amount: int | None, currency: str, interval: str) -> str:
     return f"{normalized:.2f} {currency.upper()}/{interval}"
 
 
+def _plan_price_text(amount: int | None, currency: str, interval: str) -> str:
+    if amount is None:
+        return "configured"
+    if amount <= 0:
+        return "free"
+    normalized = amount / 100
+    return f"{normalized:.2f} {currency.upper()}/{interval}"
+
+
 @router.get("/plans")
 def plans() -> dict[str, list[dict[str, str]]]:
     settings = get_stripe_settings()
@@ -50,7 +59,9 @@ def plans() -> dict[str, list[dict[str, str]]]:
     if not configured_plans:
         configured_plans = [
             BillingPlanModel(id="free", name="Free", is_active=True, sort_order=0),
-            BillingPlanModel(id="basic", name=settings.plan_name or "Basic", is_active=True, sort_order=1),
+            BillingPlanModel(
+                id="basic", name=settings.plan_name or "Basic", is_active=True, sort_order=1
+            ),
         ]
 
     response_plans: list[dict[str, str]] = []
@@ -78,7 +89,9 @@ def plans() -> dict[str, list[dict[str, str]]]:
                         settings.price_amount, settings.price_currency, settings.price_interval
                     ),
                     "price_id": settings.price_id,
-                    "amount": str(settings.price_amount) if settings.price_amount is not None else "",
+                    "amount": str(settings.price_amount)
+                    if settings.price_amount is not None
+                    else "",
                     "currency": settings.price_currency,
                     "interval": settings.price_interval,
                 }

@@ -5,11 +5,21 @@ import { useAuthStore } from "@/lib/store/auth-store";
 
 describe("RealtimeDashboardPage", () => {
   beforeEach(() => {
-    useAuthStore.setState({ token: "token", role: "member", entitlement: "none", resolved: true });
+    useAuthStore.setState({
+      token: "token",
+      role: "member",
+      entitlement: "none",
+      resolved: true,
+    });
   });
 
   it("shows skeleton while auth bootstrap is unresolved", () => {
-    useAuthStore.setState({ token: null, role: "visitor", entitlement: "none", resolved: false });
+    useAuthStore.setState({
+      token: null,
+      role: "visitor",
+      entitlement: "none",
+      resolved: false,
+    });
 
     render(
       <MemoryRouter initialEntries={["/dashboard"]}>
@@ -35,6 +45,9 @@ describe("RealtimeDashboardPage", () => {
     expect(screen.getByTestId("sse-close-trend-panel")).toBeInTheDocument();
     expect(screen.getByTestId("sse-spread-panel")).toBeInTheDocument();
     expect(screen.getByTestId("sse-depth-panel")).toBeInTheDocument();
-    expect(screen.getAllByTestId("sse-panel-skeleton").length).toBeGreaterThan(0);
+    expect(screen.getAllByTestId("sse-panel-skeleton").length).toBeGreaterThan(
+      0,
+    );
+    expect(screen.queryByText("SSE LIVE STREAM")).not.toBeInTheDocument();
   });
 });
