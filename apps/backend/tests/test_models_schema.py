@@ -5,10 +5,13 @@ from app.models.bidask_metric_1s import BidAskMetric1sModel
 from app.models.billing_event import BillingEventModel
 from app.models.email_delivery_log import EmailDeliveryLogModel
 from app.models.email_outbox import EmailOutboxModel
+from app.models.index_contribution_ranking_1m import IndexContributionRanking1mModel
+from app.models.index_contribution_snapshot_1m import IndexContributionSnapshot1mModel
 from app.models.kbar_1m import Kbar1mModel
 from app.models.otp_challenge import OtpChallengeModel
 from app.models.otp_verification_token import OtpVerificationTokenModel
 from app.models.refresh_denylist import RefreshTokenDenylistModel
+from app.models.sector_contribution_snapshot_1m import SectorContributionSnapshot1mModel
 from app.models.subscription import SubscriptionModel
 from app.models.user import UserModel
 from app.modules.batch_shared.jobs.interfaces import JobStatus
@@ -70,3 +73,9 @@ def test_email_outbox_has_unique_idempotency_index() -> None:
     }
     assert "ix_email_outbox_idempotency_key" in indexes
     assert indexes["ix_email_outbox_idempotency_key"] == ["idempotency_key"]
+
+
+def test_index_contribution_models_table_names() -> None:
+    assert IndexContributionSnapshot1mModel.__tablename__ == "index_contribution_snapshot_1m"
+    assert IndexContributionRanking1mModel.__tablename__ == "index_contribution_ranking_1m"
+    assert SectorContributionSnapshot1mModel.__tablename__ == "sector_contribution_snapshot_1m"

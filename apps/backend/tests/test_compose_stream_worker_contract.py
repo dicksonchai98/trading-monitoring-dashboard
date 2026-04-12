@@ -12,9 +12,11 @@ def test_compose_defines_split_api_and_stream_worker_services() -> None:
     assert "backend-tick-worker:" in content
     assert "backend-bidask-worker:" in content
     assert "backend-latest-state-worker:" in content
+    assert "backend-index-contribution-worker:" in content
     assert "command: uvicorn app.main:app --host 0.0.0.0 --port 8000" in content
     assert "command: python -m workers.stream_processing_worker" in content
     assert "command: python -m workers.stream_processing_tick_worker" in content
     assert "command: python -m workers.stream_processing_bidask_worker" in content
     assert "command: python -m workers.latest_state_worker" in content
+    assert "command: python -m workers.index_contribution_worker" in content
     assert 'AGGREGATOR_ENABLED: "false"' in content
