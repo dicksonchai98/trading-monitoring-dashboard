@@ -251,58 +251,6 @@ def fetch_metric_today_range(code: str, time_range: TimeRange) -> list[dict[str,
     return result
 
 
-def fetch_index_contrib_ranking_latest(index_code: str, limit: int = 20) -> dict[str, Any] | None:
-    redis_client = get_serving_redis_client()
-    trade_date = trade_date_for(datetime.now(tz=TZ_TAIPEI))
-    top_key = f"{SERVING_ENV}:state:index_contrib:{index_code}:{trade_date.isoformat()}:ranking:top"
-    bottom_key = (
-        f"{SERVING_ENV}:state:index_contrib:{index_code}:{trade_date.isoformat()}:ranking:bottom"
-    )
-    top_entries = redis_client.zrevrange(top_key, 0, max(limit - 1, 0), withscores=True)
-    bottom_entries = redis_client.zrange(bottom_key, 0, max(limit - 1, 0), withscores=True)
-    if not top_entries and not bottom_entries:
-        return None
-    top: list[dict[str, Any]] = []
-    bottom: list[dict[str, Any]] = []
-    for idx, (member, score) in enumerate(top_entries or [], start=1):
-        symbol = member.decode("utf-8") if isinstance(member, bytes) else str(member)
-        top.append(
-            {"rank_no": idx, "symbol": symbol, "contribution_points": float(score)},
-        )
-    for idx, (member, score) in enumerate(bottom_entries or [], start=1):
-        symbol = member.decode("utf-8") if isinstance(member, bytes) else str(member)
-        bottom.append(
-            {"rank_no": idx, "symbol": symbol, "contribution_points": float(score)},
-        )
-    return {
-        "index_code": index_code,
-        "trade_date": trade_date.isoformat(),
-        "top": top,
-        "bottom": bottom,
-    }
-
-
-def fetch_index_contrib_sector_latest(index_code: str) -> dict[str, Any] | None:
-    redis_client = get_serving_redis_client()
-    trade_date = trade_date_for(datetime.now(tz=TZ_TAIPEI))
-    key = f"{SERVING_ENV}:state:index_contrib:{index_code}:{trade_date.isoformat()}:sector"
-    raw = redis_client.get(key)
-    if raw is None:
-        return None
-    payload = raw.decode("utf-8") if isinstance(raw, bytes) else str(raw)
-    try:
-        sectors = json.loads(payload)
-    except json.JSONDecodeError:
-        return None
-    if not isinstance(sectors, dict):
-        return None
-    return {
-        "index_code": index_code,
-        "trade_date": trade_date.isoformat(),
-        "sectors": sectors,
-    }
-
-
 def default_kbar_window() -> timedelta:
     return timedelta(minutes=SERVING_DEFAULT_KBAR_MINUTES)
 
