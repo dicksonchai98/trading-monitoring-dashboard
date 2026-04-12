@@ -1,4 +1,4 @@
-import type { CSSProperties, JSX } from "react";
+﻿import type { CSSProperties, JSX } from "react";
 import type { PieProps, PieSectorDataItem } from "recharts";
 import {
   Area,
@@ -12,15 +12,11 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import metricsConfig from "../../../../test.json";
 import { BentoGridSection } from "@/components/ui/bento-grid";
 import { Card } from "@/components/ui/card";
 import { PanelCard } from "@/components/ui/panel-card";
-
-interface MetricPanelConfig {
-  key: string;
-  label: string;
-}
+import { Typography } from "@/components/ui/typography";
+import { useT } from "@/lib/i18n";
 
 interface GaugeSegment {
   name: string;
@@ -52,16 +48,8 @@ const KLINE_DOWN_COLOR = "#22c55e";
 
 const NEEDLE_BASE_RADIUS_PX = 4;
 const gaugeValues = [74, 66, 58, 82, 63];
-const coreMetrics = [
-  { label: "振幅", value: "1.82%" },
-  { label: "預估量", value: "24.6K" },
-  { label: "價差", value: "12" },
-];
-const contributionMetrics = [
-  { label: "臺積電貢獻點數", value: "+84" },
-  { label: "權值前20貢獻點數", value: "+176" },
-  { label: "上市漲跌家數", value: "612 / 356" },
-];
+const coreMetricValues = ["1.82%", "24.6K", "12"] as const;
+const contributionMetricValues = ["+84", "+176", "612 / 356"] as const;
 function buildOtcIntradaySeries(): Array<{
   time: string;
   value: number;
@@ -110,20 +98,20 @@ function buildOtcIntradaySeries(): Array<{
 
 const otcIndexSeries = buildOtcIntradaySeries();
 const gapKlineData: GapKlineDatum[] = [
-  { symbol: "臺積電", prevClose: 966, open: 978, high: 990, low: 962, close: 985, current: 988 },
-  { symbol: "臺達電", prevClose: 352, open: 347, high: 356, low: 342, close: 345, current: 344 },
-  { symbol: "鴻海", prevClose: 204, open: 209, high: 214, low: 201, close: 212, current: 211 },
-  { symbol: "聯發科", prevClose: 1260, open: 1238, high: 1276, low: 1228, close: 1268, current: 1272 },
-  { symbol: "櫃買指數", prevClose: 262.1, open: 263.4, high: 265.2, low: 261.3, close: 264.6, current: 264.2 },
-  { symbol: "日經指數", prevClose: 39280, open: 39540, high: 39810, low: 39180, close: 39720, current: 39660 },
+  { symbol: "TSMC", prevClose: 966, open: 978, high: 990, low: 962, close: 985, current: 988 },
+  { symbol: "Delta", prevClose: 352, open: 347, high: 356, low: 342, close: 345, current: 344 },
+  { symbol: "HonHai", prevClose: 204, open: 209, high: 214, low: 201, close: 212, current: 211 },
+  { symbol: "MediaTek", prevClose: 1260, open: 1238, high: 1276, low: 1228, close: 1268, current: 1272 },
+  { symbol: "OTC", prevClose: 262.1, open: 263.4, high: 265.2, low: 261.3, close: 264.6, current: 264.2 },
+  { symbol: "Nikkei", prevClose: 39280, open: 39540, high: 39810, low: 39180, close: 39720, current: 39660 },
 ];
 
 export function getHalfGaugeGeometry(): HalfGaugeGeometry {
   return {
     width: 144,
-    height: 60,
-    cx: 67,
-    cy: 40,
+    height: 108,
+    cx: 72,
+    cy: 82,
     innerRadius: 24,
     outerRadius: 40,
   };
@@ -138,10 +126,6 @@ export function getNeedleStyle(
     transform: `rotate(-${midAngle}deg)`,
     transformOrigin: `${cx}px ${cy}px`,
   };
-}
-
-function getMetricConfigs(): MetricPanelConfig[] {
-  return metricsConfig as MetricPanelConfig[];
 }
 
 function Needle({
@@ -242,7 +226,7 @@ export function MetricNeedleChart({ index }: { index: number }): JSX.Element {
         />
         <div className="flex w-full justify-center">
           <div
-            className="relative h-[60px] w-[144px] shrink-0"
+            className="relative h-[108px] w-[144px] shrink-0"
             data-testid="metric-half-gauge"
           >
             <PieChart width={geometry.width} height={geometry.height}>
@@ -260,7 +244,9 @@ export function MetricNeedleChart({ index }: { index: number }): JSX.Element {
           className="mt-1.5 text-center text-xs font-semibold leading-none text-foreground"
           data-testid="metric-needle-value"
         >
-          {value}
+          <Typography as="p" variant="caption" className="font-mono font-semibold text-foreground">
+            {value}
+          </Typography>
         </div>
       </div>
     </div>
@@ -282,17 +268,21 @@ function MetricMiniPanel({
       data-testid={testId}
     >
       <div className="space-y-0.5 text-center">
-        <p className="truncate text-[10px] text-muted-foreground">{title}</p>
-        <p className="text-sm font-semibold tracking-tight text-foreground">{value}</p>
+        <Typography as="p" variant="caption" className="truncate font-mono text-[10px] text-muted-foreground">
+          {title}
+        </Typography>
+        <Typography as="p" variant="metric" className="text-foreground">
+          {value}
+        </Typography>
       </div>
     </Card>
   );
 }
 
-function OtcIndexLinePanel(): JSX.Element {
+function OtcIndexLinePanel({ title }: { title: string }): JSX.Element {
   return (
     <PanelCard
-      title="OTC 櫃買指數"
+      title={title}
       span={1}
       units={1}
       className="h-full"
@@ -452,21 +442,36 @@ function GapKlinePanelChart(): JSX.Element {
 }
 
 export function DashboardMetricPanels(): JSX.Element {
-  const needlePanels = getMetricConfigs().filter(
-    (panel) => panel.key === "piechart with needle",
-  );
+  const t = useT();
+  const needlePanels = [
+    t("dashboard.metrics.needle.bidPressure"),
+    t("dashboard.metrics.needle.shortRatio"),
+    t("dashboard.metrics.needle.volatility"),
+    t("dashboard.metrics.needle.momentum"),
+    t("dashboard.metrics.needle.continuity"),
+  ];
   let gaugeIndex = 0;
+  const coreMetrics = [
+    { label: t("dashboard.metrics.core.amplitude"), value: coreMetricValues[0] },
+    { label: t("dashboard.metrics.core.projectedVolume"), value: coreMetricValues[1] },
+    { label: t("dashboard.metrics.core.spread"), value: coreMetricValues[2] },
+  ];
+  const contributionMetrics = [
+    { label: t("dashboard.metrics.contrib.tsmc"), value: contributionMetricValues[0] },
+    { label: t("dashboard.metrics.contrib.top20"), value: contributionMetricValues[1] },
+    { label: t("dashboard.metrics.contrib.breadth"), value: contributionMetricValues[2] },
+  ];
 
   return (
     <BentoGridSection
-      title="LIVE METRICS"
+      title={t("dashboard.liveMetrics")}
       gridClassName="h-full auto-rows-fr lg:grid-cols-12"
     >
-      {needlePanels.map((panel) => {
+      {needlePanels.map((panelLabel) => {
         return (
           <PanelCard
-            key={panel.label}
-            title={panel.label}
+            key={panelLabel}
+            title={panelLabel}
             span={1}
             units={1}
             className="h-full"
@@ -503,10 +508,10 @@ export function DashboardMetricPanels(): JSX.Element {
           />
         ))}
       </div>
-      <OtcIndexLinePanel />
+      <OtcIndexLinePanel title={t("dashboard.metrics.otc.title")} />
       <PanelCard
-        title="6 Symbols Gap K"
-        meta="Daily open/close + current"
+        title={t("dashboard.gapK.title")}
+        meta={t("dashboard.gapK.meta")}
         span={4}
         units={1}
         className="h-full"

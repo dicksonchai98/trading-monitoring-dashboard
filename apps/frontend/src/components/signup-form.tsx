@@ -15,6 +15,8 @@ import {
   InputOTPGroup,
   InputOTPSlot,
 } from "@/components/ui/input-otp";
+import { Typography } from "@/components/ui/typography";
+import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils/cn";
 
 interface SignupAccountFormProps {
@@ -56,6 +58,7 @@ function SignupStepIndicator({
 }: {
   currentStep: 1 | 2;
 }): JSX.Element {
+  const t = useT();
   return (
     <div className="flex flex-col gap-1 py-1">
       <div className="flex items-center gap-2">
@@ -83,14 +86,15 @@ function SignupStepIndicator({
         />
       </div>
       <div className="flex justify-between text-[10px] leading-3 text-zinc-500">
-        <span>Step 1: Account</span>
-        <span>Step 2: Verify</span>
+        <span>{t("auth.signup.step1")}</span>
+        <span>{t("auth.signup.step2")}</span>
       </div>
     </div>
   );
 }
 
 export function SignupForm(props: SignupFormProps): JSX.Element {
+  const t = useT();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
@@ -107,13 +111,15 @@ export function SignupForm(props: SignupFormProps): JSX.Element {
         <FieldGroup>
           <SignupStepIndicator currentStep={2} />
           <div className="flex flex-col gap-2">
-            <p className="text-sm font-medium text-zinc-600">Almost done</p>
-            <h1 className="text-3xl font-semibold tracking-tight text-zinc-900">
-              Verify your email
-            </h1>
-            <p className="text-sm text-zinc-600">
-              Enter the 6-digit code sent to {props.email}.
-            </p>
+            <Typography as="p" variant="title" className="text-zinc-600">
+              {t("auth.verify.almostDone")}
+            </Typography>
+            <Typography as="h1" variant="h2" className="text-zinc-900">
+              {t("auth.verify.title")}
+            </Typography>
+            <Typography as="p" variant="body" className="text-zinc-600">
+              {t("auth.verify.subtitle", { email: props.email })}
+            </Typography>
           </div>
           {props.errorMessage ? (
             <Alert variant="destructive">
@@ -122,14 +128,14 @@ export function SignupForm(props: SignupFormProps): JSX.Element {
           ) : null}
           <Field>
             <FieldLabel htmlFor="verification-code" className="text-zinc-800">
-              Verification code
+              {t("auth.label.verificationCode")}
             </FieldLabel>
             <InputOTP
               id="verification-code"
               maxLength={6}
               value={props.otpCode}
               onChange={props.onOtpCodeChange}
-              aria-label="Verification code"
+              aria-label={t("auth.label.verificationCode")}
               disabled={isBusy}
               containerClassName="justify-center"
               className="text-zinc-900"
@@ -152,8 +158,8 @@ export function SignupForm(props: SignupFormProps): JSX.Element {
                 className="h-10 rounded-xl bg-zinc-900 text-white hover:bg-zinc-800"
               >
                 {props.isVerifying
-                  ? "Verifying..."
-                  : "Verify and Create Account"}
+                  ? t("auth.verify.verifying")
+                  : t("auth.verify.cta")}
               </Button>
               <Button
                 variant="outline"
@@ -163,22 +169,22 @@ export function SignupForm(props: SignupFormProps): JSX.Element {
                 className="h-10 rounded-xl border-zinc-300 text-white hover:bg-zinc-800"
               >
                 {props.isSending
-                  ? "Sending..."
+                  ? t("auth.verify.sending")
                   : props.resendCooldownSeconds > 0
-                    ? `Resend code in ${props.resendCooldownSeconds}s`
-                    : "Resend code"}
+                    ? t("auth.verify.resendIn", { seconds: props.resendCooldownSeconds })
+                    : t("auth.verify.resend")}
               </Button>
             </div>
           </Field>
-          <div className="text-center text-sm text-zinc-600">
-            Need to edit account details?{" "}
+          <Typography as="p" variant="body" className="text-center text-zinc-600">
+            {t("auth.verify.editAccount")}{" "}
             <Link
               to="/signup"
               className="font-medium text-zinc-900 underline underline-offset-4"
             >
-              Back to signup
+              {t("auth.verify.backToSignup")}
             </Link>
-          </div>
+          </Typography>
         </FieldGroup>
       </form>
     );
@@ -195,13 +201,15 @@ export function SignupForm(props: SignupFormProps): JSX.Element {
       <FieldGroup>
         <SignupStepIndicator currentStep={1} />
         <div className="flex flex-col gap-2">
-          <p className="text-sm font-medium text-zinc-600">New account</p>
-          <h1 className="text-3xl font-semibold tracking-tight text-zinc-900">
-            Create your account
-          </h1>
-          <p className="text-sm text-zinc-600">
-            Fill in your account details, then continue to email verification.
-          </p>
+          <Typography as="p" variant="title" className="text-zinc-600">
+            {t("auth.signup.newAccount")}
+          </Typography>
+          <Typography as="h1" variant="h2" className="text-zinc-900">
+            {t("auth.signup.title")}
+          </Typography>
+          <Typography as="p" variant="body" className="text-zinc-600">
+            {t("auth.signup.subtitle")}
+          </Typography>
         </div>
         {props.errorMessage ? (
           <Alert variant="destructive">
@@ -209,7 +217,7 @@ export function SignupForm(props: SignupFormProps): JSX.Element {
           </Alert>
         ) : null}
         <Field data-invalid={Boolean(props.userIdError)}>
-          <FieldLabel htmlFor="signup-user-id">User ID</FieldLabel>
+          <FieldLabel htmlFor="signup-user-id">{t("auth.label.userId")}</FieldLabel>
           <Input
             id="signup-user-id"
             className="h-10 rounded-xl"
@@ -226,7 +234,7 @@ export function SignupForm(props: SignupFormProps): JSX.Element {
           />
         </Field>
         <Field data-invalid={Boolean(props.emailError)}>
-          <FieldLabel htmlFor="signup-email">Email</FieldLabel>
+          <FieldLabel htmlFor="signup-email">{t("auth.label.email")}</FieldLabel>
           <Input
             id="signup-email"
             type="email"
@@ -244,7 +252,7 @@ export function SignupForm(props: SignupFormProps): JSX.Element {
           />
         </Field>
         <Field data-invalid={Boolean(props.passwordError)}>
-          <FieldLabel htmlFor="signup-password">Password</FieldLabel>
+          <FieldLabel htmlFor="signup-password">{t("auth.label.password")}</FieldLabel>
           <div className="relative">
             <Input
               id="signup-password"
@@ -257,7 +265,7 @@ export function SignupForm(props: SignupFormProps): JSX.Element {
             />
             <button
               type="button"
-              aria-label={showPassword ? "Hide password" : "Show password"}
+              aria-label={showPassword ? t("auth.action.hidePassword") : t("auth.action.showPassword")}
               className="absolute right-3 top-1/2 inline-flex -translate-y-1/2 items-center justify-center text-zinc-500 transition-colors hover:text-zinc-900"
               onClick={() => setShowPassword((value) => !value)}
               disabled={props.isPending}
@@ -276,7 +284,7 @@ export function SignupForm(props: SignupFormProps): JSX.Element {
         </Field>
         <Field data-invalid={Boolean(props.confirmPasswordError)}>
           <FieldLabel htmlFor="signup-confirm-password">
-            Confirm Password
+            {t("auth.label.confirmPassword")}
           </FieldLabel>
           <div className="relative">
             <Input
@@ -292,7 +300,9 @@ export function SignupForm(props: SignupFormProps): JSX.Element {
             />
             <button
               type="button"
-              aria-label={showConfirmPassword ? "Hide confirm secret" : "Show confirm secret"}
+              aria-label={
+                showConfirmPassword ? t("auth.action.hideConfirmPassword") : t("auth.action.showConfirmPassword")
+              }
               className="absolute right-3 top-1/2 inline-flex -translate-y-1/2 items-center justify-center text-zinc-500 transition-colors hover:text-zinc-900"
               onClick={() => setShowConfirmPassword((value) => !value)}
               disabled={props.isPending}
@@ -315,18 +325,18 @@ export function SignupForm(props: SignupFormProps): JSX.Element {
             disabled={props.isPending}
             className="h-10 rounded-xl bg-zinc-900 text-white hover:bg-zinc-800"
           >
-            Continue to Email Verification
+            {t("auth.signup.continue")}
           </Button>
         </Field>
-        <p className="text-center text-sm text-zinc-600">
-          Already have an account?{" "}
+        <Typography as="p" variant="body" className="text-center text-zinc-600">
+          {t("auth.signup.hasAccount")}{" "}
           <Link
             to="/login"
             className="font-medium text-zinc-900 underline underline-offset-4"
           >
-            Sign in
+            {t("auth.signup.signIn")}
           </Link>
-        </p>
+        </Typography>
       </FieldGroup>
     </form>
   );

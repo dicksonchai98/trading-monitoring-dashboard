@@ -1,6 +1,7 @@
 import { useId, useState, type JSX } from "react";
 import { CircleAlert } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
+import { Typography } from "@/components/ui/typography";
 
 interface PanelHeaderProps {
   title: string;
@@ -21,11 +22,13 @@ export function PanelHeader({
   return (
     <div className={cn("flex items-start justify-between gap-3 text-left", className)}>
       <div className="space-y-1">
-        <p className="text-[11px] font-mono text-foreground">{title}</p>
+        <Typography as="p" variant="overline" className="normal-case tracking-normal text-foreground">
+          {title}
+        </Typography>
         {meta ? (
-          <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-subtle-foreground">
+          <Typography as="p" variant="overline" className="text-subtle-foreground">
             {meta}
-          </p>
+          </Typography>
         ) : null}
       </div>
 
@@ -48,9 +51,11 @@ export function PanelHeader({
             <div
               id={tooltipId}
               role="tooltip"
-              className="absolute right-0 top-7 z-10 w-56 rounded-md border border-border bg-card px-3 py-2 text-[11px] leading-5 text-foreground shadow-lg"
+              className="absolute right-0 top-7 z-10 w-56 rounded-md border border-border bg-card px-3 py-2 text-foreground shadow-lg"
             >
-              {note}
+              <Typography as="p" variant="caption" className="font-mono leading-5 text-foreground">
+                {note}
+              </Typography>
             </div>
           ) : null}
         </div>

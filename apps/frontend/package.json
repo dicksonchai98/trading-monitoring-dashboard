@@ -8,6 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
+    "lint:typography": "node scripts/lint-typography.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "build:contracts": "node scripts/build.js"

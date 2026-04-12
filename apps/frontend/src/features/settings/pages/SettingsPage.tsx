@@ -3,14 +3,14 @@ import { useEffect, useState } from "react";
 import { Settings } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { PageLayout } from "@/components/ui/page-layout";
+import { Typography } from "@/components/ui/typography";
+import { LANGUAGE_STORAGE_KEY, type LanguagePreset, useI18n } from "@/lib/i18n";
 
 type FontPreset = "mono" | "sans";
 type ThemePreset = "ember" | "ocean" | "graphite";
-type LanguagePreset = "en" | "zh-TW";
 
 const FONT_STORAGE_KEY = "ui.font.preset";
 const THEME_STORAGE_KEY = "ui.theme.preset";
-const LANGUAGE_STORAGE_KEY = "ui.language.preset";
 
 function applyFontPreset(value: FontPreset): void {
   if (typeof document === "undefined") {
@@ -26,18 +26,11 @@ function applyThemePreset(value: ThemePreset): void {
   document.documentElement.setAttribute("data-theme", value);
 }
 
-function applyLanguagePreset(value: LanguagePreset): void {
-  if (typeof document === "undefined") {
-    return;
-  }
-  document.documentElement.setAttribute("lang", value);
-  document.documentElement.setAttribute("data-language", value);
-}
-
 export function SettingsPage(): JSX.Element {
+  const { locale, setLocale, t } = useI18n();
   const [fontPreset, setFontPreset] = useState<FontPreset>("mono");
   const [themePreset, setThemePreset] = useState<ThemePreset>("ember");
-  const [languagePreset, setLanguagePreset] = useState<LanguagePreset>("en");
+  const [languagePreset, setLanguagePreset] = useState<LanguagePreset>(locale);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -54,8 +47,8 @@ export function SettingsPage(): JSX.Element {
     setLanguagePreset(nextLanguage);
     applyFontPreset(nextFont);
     applyThemePreset(nextTheme);
-    applyLanguagePreset(nextLanguage);
-  }, []);
+    setLocale(nextLanguage);
+  }, [setLocale]);
 
   function updateFontPreset(nextFont: FontPreset): void {
     setFontPreset(nextFont);
@@ -75,57 +68,64 @@ export function SettingsPage(): JSX.Element {
 
   function updateLanguagePreset(nextLanguage: LanguagePreset): void {
     setLanguagePreset(nextLanguage);
-    applyLanguagePreset(nextLanguage);
+    setLocale(nextLanguage);
     if (typeof window !== "undefined") {
       window.localStorage.setItem(LANGUAGE_STORAGE_KEY, nextLanguage);
     }
   }
 
   return (
-    <PageLayout title="Settings">
+    <PageLayout title={t("settings.title")}>
       <Card className="space-y-4">
         <div className="flex items-center justify-between border-b border-border pb-3">
-          <h2 className="text-base font-semibold text-foreground">Settings</h2>
+          <Typography as="h2" variant="title" className="text-foreground">
+            {t("settings.title")}
+          </Typography>
           <Settings className="h-4 w-4 text-muted-foreground" />
         </div>
 
         <div className="flex items-center justify-between gap-4">
-          <p className="text-sm text-foreground">Font</p>
+          <Typography as="p" variant="body" className="text-foreground">
+            {t("settings.font")}
+          </Typography>
           <select
             className="h-10 w-44 rounded-sm border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-border-strong"
             value={fontPreset}
             onChange={(event) => updateFontPreset(event.target.value as FontPreset)}
           >
-            <option value="mono">Mono</option>
-            <option value="sans">Sans</option>
+            <option value="mono">{t("settings.fontMono")}</option>
+            <option value="sans">{t("settings.fontSans")}</option>
           </select>
         </div>
 
         <div className="flex items-center justify-between gap-4">
-          <p className="text-sm text-foreground">Color style</p>
+          <Typography as="p" variant="body" className="text-foreground">
+            {t("settings.colorStyle")}
+          </Typography>
           <select
             className="h-10 w-44 rounded-sm border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-border-strong"
             value={themePreset}
             onChange={(event) => updateThemePreset(event.target.value as ThemePreset)}
           >
-            <option value="ember">Ember</option>
-            <option value="ocean">Ocean</option>
-            <option value="graphite">Graphite</option>
+            <option value="ember">{t("settings.theme.ember")}</option>
+            <option value="ocean">{t("settings.theme.ocean")}</option>
+            <option value="graphite">{t("settings.theme.graphite")}</option>
           </select>
         </div>
 
         <div className="flex items-center justify-between gap-4">
-          <p className="text-sm text-foreground">Language</p>
+          <Typography as="p" variant="body" className="text-foreground">
+            {t("settings.language")}
+          </Typography>
           <select
             className="h-10 w-44 rounded-sm border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-border-strong"
             value={languagePreset}
             onChange={(event) => updateLanguagePreset(event.target.value as LanguagePreset)}
           >
-            <option value="en">English</option>
-            <option value="zh-TW">中文</option>
+            <option value="en">{t("settings.langEnglish")}</option>
+            <option value="zh-TW">{t("settings.langTraditionalChinese")}</option>
           </select>
         </div>
-
       </Card>
     </PageLayout>
   );

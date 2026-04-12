@@ -5,6 +5,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { CheckCircle2, CircleX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Typography } from "@/components/ui/typography";
 import { getBillingStatus, getCheckoutSessionStatus } from "@/features/subscription/api/billing";
 import { resolveEntitlementFromBillingStatus } from "@/features/subscription/lib/entitlement";
 import { useAuthStore } from "@/lib/store/auth-store";
@@ -27,7 +28,9 @@ function CheckoutVerificationLoading(): JSX.Element {
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 p-4">
       <Card className="flex w-full max-w-xl flex-col items-center gap-5 border-slate-700 bg-slate-950/90 px-8 py-12 text-center">
         <div className="h-10 w-10 animate-pulse rounded-full bg-slate-700" />
-        <p className="text-xs font-medium uppercase tracking-[0.3em] text-slate-400">Verifying Checkout</p>
+        <Typography as="p" variant="meta" className="text-slate-400">
+          Verifying Checkout
+        </Typography>
         <div className="h-4 w-64 animate-pulse rounded bg-slate-700" />
         <div className="h-4 w-48 animate-pulse rounded bg-slate-700" />
       </Card>
@@ -152,14 +155,24 @@ function CheckoutResultLayout({ kind }: CheckoutResultLayoutProps): JSX.Element 
           <div className="rounded-full border border-emerald-300/50 bg-emerald-400/20 p-3 text-emerald-300">
             <CheckCircle2 className="h-10 w-10" />
           </div>
-          <p className="text-xs font-medium uppercase tracking-[0.35em] text-emerald-200/80">Payment Completed</p>
-          <h1 className="text-4xl font-semibold uppercase tracking-wide text-emerald-100">success</h1>
-          <p className="max-w-lg text-sm leading-relaxed text-slate-300">{statusMessage}</p>
+          <Typography as="p" variant="meta" className="text-emerald-200/80">
+            Payment Completed
+          </Typography>
+          <Typography as="h1" variant="display" className="tracking-wide text-emerald-100">
+            success
+          </Typography>
+          <Typography as="p" variant="body" className="max-w-lg leading-relaxed text-slate-300">
+            {statusMessage}
+          </Typography>
           {effectiveSessionId ? (
-            <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Session: {effectiveSessionId}</p>
+            <Typography as="p" variant="meta" className="text-slate-400">
+              Session: {effectiveSessionId}
+            </Typography>
           ) : null}
           {paymentStatus ? (
-            <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Payment status: {paymentStatus}</p>
+            <Typography as="p" variant="meta" className="text-slate-400">
+              Payment status: {paymentStatus}
+            </Typography>
           ) : null}
           <BackToDashboardButton />
         </Card>
@@ -178,14 +191,24 @@ function CheckoutResultLayout({ kind }: CheckoutResultLayoutProps): JSX.Element 
         <div className="rounded-full border border-rose-300/50 bg-rose-400/20 p-3 text-rose-300">
           <CircleX className="h-10 w-10" />
         </div>
-        <p className="text-xs font-medium uppercase tracking-[0.35em] text-rose-100/80">Checkout Interrupted</p>
-        <h1 className="text-4xl font-semibold uppercase tracking-wide text-rose-100">cancel</h1>
-        <p className="max-w-lg text-sm leading-relaxed text-slate-300">{statusMessage}</p>
+        <Typography as="p" variant="meta" className="text-rose-100/80">
+          Checkout Interrupted
+        </Typography>
+        <Typography as="h1" variant="display" className="tracking-wide text-rose-100">
+          cancel
+        </Typography>
+        <Typography as="p" variant="body" className="max-w-lg leading-relaxed text-slate-300">
+          {statusMessage}
+        </Typography>
         {effectiveSessionId ? (
-          <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Session: {effectiveSessionId}</p>
+          <Typography as="p" variant="meta" className="text-slate-400">
+            Session: {effectiveSessionId}
+          </Typography>
         ) : null}
         {paymentStatus ? (
-          <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Payment status: {paymentStatus}</p>
+          <Typography as="p" variant="meta" className="text-slate-400">
+            Payment status: {paymentStatus}
+          </Typography>
         ) : null}
         <BackToDashboardButton />
       </Card>
