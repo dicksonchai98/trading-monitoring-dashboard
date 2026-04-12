@@ -38,6 +38,11 @@ class ShioajiClient:
     def set_on_bidask_fop_v1_callback(self, callback: Callable[..., Any]) -> None:
         self._api.quote.set_on_bidask_fop_v1_callback(callback)
 
+    def set_on_quote_fop_v1_callback(self, callback: Callable[..., Any]) -> None:
+        handler = getattr(self._api.quote, "set_on_quote_fop_v1_callback", None)
+        if callable(handler):
+            handler(callback)
+
     def set_on_tick_stk_v1_callback(self, callback: Callable[..., Any]) -> None:
         handler = getattr(self._api.quote, "set_on_tick_stk_v1_callback", None)
         if callable(handler):
@@ -45,3 +50,27 @@ class ShioajiClient:
 
     def set_on_event_callback(self, callback: Callable[..., Any]) -> None:
         self._api.quote.on_event(callback)
+
+    def set_on_market_callback(self, callback: Callable[..., Any]) -> bool:
+        quote = self._api.quote
+        set_quote_callback = getattr(quote, "set_quote_callback", None)
+        if callable(set_quote_callback):
+            # Some SDK/data-source combinations publish index updates via
+            # generic quote callback topic + dict payload (e.g. "I/TSE/001").
+            def _on_quote(topic: Any, payload: Any) -> None:
+                topic_text = str(topic or "")
+                if topic_text.startswith("I/"):
+                    callback(topic, payload)
+
+            set_quote_callback(_on_quote)
+            return True
+        for name in (
+            "set_on_quote_stk_v1_callback",
+            "set_on_tick_idx_v1_callback",
+            "set_on_tick_index_v1_callback",
+        ):
+            handler = getattr(quote, name, None)
+            if callable(handler):
+                handler(callback)
+                return True
+        return False

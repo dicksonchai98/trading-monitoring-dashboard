@@ -11,9 +11,16 @@ def _quote_type(value: str) -> Any:
     try:
         import shioaji as sj  # type: ignore
 
-        if value == "tick":
-            return sj.constant.QuoteType.Tick
-        return sj.constant.QuoteType.BidAsk
+        mapping = {
+            "tick": "Tick",
+            "bidask": "BidAsk",
+            "quote": "Quote",
+        }
+        attr = mapping.get(value, "BidAsk")
+        quote_type = getattr(sj.constant.QuoteType, attr, None)
+        if quote_type is not None:
+            return quote_type
+        return value
     except Exception:
         return value
 
@@ -28,6 +35,12 @@ def _quote_version_v1() -> Any:
 
 
 def _resolve_from_futures(futures: Any, code: str) -> Any:
+    getter = getattr(futures, "get", None)
+    if callable(getter):
+        with suppress(Exception):
+            contract = getter(code)
+            if contract is not None:
+                return contract
     if hasattr(futures, "__getitem__"):
         with suppress(Exception):
             contract = futures[code]
@@ -40,6 +53,12 @@ def _resolve_from_futures(futures: Any, code: str) -> Any:
 
 
 def _resolve_from_stocks(stocks: Any, code: str) -> Any:
+    getter = getattr(stocks, "get", None)
+    if callable(getter):
+        with suppress(Exception):
+            contract = getter(code)
+            if contract is not None:
+                return contract
     if hasattr(stocks, "__getitem__"):
         with suppress(Exception):
             contract = stocks[code]
@@ -71,6 +90,15 @@ def _available_stock_codes(stocks: Any, limit: int = 20) -> list[str]:
     return names[:limit]
 
 
+def _iter_stock_buckets(stocks: Any) -> list[Any]:
+    buckets: list[Any] = [stocks]
+    for bucket_name in ("TSE", "OTC", "OES"):
+        bucket = getattr(stocks, bucket_name, None)
+        if bucket is not None:
+            buckets.append(bucket)
+    return buckets
+
+
 def resolve_contract(api: Any, code: str) -> Any:
     # Prefer near-month shorthand (e.g., TXFR1 / MTXR1) when available.
     near_month_code = f"{code}R1"
@@ -86,12 +114,36 @@ def resolve_contract(api: Any, code: str) -> Any:
     )
 
 
+def resolve_market_contract(api: Any, code: str) -> Any:
+    contracts = getattr(api, "Contracts", None)
+    if contracts is None:
+        raise RuntimeError("unable to resolve market contract: contracts unavailable")
+    normalized = str(code or "").strip()
+    for attr in ("Indexs", "Indices", "Stocks", "Futures"):
+        bucket = getattr(contracts, attr, None)
+        if bucket is None:
+            continue
+        contract = _resolve_from_stocks(bucket, normalized)
+        if contract is None:
+            contract = _resolve_from_futures(bucket, normalized)
+        # Shioaji Indexs can expose TWSE market index as "001" while config uses "TSE001".
+        if contract is None and attr in {"Indexs", "Indices"}:
+            suffix_digits = "".join(ch for ch in normalized if ch.isdigit())
+            if suffix_digits:
+                contract = _resolve_from_stocks(bucket, suffix_digits)
+                if contract is None:
+                    contract = _resolve_from_futures(bucket, suffix_digits)
+        if contract is not None:
+            return contract
+    raise RuntimeError(f"unable to resolve market contract code={normalized}")
+
+
 def subscribe_topics(api: Any, contract: Any, quote_types: Iterable[str] | None = None) -> None:
     if contract is None:
         raise RuntimeError("resolved futures contract is empty; cannot subscribe topics")
     quote = api.quote
     types = list(quote_types) if quote_types is not None else ["tick", "bidask"]
-    allowed = {"tick", "bidask"}
+    allowed = {"tick", "bidask", "quote"}
     seen: set[str] = set()
     for value in types:
         normalized = value.strip().lower()
@@ -109,9 +161,10 @@ def subscribe_topics(api: Any, contract: Any, quote_types: Iterable[str] | None 
 
 def resolve_stock_contract(api: Any, symbol: str) -> Any:
     stocks = api.Contracts.Stocks
-    contract = _resolve_from_stocks(stocks, symbol)
-    if contract is not None:
-        return contract
+    for bucket in _iter_stock_buckets(stocks):
+        contract = _resolve_from_stocks(bucket, symbol)
+        if contract is not None:
+            return contract
     raise RuntimeError(
         "unable to resolve stock contract "
         f"symbol={symbol} available={_available_stock_codes(stocks)}"
@@ -126,3 +179,13 @@ def subscribe_spot_ticks(api: Any, symbols: Iterable[str]) -> int:
         quote.subscribe(contract, quote_type=_quote_type("tick"), version=_quote_version_v1())
         subscribed += 1
     return subscribed
+
+
+def subscribe_market_topic(api: Any, contract: Any) -> None:
+    if contract is None:
+        raise RuntimeError("resolved market contract is empty; cannot subscribe topic")
+    quote = api.quote
+    try:
+        quote.subscribe(contract, quote_type=_quote_type("quote"), version=_quote_version_v1())
+    except Exception:
+        quote.subscribe(contract, quote_type=_quote_type("tick"), version=_quote_version_v1())

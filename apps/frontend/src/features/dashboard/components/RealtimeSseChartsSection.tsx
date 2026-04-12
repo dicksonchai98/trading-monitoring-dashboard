@@ -82,27 +82,8 @@ function EmptyState({ text }: { text: string }): JSX.Element {
 
 export function RealtimeSseChartsSection(): JSX.Element {
   const { connectionStatus } = useRealtimeConnection();
-  const kbarCurrentByCode = useRealtimeStore(
-    (state) => state.kbarCurrentByCode,
-  );
-  const metricLatestByCode = useRealtimeStore(
-    (state) => state.metricLatestByCode,
-  );
-
-  const activeCode = useMemo(() => {
-    const kbarCodes = Object.keys(kbarCurrentByCode);
-    if (kbarCodes.length > 0) {
-      return kbarCodes[0];
-    }
-    const metricCodes = Object.keys(metricLatestByCode);
-    if (metricCodes.length > 0) {
-      return metricCodes[0];
-    }
-    return "TXFD6";
-  }, [kbarCurrentByCode, metricLatestByCode]);
-
-  const kbar = kbarCurrentByCode[activeCode] ?? null;
-  const metric = metricLatestByCode[activeCode] ?? null;
+  const kbar = useKbarCurrent("TXFD6");
+  const metric = useMetricLatest("TXFD6");
 
   const [closeSeries, setCloseSeries] = useState<SeriesPoint[]>([]);
   const [spreadSeries, setSpreadSeries] = useState<SpreadPoint[]>([]);
@@ -203,13 +184,7 @@ export function RealtimeSseChartsSection(): JSX.Element {
                   width={56}
                 />
                 <Tooltip />
-                <Line
-                  dataKey="value"
-                  type="monotone"
-                  stroke="hsl(var(--primary))"
-                  dot={false}
-                  strokeWidth={2}
-                />
+                <Line dataKey="value" type="monotone" stroke="hsl(var(--primary))" dot={false} strokeWidth={2} isAnimationActive={false} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -249,20 +224,8 @@ export function RealtimeSseChartsSection(): JSX.Element {
                   width={56}
                 />
                 <Tooltip />
-                <Line
-                  dataKey="mid"
-                  type="monotone"
-                  stroke="#38bdf8"
-                  dot={false}
-                  strokeWidth={2}
-                />
-                <Line
-                  dataKey="spread"
-                  type="monotone"
-                  stroke="#f59e0b"
-                  dot={false}
-                  strokeWidth={2}
-                />
+                <Line dataKey="mid" type="monotone" stroke="#38bdf8" dot={false} strokeWidth={2} isAnimationActive={false} />
+                <Line dataKey="spread" type="monotone" stroke="#f59e0b" dot={false} strokeWidth={2} isAnimationActive={false} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -302,20 +265,8 @@ export function RealtimeSseChartsSection(): JSX.Element {
                   width={56}
                 />
                 <Tooltip />
-                <Line
-                  dataKey="bidSize"
-                  type="monotone"
-                  stroke="#22c55e"
-                  dot={false}
-                  strokeWidth={2}
-                />
-                <Line
-                  dataKey="askSize"
-                  type="monotone"
-                  stroke="#ef4444"
-                  dot={false}
-                  strokeWidth={2}
-                />
+                <Line dataKey="bidSize" type="monotone" stroke="#22c55e" dot={false} strokeWidth={2} isAnimationActive={false} />
+                <Line dataKey="askSize" type="monotone" stroke="#ef4444" dot={false} strokeWidth={2} isAnimationActive={false} />
               </LineChart>
             </ResponsiveContainer>
           </div>

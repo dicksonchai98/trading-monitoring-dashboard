@@ -9,6 +9,7 @@ import time
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
+from datetime import time as dt_time
 from typing import Any
 
 from sqlalchemy.exc import IntegrityError
@@ -20,6 +21,8 @@ from app.services.metrics import Metrics
 logger = logging.getLogger(__name__)
 
 TZ_TAIPEI = ZoneInfo("Asia/Taipei")
+DAY_SESSION_START = dt_time(8, 45)
+DAY_SESSION_END = dt_time(13, 45)
 
 
 def _decode(value: Any) -> str:
@@ -84,8 +87,23 @@ class KBar:
     low: float
     close: float
     volume: float
+    event_ts: datetime
+    day_open: float | None = None
+    day_high: float | None = None
+    day_low: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
+        amplitude = self.high - self.low
+        if self.open <= 0:
+            raise ValueError("invalid_open_for_amplitude")
+        day_open = self.day_open
+        day_high = self.day_high
+        day_low = self.day_low
+        day_amplitude: float | None = None
+        day_amplitude_pct: float | None = None
+        if day_open is not None and day_high is not None and day_low is not None and day_open > 0:
+            day_amplitude = day_high - day_low
+            day_amplitude_pct = day_amplitude / day_open
         return {
             "code": self.code,
             "trade_date": self.trade_date.isoformat(),
@@ -95,12 +113,24 @@ class KBar:
             "low": self.low,
             "close": self.close,
             "volume": self.volume,
+            "event_ts": self.event_ts.isoformat(),
+            "amplitude": amplitude,
+            "amplitude_pct": amplitude / self.open,
+            "day_open": day_open,
+            "day_high": day_high,
+            "day_low": day_low,
+            "day_amplitude": day_amplitude,
+            "day_amplitude_pct": day_amplitude_pct,
         }
 
 
 class TickStateMachine:
     def __init__(self) -> None:
         self.current: KBar | None = None
+        self._trade_date: date | None = None
+        self._day_open: float | None = None
+        self._day_high: float | None = None
+        self._day_low: float | None = None
 
     def apply_tick(
         self, code: str, event_ts: datetime, payload: dict[str, Any]
@@ -111,41 +141,77 @@ class TickStateMachine:
             return None, True
 
         minute_ts = event_ts.replace(second=0, microsecond=0)
+        trade_date = trade_date_for(event_ts)
         if self.current is None:
+            self._update_day_state(trade_date, price, event_ts)
             self.current = KBar(
                 code=code,
-                trade_date=trade_date_for(event_ts),
+                trade_date=trade_date,
                 minute_ts=minute_ts,
                 open=price,
                 high=price,
                 low=price,
                 close=price,
                 volume=volume,
+                event_ts=event_ts,
+                day_open=self._day_open,
+                day_high=self._day_high,
+                day_low=self._day_low,
             )
             return None, False
 
         if minute_ts < self.current.minute_ts:
             return None, True
 
+        self._update_day_state(trade_date, price, event_ts)
         if minute_ts == self.current.minute_ts:
             self.current.high = max(self.current.high, price)
             self.current.low = min(self.current.low, price)
             self.current.close = price
             self.current.volume += volume
+            self.current.event_ts = event_ts
+            self.current.day_open = self._day_open
+            self.current.day_high = self._day_high
+            self.current.day_low = self._day_low
             return None, False
 
         archived = self.current
         self.current = KBar(
             code=code,
-            trade_date=trade_date_for(event_ts),
+            trade_date=trade_date,
             minute_ts=minute_ts,
             open=price,
             high=price,
             low=price,
             close=price,
             volume=volume,
+            event_ts=event_ts,
+            day_open=self._day_open,
+            day_high=self._day_high,
+            day_low=self._day_low,
         )
         return archived, False
+
+    def _reset_day_state(self, trade_date: date) -> None:
+        self._trade_date = trade_date
+        self._day_open = None
+        self._day_high = None
+        self._day_low = None
+
+    def _update_day_state(self, trade_date: date, price: float, event_ts: datetime) -> None:
+        if self._trade_date != trade_date:
+            self._reset_day_state(trade_date)
+        local_time = event_ts.astimezone(TZ_TAIPEI).time()
+        if local_time < DAY_SESSION_START or local_time > DAY_SESSION_END:
+            return
+        if self._day_open is None:
+            self._day_open = price
+        if self._day_high is None or self._day_low is None:
+            self._day_high = price
+            self._day_low = price
+            return
+        self._day_high = max(self._day_high, price)
+        self._day_low = min(self._day_low, price)
 
 
 class MetricsRegistry:
@@ -154,6 +220,22 @@ class MetricsRegistry:
         ask = extract_number(payload, ("ask_price", "ask", "best_ask"))
         bid_size = extract_number(payload, ("bid_size", "bid_volume"))
         ask_size = extract_number(payload, ("ask_size", "ask_volume"))
+        bid_total_vol = extract_number(
+            payload,
+            (
+                "bid_total_vol",
+                "total_bid_vol",
+                "bid_total_volume",
+            ),
+        )
+        ask_total_vol = extract_number(
+            payload,
+            (
+                "ask_total_vol",
+                "total_ask_vol",
+                "ask_total_volume",
+            ),
+        )
         metrics: dict[str, Any] = {}
         if bid is not None:
             metrics["bid"] = bid
@@ -166,6 +248,15 @@ class MetricsRegistry:
             metrics["bid_size"] = bid_size
         if ask_size is not None:
             metrics["ask_size"] = ask_size
+        if bid_total_vol is not None:
+            metrics["bid_total_vol"] = bid_total_vol
+        if ask_total_vol is not None:
+            metrics["ask_total_vol"] = ask_total_vol
+        if bid_total_vol is not None and ask_total_vol is not None:
+            metrics["imbalance"] = bid_total_vol - ask_total_vol
+            metrics["sum_total_vol"] = bid_total_vol + ask_total_vol
+            if ask_total_vol > 0:
+                metrics["ratio"] = bid_total_vol / ask_total_vol
         return metrics
 
 
@@ -173,12 +264,18 @@ class BidAskStateMachine:
     def __init__(self, registry: MetricsRegistry) -> None:
         self.registry = registry
         self.latest: dict[str, Any] | None = None
-        self.last_sample_second: int | None = None
-        self.last_sample: dict[str, Any] | None = None
+        self._latest_by_second: dict[int, dict[str, Any]] = {}
+        self._last_emitted_second: int | None = None
+        self._last_emitted_series: dict[str, Any] | None = None
+        self._last_emitted_full: dict[str, Any] | None = None
+        self._trade_date: date | None = None
+        self._main_force_day_high: float | None = None
+        self._main_force_day_low: float | None = None
 
     def update_latest(self, event_ts: datetime, payload: dict[str, Any]) -> dict[str, Any]:
         metrics = self.registry.compute(payload)
         metrics["event_ts"] = event_ts.isoformat()
+        self._latest_by_second[unix_seconds(event_ts)] = dict(metrics)
         self.latest = metrics
         return metrics
 
@@ -211,11 +308,117 @@ class BidAskStateMachine:
                 sample["delta_1s"] = sample["mid"] - self.last_sample["mid"]
             elif "delta_1s" in series_fields and self.last_sample is not None:
                 sample["delta_1s"] = 0
+            if "delta_bid_total_vol_1s" in series_fields and self.last_sample is not None:
+                sample["delta_bid_total_vol_1s"] = self._compute_delta(
+                    sample=sample,
+                    previous=self.last_sample,
+                    field="bid_total_vol",
+                )
+            if "delta_ask_total_vol_1s" in series_fields and self.last_sample is not None:
+                sample["delta_ask_total_vol_1s"] = self._compute_delta(
+                    sample=sample,
+                    previous=self.last_sample,
+                    field="ask_total_vol",
+                )
             on_sample(second, sample)
-            self.last_sample = sample
-            self.last_sample_second = second
+            self._last_emitted_series = sample
+            self._last_emitted_second = second
             samples_written += 1
         return samples_written
+
+    def emit_samples_up_to(
+        self, max_second: int, series_fields: set[str]
+    ) -> list[tuple[int, dict[str, Any], dict[str, Any]]]:
+        if max_second < 0:
+            return []
+        if self._last_emitted_second is None:
+            if not self._latest_by_second:
+                return []
+            start_second = min(self._latest_by_second.keys())
+        else:
+            start_second = self._last_emitted_second + 1
+        if start_second > max_second:
+            return []
+
+        emitted: list[tuple[int, dict[str, Any], dict[str, Any]]] = []
+        for second in range(start_second, max_second + 1):
+            source = self._latest_by_second.pop(second, None)
+            if source is None:
+                if self._last_emitted_full is None:
+                    continue
+                full = dict(self._last_emitted_full)
+            else:
+                full = dict(source)
+
+            sample_dt = datetime.fromtimestamp(second, tz=TZ_TAIPEI)
+            full["event_ts"] = sample_dt.isoformat()
+            self._apply_main_force_fields(full, sample_dt)
+
+            series_sample = {k: v for k, v in full.items() if k in series_fields}
+            series_sample["ts"] = second
+            self._apply_series_deltas(series_sample, series_fields)
+
+            emitted.append((second, full, series_sample))
+            self._last_emitted_full = dict(full)
+            self._last_emitted_series = dict(series_sample)
+            self._last_emitted_second = second
+
+        return emitted
+
+    def _apply_main_force_fields(self, metrics: dict[str, Any], event_ts: datetime) -> None:
+        trade_date = trade_date_for(event_ts)
+        main_force = metrics.get("imbalance")
+        if main_force is None:
+            return
+        main_force_value = float(main_force)
+        if self._trade_date != trade_date:
+            self._trade_date = trade_date
+            self._main_force_day_high = main_force_value
+            self._main_force_day_low = main_force_value
+        else:
+            if self._main_force_day_high is None or self._main_force_day_low is None:
+                self._main_force_day_high = main_force_value
+                self._main_force_day_low = main_force_value
+            self._main_force_day_high = max(self._main_force_day_high, main_force_value)
+            self._main_force_day_low = min(self._main_force_day_low, main_force_value)
+        day_high = float(self._main_force_day_high)
+        day_low = float(self._main_force_day_low)
+        if day_high == day_low:
+            strength = 0.5
+        else:
+            strength = (main_force_value - day_low) / (day_high - day_low)
+        metrics["main_force_big_order"] = main_force_value
+        metrics["main_force_big_order_day_high"] = day_high
+        metrics["main_force_big_order_day_low"] = day_low
+        metrics["main_force_big_order_strength"] = max(0.0, min(float(strength), 1.0))
+
+    def _apply_series_deltas(self, sample: dict[str, Any], series_fields: set[str]) -> None:
+        previous = self._last_emitted_series
+        if previous is None:
+            return
+        if "delta_1s" in series_fields:
+            if "mid" in sample and "mid" in previous:
+                sample["delta_1s"] = sample["mid"] - previous["mid"]
+            else:
+                sample["delta_1s"] = 0
+        if "delta_bid_total_vol_1s" in series_fields:
+            sample["delta_bid_total_vol_1s"] = self._compute_delta(
+                sample=sample,
+                previous=previous,
+                field="bid_total_vol",
+            )
+        if "delta_ask_total_vol_1s" in series_fields:
+            sample["delta_ask_total_vol_1s"] = self._compute_delta(
+                sample=sample,
+                previous=previous,
+                field="ask_total_vol",
+            )
+
+    @staticmethod
+    def _compute_delta(sample: dict[str, Any], previous: dict[str, Any], field: str) -> float:
+        if field not in sample or field not in previous:
+            return 0
+        return float(sample[field]) - float(previous[field])
 
 
 class StreamProcessingRunner:
@@ -423,13 +626,15 @@ class StreamProcessingRunner:
         processed = 0
         for stream_key in stream_keys:
             for entry_id, fields in self._claim_pending(stream_key, group, consumer):
-                if handler(entry_id, fields):
-                    self._redis.xack(stream_key, group, entry_id)
-                    processed += 1
+                if not handler(entry_id, fields):
+                    return processed
+                self._redis.xack(stream_key, group, entry_id)
+                processed += 1
             for entry_id, fields in self._read_new(stream_key, group, consumer):
-                if handler(entry_id, fields):
-                    self._redis.xack(stream_key, group, entry_id)
-                    processed += 1
+                if not handler(entry_id, fields):
+                    return processed
+                self._redis.xack(stream_key, group, entry_id)
+                processed += 1
         return processed
 
     def _claim_pending(
@@ -544,6 +749,7 @@ class StreamProcessingRunner:
             return True
         except Exception:
             self._metrics.inc("write_errors")
+            self._metrics.inc("tick_amplitude_compute_fail_total")
             logger.exception("tick entry processing failed entry_id=%s", entry_id)
             return False
 
@@ -564,22 +770,28 @@ class StreamProcessingRunner:
             bidask_state = self._bidask_states.setdefault(
                 code, BidAskStateMachine(MetricsRegistry())
             )
-            latest = bidask_state.update_latest(event_ts, payload)
-            self._write_latest_metrics(latest, event_ts, code)
-            self._enqueue_bidask_persistence(code=code, event_ts=event_ts, metrics=latest)
-            samples = bidask_state.sample_series(
-                event_ts=event_ts,
+            bidask_state.update_latest(event_ts, payload)
+            samples = bidask_state.emit_samples_up_to(
+                max_second=unix_seconds(event_ts) - 1,
                 series_fields=self._series_fields,
-                on_sample=lambda second, sample: self._write_metric_sample(second, sample, code),
             )
+            for second, latest, series_sample in samples:
+                sample_ts = datetime.fromtimestamp(second, tz=TZ_TAIPEI)
+                self._write_latest_metrics(latest, sample_ts, code)
+                self._write_metric_sample(second, series_sample, code)
+                self._enqueue_bidask_persistence(code=code, event_ts=sample_ts, metrics=latest)
             if samples:
                 self._metrics.inc("sampling_rate")
             self._metrics.inc("consume_rate")
             self._metrics.set_gauge("stream_lag", self._stream_lag_ms(event_ts))
             self._metrics.set_gauge("write_latency", int((time.perf_counter() - start) * 1000))
             return True
+        except asyncio.QueueFull:
+            self._metrics.inc("bidask_db_queue_full_total")
+            return False
         except Exception:
             self._metrics.inc("write_errors")
+            self._metrics.inc("bidask_main_force_compute_fail_total")
             logger.exception("bidask entry processing failed entry_id=%s", entry_id)
             return False
 
@@ -591,13 +803,15 @@ class StreamProcessingRunner:
             for code, state in self._bidask_states.items():
                 if state.latest is None:
                     continue
-                samples = state.sample_series(
-                    event_ts=now,
+                samples = state.emit_samples_up_to(
+                    max_second=unix_seconds(now) - 1,
                     series_fields=self._series_fields,
-                    on_sample=lambda second, sample, code=code: self._write_metric_sample(
-                        second, sample, code
-                    ),
                 )
+                for second, latest, series_sample in samples:
+                    sample_ts = datetime.fromtimestamp(second, tz=TZ_TAIPEI)
+                    self._write_latest_metrics(latest, sample_ts, code)
+                    self._write_metric_sample(second, series_sample, code)
+                    self._enqueue_bidask_persistence(code=code, event_ts=sample_ts, metrics=latest)
                 if samples:
                     self._metrics.inc("sampling_rate")
         except Exception:
@@ -647,10 +861,12 @@ class StreamProcessingRunner:
         self, code: str, event_ts: datetime, metrics: dict[str, Any]
     ) -> None:
         trade_date = trade_date_for(event_ts)
+        event_second = event_ts.replace(microsecond=0)
         payload = {
             "code": code,
             "trade_date": trade_date,
             "event_ts": event_ts,
+            "event_second": event_second,
             "bid": metrics.get("bid"),
             "ask": metrics.get("ask"),
             "spread": metrics.get("spread"),
@@ -794,6 +1010,8 @@ class StreamProcessingRunner:
                     low=bar.low,
                     close=bar.close,
                     volume=bar.volume,
+                    amplitude=bar.high - bar.low,
+                    amplitude_pct=(bar.high - bar.low) / bar.open,
                 )
                 for bar in bars
             ]
@@ -803,22 +1021,85 @@ class StreamProcessingRunner:
         from app.models.bidask_metric_1s import BidAskMetric1sModel
 
         with self._session_factory() as session:
-            records = [
-                BidAskMetric1sModel(
-                    code=row["code"],
-                    trade_date=row["trade_date"],
-                    event_ts=row["event_ts"],
-                    bid=row["bid"],
-                    ask=row["ask"],
-                    spread=row["spread"],
-                    mid=row["mid"],
-                    bid_size=row["bid_size"],
-                    ask_size=row["ask_size"],
-                    metric_payload=json.dumps(row["metric_payload"], ensure_ascii=True),
+            bind = getattr(session, "bind", None)
+            dialect_name = (
+                getattr(getattr(bind, "dialect", None), "name", None) if bind is not None else None
+            )
+            if dialect_name == "postgresql":
+                # Use atomic upsert to avoid race-condition UniqueViolation on concurrent workers.
+                from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+                values = [
+                    {
+                        "code": row["code"],
+                        "trade_date": row["trade_date"],
+                        "event_ts": row["event_ts"],
+                        "event_second": row["event_second"],
+                        "bid": row["bid"],
+                        "ask": row["ask"],
+                        "spread": row["spread"],
+                        "mid": row["mid"],
+                        "bid_size": row["bid_size"],
+                        "ask_size": row["ask_size"],
+                        "metric_payload": json.dumps(row["metric_payload"], ensure_ascii=True),
+                    }
+                    for row in rows
+                ]
+                if values:
+                    stmt = pg_insert(BidAskMetric1sModel).values(values)
+                    stmt = stmt.on_conflict_do_update(
+                        constraint="uq_bidask_metrics_1s_code_event_second",
+                        set_={
+                            "trade_date": stmt.excluded.trade_date,
+                            "event_ts": stmt.excluded.event_ts,
+                            "event_second": stmt.excluded.event_second,
+                            "bid": stmt.excluded.bid,
+                            "ask": stmt.excluded.ask,
+                            "spread": stmt.excluded.spread,
+                            "mid": stmt.excluded.mid,
+                            "bid_size": stmt.excluded.bid_size,
+                            "ask_size": stmt.excluded.ask_size,
+                            "metric_payload": stmt.excluded.metric_payload,
+                        },
+                    )
+                    session.execute(stmt)
+                    session.commit()
+                return
+            for row in rows:
+                existing = (
+                    session.query(BidAskMetric1sModel)
+                    .filter(BidAskMetric1sModel.code == row["code"])
+                    .filter(BidAskMetric1sModel.event_second == row["event_second"])
+                    .one_or_none()
                 )
-                for row in rows
-            ]
-            self._persist_records_with_duplicate_tolerance(session, records)
+                if existing is None:
+                    session.add(
+                        BidAskMetric1sModel(
+                            code=row["code"],
+                            trade_date=row["trade_date"],
+                            event_ts=row["event_ts"],
+                            event_second=row["event_second"],
+                            bid=row["bid"],
+                            ask=row["ask"],
+                            spread=row["spread"],
+                            mid=row["mid"],
+                            bid_size=row["bid_size"],
+                            ask_size=row["ask_size"],
+                            metric_payload=json.dumps(row["metric_payload"], ensure_ascii=True),
+                        )
+                    )
+                    continue
+                existing.trade_date = row["trade_date"]
+                existing.event_ts = row["event_ts"]
+                existing.event_second = row["event_second"]
+                existing.bid = row["bid"]
+                existing.ask = row["ask"]
+                existing.spread = row["spread"]
+                existing.mid = row["mid"]
+                existing.bid_size = row["bid_size"]
+                existing.ask_size = row["ask_size"]
+                existing.metric_payload = json.dumps(row["metric_payload"], ensure_ascii=True)
+            session.commit()
 
     def _quarantine_tick_batch(self, batch: list[KBar], err: Exception) -> None:
         logger.error(
