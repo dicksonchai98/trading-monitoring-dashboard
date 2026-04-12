@@ -4,6 +4,7 @@ import json
 import sys
 import types
 from datetime import date, datetime, timezone
+from typing import Any
 
 import pytest
 from app.index_contribution.runner import IndexContributionRunner
@@ -15,6 +16,10 @@ class _FakeRedis:
         self.strings: dict[str, str] = {}
         self.zsets: dict[str, dict[str, float]] = {}
         self.expirations: dict[str, int] = {}
+        self._claimed_entries: list[tuple[str, dict[str, Any]]] = []
+        self._new_entries: list[tuple[str, dict[str, Any]]] = []
+        self.acks: list[tuple[str, str, str]] = []
+        self.groups: list[tuple[str, str]] = []
 
     def set(self, key: str, value: str) -> None:
         self.strings[key] = value
@@ -27,6 +32,48 @@ class _FakeRedis:
 
     def zadd(self, key: str, mapping: dict[str, float]) -> None:
         self.zsets.setdefault(key, {}).update(mapping)
+
+    def xgroup_create(
+        self,
+        key: str,
+        group: str,
+        stream_id: str = "0-0",
+        mkstream: bool = True,
+    ) -> None:
+        _ = (stream_id, mkstream)
+        self.groups.append((key, group))
+
+    def xautoclaim(
+        self,
+        key: str,
+        group: str,
+        consumer: str,
+        min_idle_time: int,
+        start_id: str = "0-0",
+        count: int = 1,
+    ):
+        _ = (key, group, consumer, min_idle_time, start_id, count)
+        entries = self._claimed_entries[:count]
+        self._claimed_entries = self._claimed_entries[count:]
+        return "0-0", entries, []
+
+    def xreadgroup(
+        self,
+        groupname: str,
+        consumername: str,
+        streams: dict[str, str],
+        count: int = 1,
+        block: int = 0,
+    ):
+        _ = (groupname, consumername, streams, block)
+        stream_key = next(iter(streams.keys()))
+        entries = self._new_entries[:count]
+        self._new_entries = self._new_entries[count:]
+        return [(stream_key, entries)] if entries else []
+
+    def xack(self, key: str, group: str, entry_id: str) -> int:
+        self.acks.append((key, group, entry_id))
+        return 1
 
 
 class _FlakyRedis(_FakeRedis):
@@ -382,3 +429,70 @@ def test_end_to_end_event_to_redis_and_minute_flush(monkeypatch) -> None:
 
     assert flushed is True
     assert recorded == {"symbol": 1, "ranking": 1, "sector": 1}
+
+
+def test_parse_spot_entry_uses_raw_quote_close_when_last_price_zero() -> None:
+    runner = _build_runner()
+    parsed = runner._parse_spot_entry(  # noqa: SLF001
+        "1775802833106-0",
+        {
+            "symbol": "6505",
+            "event_ts": "2026-04-10T14:30:00",
+            "last_price": "0",
+            "payload": json.dumps({"raw_quote": {"close": "52", "price_chg": "-0.7"}}),
+        },
+    )
+    assert parsed is not None
+    assert parsed["symbol"] == "6505"
+    assert parsed["last_price"] == 52.0
+
+
+def test_consume_once_reads_spot_stream_and_acks_processed_entry() -> None:
+    redis = _FakeRedis()
+    redis._new_entries = [  # noqa: SLF001
+        (
+            "1775802833106-0",
+            {
+                "symbol": "2330",
+                "event_ts": "2026-04-10T14:30:00",
+                "last_price": "0",
+                "ingest_seq": "10",
+                "payload": json.dumps(
+                    {
+                        "raw_quote": {"close": "950", "price_chg": "10"},
+                    }
+                ),
+            },
+        )
+    ]
+    runner = IndexContributionRunner(
+        redis_client=redis,
+        metrics=Metrics(),
+        env="dev",
+        group="index-contrib:spot",
+        consumer="index-contrib-1",
+        read_count=200,
+        block_ms=1000,
+        claim_idle_ms=30000,
+        claim_count=200,
+        index_code="TSE001",
+        index_prev_close=22000.0,
+        redis_ttl_seconds=3600,
+        redis_max_retries=1,
+        redis_retry_backoff_ms=0,
+        stream_key="dev:stream:spot",
+    )
+    runner._constituents = {  # noqa: SLF001
+        "2330": {
+            "symbol_name": "TSMC",
+            "weight": 0.31,
+            "weight_version": "v1",
+            "table_sector": "Semiconductor",
+        }
+    }
+    runner._sector_mapping = {"2330": "Semiconductor"}  # noqa: SLF001
+
+    processed = runner.consume_once()
+
+    assert processed == 1
+    assert redis.acks == [("dev:stream:spot", "index-contrib:spot", "1775802833106-0")]
