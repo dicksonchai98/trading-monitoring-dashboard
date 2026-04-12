@@ -7,6 +7,8 @@ import {
 import { GuardedRoute } from "@/lib/guards/GuardedRoute";
 import { AppShell } from "@/app/layout/AppShell";
 import { LoginPage } from "@/features/auth/pages/LoginPage";
+import { SignupPage } from "@/features/auth/pages/SignupPage";
+import { SignupEmailVerificationPage } from "@/features/auth/pages/SignupEmailVerificationPage";
 import { RealtimeDashboardPage } from "@/features/dashboard/pages/RealtimeDashboardPage";
 import { HistoricalDataAnalysisPage } from "@/features/dashboard/pages/HistoricalDataAnalysisPage";
 import { MarketThermometerPage } from "@/features/dashboard/pages/MarketThermometerPage";
@@ -20,7 +22,6 @@ import {
 import { AdminAuditPage } from "@/features/admin/pages/AdminAuditPage";
 import { ForbiddenPage } from "@/features/common/pages/ForbiddenPage";
 import { NotFoundPage } from "@/features/common/pages/NotFoundPage";
-import { SettingsPage } from "@/features/settings/pages/SettingsPage";
 
 const router = createBrowserRouter([
   {
@@ -32,12 +33,28 @@ const router = createBrowserRouter([
     element: <LoginPage />,
   },
   {
+    path: "/signup",
+    element: <SignupPage />,
+  },
+  {
+    path: "/signup/verify-email",
+    element: <SignupEmailVerificationPage />,
+  },
+  {
     path: "/subscription/checkout/success",
     element: <CheckoutSuccessPage />,
   },
   {
     path: "/subscription/checkout/cancel",
     element: <CheckoutCancelPage />,
+  },
+  {
+    path: "/subscription",
+    element: (
+      <GuardedRoute requiredRole="visitor">
+        <SubscriptionPage />
+      </GuardedRoute>
+    ),
   },
   {
     element: <AppShell />,
@@ -83,26 +100,10 @@ const router = createBrowserRouter([
         ),
       },
       {
-        path: "/subscription",
-        element: (
-          <GuardedRoute requiredRole="visitor">
-            <SubscriptionPage />
-          </GuardedRoute>
-        ),
-      },
-      {
         path: "/admin/audit",
         element: (
           <GuardedRoute requiredRole="admin">
             <AdminAuditPage />
-          </GuardedRoute>
-        ),
-      },
-      {
-        path: "/settings",
-        element: (
-          <GuardedRoute requiredRole="visitor">
-            <SettingsPage />
           </GuardedRoute>
         ),
       },

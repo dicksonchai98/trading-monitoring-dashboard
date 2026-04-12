@@ -14,6 +14,19 @@ vi.mock("react-router-dom", async () => {
 describe("AppShell", () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    Object.defineProperty(window, "matchMedia", {
+      writable: true,
+      value: vi.fn().mockImplementation((query: string) => ({
+        matches: query.includes("max-width") ? window.innerWidth <= 767 : false,
+        media: query,
+        onchange: null,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })),
+    });
   });
 
   afterEach(() => {
@@ -35,16 +48,15 @@ describe("AppShell", () => {
       vi.advanceTimersByTime(300);
     });
 
+    const mainRegion = screen.getByRole("main");
     expect(screen.getByRole("complementary")).toBeInTheDocument();
-    expect(screen.getByRole("complementary")).toHaveClass("w-[var(--sidebar-w-expanded)]");
-    expect(screen.getByRole("complementary")).toHaveClass("fixed", "inset-y-0", "left-0", "h-screen");
-    expect(screen.getByRole("main")).toBeInTheDocument();
-    expect(screen.getByRole("main")).toHaveClass("min-h-screen", "p-[var(--shell-padding)]");
-    expect(screen.getByRole("main")).toHaveStyle({ marginLeft: "var(--sidebar-w-expanded)" });
+    expect(mainRegion).toBeInTheDocument();
+    expect(mainRegion).toHaveClass("min-h-screen", "bg-background");
+    expect(mainRegion.querySelector("div.p-\\[var\\(--shell-padding\\)\\]")).not.toBeNull();
     expect(screen.getByTestId("outlet-content")).toBeInTheDocument();
   });
 
-  it("toggles the sidebar collapsed state", () => {
+  it("renders sidebar nav entries from the shadcn sidebar kit", () => {
     render(
       <MemoryRouter initialEntries={["/dashboard"]}>
         <AppShell />
@@ -54,31 +66,13 @@ describe("AppShell", () => {
       vi.advanceTimersByTime(300);
     });
 
-    const collapseButton = screen.getByRole("button", { name: "Collapse sidebar" });
-    expect(screen.getByText("Dashboard")).toBeInTheDocument();
-    expect(screen.getByLabelText("Trading Monitor brand")).toBeInTheDocument();
-    expect(screen.getByText("Trading Monitor")).toBeInTheDocument();
-
-    fireEvent.click(collapseButton);
-
-    expect(screen.queryByText("Dashboard")).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Trading Monitor brand")).toBeInTheDocument();
-    expect(screen.queryByText("Trading Monitor")).not.toBeInTheDocument();
-    expect(screen.getByRole("complementary")).toHaveClass("w-[var(--sidebar-w-collapsed)]");
-    expect(screen.getByRole("main")).toHaveStyle({ marginLeft: "var(--sidebar-w-collapsed)" });
-    expect(screen.getByRole("button", { name: "Expand sidebar" })).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Expand sidebar" }));
-
-    expect(screen.getByText("Dashboard")).toBeInTheDocument();
-    expect(screen.getByText("Trading Monitor")).toBeInTheDocument();
+    expect(screen.getByText("Monitoring")).toBeInTheDocument();
+    expect(screen.getByText("Realtime")).toBeInTheDocument();
+    expect(screen.getByText("Utilities")).toBeInTheDocument();
   });
 
-  it("hides sidebar content by default on mobile and shows toggle icon", () => {
+  it("shows a mobile trigger button and opens sidebar sheet", () => {
     Object.defineProperty(window, "innerWidth", { configurable: true, writable: true, value: 640 });
-    act(() => {
-      window.dispatchEvent(new Event("resize"));
-    });
 
     render(
       <MemoryRouter initialEntries={["/dashboard"]}>
@@ -90,9 +84,9 @@ describe("AppShell", () => {
     });
 
     expect(screen.getByRole("button", { name: "Open sidebar" })).toBeInTheDocument();
-    expect(screen.queryByText("Dashboard")).not.toBeInTheDocument();
+    expect(screen.queryByText("Monitoring")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Open sidebar" }));
-    expect(screen.getByText("Dashboard")).toBeInTheDocument();
+    expect(screen.getByText("Monitoring")).toBeInTheDocument();
   });
 });

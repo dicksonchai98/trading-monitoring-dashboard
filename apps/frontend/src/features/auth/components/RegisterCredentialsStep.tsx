@@ -45,7 +45,7 @@ export function RegisterCredentialsStep({
           onChange={(event) => onUserIdChange(event.target.value)}
           className="h-10 w-full rounded-sm border border-border bg-shell px-3 text-sm text-foreground outline-none transition-colors placeholder:text-subtle-foreground focus:border-border-strong disabled:cursor-not-allowed disabled:opacity-60"
         />
-        {userIdError ? <span className="block text-xs text-danger">{userIdError}</span> : null}
+        {userIdError ? <span className="block text-xs text-red-600">{userIdError}</span> : null}
       </label>
       <label className="space-y-2 text-sm text-foreground">
         <span className="block">Password</span>
@@ -66,7 +66,7 @@ export function RegisterCredentialsStep({
             {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </button>
         </div>
-        {passwordError ? <span className="block text-xs text-danger">{passwordError}</span> : null}
+        {passwordError ? <span className="block text-xs text-red-600">{passwordError}</span> : null}
       </label>
       <label className="space-y-2 text-sm text-foreground">
         <span className="block">Confirm password</span>
@@ -87,7 +87,7 @@ export function RegisterCredentialsStep({
             {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </button>
         </div>
-        {confirmPasswordError ? <span className="block text-xs text-danger">{confirmPasswordError}</span> : null}
+        {confirmPasswordError ? <span className="block text-xs text-red-600">{confirmPasswordError}</span> : null}
       </label>
       <div className="grid grid-cols-1 gap-2">
         <Button type="submit" disabled={disabled}>

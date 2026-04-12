@@ -1,163 +1,20 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
-import { Eye, EyeOff } from "lucide-react";
 import type { JSX } from "react";
-import { useEffect, useState } from "react";
-import { type FieldPath, type FieldValues, type UseFormRegister, useForm } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
-import { toast } from "sonner";
-import { AlertBanner } from "@/components/ui/alert-banner";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { PageSkeleton } from "@/components/ui/page-skeleton";
-import { login, register, sendEmailOtp, verifyEmailOtp } from "@/features/auth/api/auth";
-import { EmailVerificationStep } from "@/features/auth/components/EmailVerificationStep";
-import { RegisterCredentialsStep } from "@/features/auth/components/RegisterCredentialsStep";
-import { decodeAccessToken, mapTokenRole } from "@/features/auth/lib/token";
-import { getBillingStatus } from "@/features/subscription/api/billing";
-import { mapEntitlement, resolveEntitlementFromBillingStatus } from "@/features/subscription/lib/entitlement";
-import { loginSchema, registerSchema, type LoginFormValues, type RegisterFormValues } from "@/features/auth/validation/auth-schema";
+import { LoginForm } from "@/components/login-form";
+import { login } from "@/features/auth/api/auth";
+import { AuthSplitPageSkeleton } from "@/features/auth/components/AuthSplitPageSkeleton";
+import { applyAuthenticatedSession, formatAuthError, getRedirectTarget } from "@/features/auth/lib/auth-page-shared";
+import { loginSchema, type LoginFormValues } from "@/features/auth/validation/auth-schema";
 import { useAuthStore } from "@/lib/store/auth-store";
-import { cn } from "@/lib/utils/cn";
 
-type AuthMode = "login" | "register";
-const OTP_RESEND_COOLDOWN_SECONDS = 60;
-
-function getRedirectTarget(state: unknown): string {
-  if (typeof state === "object" && state !== null && "from" in state && typeof state.from === "string") {
-    return state.from;
-  }
-  return "/dashboard";
-}
-
-function formatAuthError(message: string | undefined): string | null {
-  switch (message) {
-    case "invalid_credentials":
-      return "Invalid credentials.";
-    case "user_exists":
-      return "This email is already registered.";
-    case "verification_required":
-      return "Please verify your email before registering.";
-    case "invalid_email":
-      return "Please provide a valid email address.";
-    case "invalid_user_id":
-      return "User ID format is invalid.";
-    case "invalid_password":
-      return "Password must be at least 8 characters and include uppercase, lowercase, and number.";
-    case "invalid_otp":
-      return "Invalid verification code.";
-    case "expired":
-      return "Verification code expired. Please request a new one.";
-    case "cooldown":
-    case "rate_limited":
-      return "Verification email sent too frequently. Please try again shortly.";
-    case "locked":
-      return "Too many failed attempts. Please request a new verification code.";
-    case "auth_request_failed":
-    case "api_request_failed":
-      return "Authentication request failed.";
-    case "invalid_access_token":
-    case "unsupported_role":
-      return "Received an invalid session token from the server.";
-    default:
-      return message ? "Unable to complete authentication." : null;
-  }
-}
-
-interface FormShellProps {
-  title: string;
-  description: string;
-  errorMessage: string | null;
-  successMessage?: string | null;
-  children: JSX.Element | JSX.Element[];
-}
-
-function FormShell({ title, description, errorMessage, successMessage, children }: FormShellProps): JSX.Element {
-  return (
-    <>
-      <div className="space-y-2">
-        <h1 className="text-xl font-semibold text-foreground">{title}</h1>
-        <p className="text-sm text-muted-foreground">{description}</p>
-      </div>
-      {errorMessage ? <AlertBanner variant="error" message={errorMessage} /> : null}
-      {!errorMessage && successMessage ? <AlertBanner variant="success" message={successMessage} /> : null}
-      {children}
-    </>
-  );
-}
-
-interface InputFieldProps {
-  label: string;
-  type?: "text" | "password";
-  error?: string;
-  disabled?: boolean;
-}
-
-interface GenericInputFieldProps<TFieldValues extends FieldValues> extends InputFieldProps {
-  registration: UseFormRegister<TFieldValues>;
-  name: FieldPath<TFieldValues>;
-}
-
-function InputField<TFieldValues extends FieldValues>({
-  label,
-  type = "text",
-  error,
-  disabled = false,
-  registration,
-  name,
-}: GenericInputFieldProps<TFieldValues>): JSX.Element {
-  return (
-    <label className="space-y-2 text-sm text-foreground">
-      <span className="block">{label}</span>
-      <input
-        type={type}
-        disabled={disabled}
-        className="h-10 w-full rounded-sm border border-border bg-shell px-3 text-sm text-foreground outline-none transition-colors placeholder:text-subtle-foreground hover:border-border-strong focus:border-border-strong disabled:cursor-not-allowed disabled:opacity-60"
-        {...registration(name)}
-      />
-      {error ? <span className="block text-xs text-danger">{error}</span> : null}
-    </label>
-  );
-}
-
-interface AuthFormProps {
-  onAuthenticated: (token: string, source: "login" | "register") => Promise<void>;
-}
-
-function PasswordInputField<TFieldValues extends FieldValues>({
-  label,
-  error,
-  disabled = false,
-  registration,
-  name,
-}: GenericInputFieldProps<TFieldValues>): JSX.Element {
-  const [showPassword, setShowPassword] = useState(false);
-
-  return (
-    <label className="space-y-2 text-sm text-foreground">
-      <span className="block">{label}</span>
-      <div className="relative">
-        <input
-          type={showPassword ? "text" : "password"}
-          disabled={disabled}
-          className="h-10 w-full rounded-sm border border-border bg-shell px-3 pr-10 text-sm text-foreground outline-none transition-colors placeholder:text-subtle-foreground hover:border-border-strong focus:border-border-strong disabled:cursor-not-allowed disabled:opacity-60"
-          {...registration(name)}
-        />
-        <button
-          type="button"
-          aria-label={showPassword ? "Hide secret input" : "Show secret input"}
-          className="absolute right-2 top-1/2 inline-flex -translate-y-1/2 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
-          onClick={() => setShowPassword((value) => !value)}
-        >
-          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-        </button>
-      </div>
-      {error ? <span className="block text-xs text-danger">{error}</span> : null}
-    </label>
-  );
-}
-
-function LoginForm({ onAuthenticated }: AuthFormProps): JSX.Element {
+export function LoginPage(): JSX.Element {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { role, resolved, setSession } = useAuthStore();
+  const redirectTarget = getRedirectTarget(location.state);
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: { user_id: "", password: "" },
@@ -165,313 +22,59 @@ function LoginForm({ onAuthenticated }: AuthFormProps): JSX.Element {
 
   const mutation = useMutation({
     mutationFn: login,
-    onSuccess: async (data) => onAuthenticated(data.access_token, "login"),
-    onError: (error) => {
-      const message = formatAuthError(error instanceof Error ? error.message : undefined);
-      if (message) {
-        toast.error(message);
-      }
+    onSuccess: async (data) => {
+      await applyAuthenticatedSession({ token: data.access_token, source: "login", setSession });
+      navigate(redirectTarget, { replace: true });
     },
   });
-
-  return (
-    <FormShell
-      title="Sign in"
-      description="Use your trading workspace credentials to continue."
-      errorMessage={formatAuthError(mutation.error instanceof Error ? mutation.error.message : undefined)}
-    >
-      <form
-        className="space-y-4"
-        onSubmit={form.handleSubmit((values) => {
-          mutation.reset();
-          mutation.mutate(values);
-        })}
-      >
-        <InputField
-          label="User ID"
-          disabled={mutation.isPending}
-          error={form.formState.errors.user_id?.message}
-          registration={form.register}
-          name="user_id"
-        />
-        <PasswordInputField
-          label="Password"
-          disabled={mutation.isPending}
-          error={form.formState.errors.password?.message}
-          registration={form.register}
-          name="password"
-        />
-        <Button className="w-full" type="submit" disabled={mutation.isPending}>
-          {mutation.isPending ? "Signing in..." : "Sign in"}
-        </Button>
-      </form>
-    </FormShell>
-  );
-}
-
-function RegisterForm({ onAuthenticated }: AuthFormProps): JSX.Element {
-  type RegisterStep = "verify_email" | "credentials";
-  const form = useForm<RegisterFormValues>({
-    resolver: zodResolver(registerSchema),
-    defaultValues: { user_id: "", email: "", password: "", confirmPassword: "" },
-  });
-
-  const [step, setStep] = useState<RegisterStep>("verify_email");
-  const [verificationToken, setVerificationToken] = useState<string | null>(null);
-  const [verifiedEmail, setVerifiedEmail] = useState<string | null>(null);
-  const [otpCode, setOtpCode] = useState("");
-  const [otpSentEmail, setOtpSentEmail] = useState<string | null>(null);
-  const [resendCooldownSeconds, setResendCooldownSeconds] = useState(0);
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [localError, setLocalError] = useState<string | null>(null);
-  const currentEmail = form.watch("email");
-  const hasOtpSent = otpSentEmail === currentEmail && currentEmail.length > 0;
-
-  const sendOtpMutation = useMutation({
-    mutationFn: sendEmailOtp,
-    onSuccess: (_, variables) => {
-      setVerificationToken(null);
-      setVerifiedEmail(null);
-      setOtpCode("");
-      setOtpSentEmail(variables.email);
-      setResendCooldownSeconds(OTP_RESEND_COOLDOWN_SECONDS);
-      setStatusMessage("Verification code sent. Check your email inbox.");
-      setLocalError(null);
-      toast.success("Verification code sent.");
-    },
-    onError: (error) => {
-      const message = formatAuthError(error instanceof Error ? error.message : undefined);
-      if (message) {
-        toast.error(message);
-      }
-    },
-  });
-
-  const verifyOtpMutation = useMutation({
-    mutationFn: verifyEmailOtp,
-    onSuccess: (data) => {
-      const email = form.getValues("email");
-      setVerificationToken(data.verification_token);
-      setVerifiedEmail(email);
-      setStatusMessage("Email verified. Continue to create account.");
-      setLocalError(null);
-      setStep("credentials");
-      toast.success("Email verification successful.");
-    },
-    onError: (error) => {
-      const message = formatAuthError(error instanceof Error ? error.message : undefined);
-      if (message) {
-        toast.error(message);
-      }
-    },
-  });
-
-  const registerMutation = useMutation({
-    mutationFn: register,
-    onSuccess: async (data) => onAuthenticated(data.access_token, "register"),
-    onError: (error) => {
-      const message = formatAuthError(error instanceof Error ? error.message : undefined);
-      if (message) {
-        toast.error(message);
-      }
-    },
-  });
-
-  const isPending = sendOtpMutation.isPending || verifyOtpMutation.isPending || registerMutation.isPending;
-  const errorMessage =
-    localError ??
-    formatAuthError(registerMutation.error instanceof Error ? registerMutation.error.message : undefined) ??
-    formatAuthError(verifyOtpMutation.error instanceof Error ? verifyOtpMutation.error.message : undefined) ??
-    formatAuthError(sendOtpMutation.error instanceof Error ? sendOtpMutation.error.message : undefined);
-
-  useEffect(() => {
-    if (resendCooldownSeconds <= 0) {
-      return;
-    }
-    const timerId = window.setTimeout(() => {
-      setResendCooldownSeconds((value) => Math.max(0, value - 1));
-    }, 1000);
-    return () => window.clearTimeout(timerId);
-  }, [resendCooldownSeconds]);
-
-  useEffect(() => {
-    if (!verifiedEmail || currentEmail === verifiedEmail) {
-      return;
-    }
-    setVerificationToken(null);
-    setVerifiedEmail(null);
-    setOtpSentEmail(null);
-    setResendCooldownSeconds(0);
-    setOtpCode("");
-    setStatusMessage(null);
-    setStep("verify_email");
-  }, [currentEmail, verifiedEmail]);
-
-  async function handleSendOtp(): Promise<void> {
-    setLocalError(null);
-    sendOtpMutation.reset();
-    verifyOtpMutation.reset();
-    const isValidEmail = await form.trigger("email");
-    if (!isValidEmail) {
-      return;
-    }
-    const email = form.getValues("email");
-    setVerificationToken(null);
-    setVerifiedEmail(null);
-    setOtpSentEmail(null);
-    setOtpCode("");
-    setStatusMessage(null);
-    sendOtpMutation.mutate({ email });
-  }
-
-  async function handleVerifyOtp(): Promise<void> {
-    setLocalError(null);
-    verifyOtpMutation.reset();
-    const isValidEmail = await form.trigger("email");
-    if (!isValidEmail) {
-      return;
-    }
-    if (!otpCode.trim()) {
-      setLocalError("Verification code is required.");
-      return;
-    }
-    if (!hasOtpSent) {
-      setLocalError("Please send a verification code first.");
-      return;
-    }
-    const email = form.getValues("email");
-    verifyOtpMutation.mutate({ email, otp_code: otpCode.trim() });
-  }
-
-  async function handleRequestOtp(): Promise<void> {
-    await handleSendOtp();
-  }
-
-  return (
-    <FormShell
-      title="Create account"
-      description="Register a new operator account for the monitoring console."
-      errorMessage={errorMessage}
-      successMessage={statusMessage}
-    >
-      <form
-        className="space-y-4"
-        onSubmit={form.handleSubmit((values) => {
-          registerMutation.reset();
-          if (!verificationToken || verifiedEmail !== values.email) {
-            setLocalError("Please verify your email before registering.");
-            setStep("verify_email");
-            return;
-          }
-          registerMutation.mutate({
-            user_id: values.user_id,
-            email: values.email,
-            password: values.password,
-            verification_token: verificationToken,
-          });
-        })}
-      >
-        <div key={step} className="auth-step-enter">
-          {step === "verify_email" ? (
-            <EmailVerificationStep
-              email={form.watch("email")}
-              emailError={form.formState.errors.email?.message}
-              otpCode={otpCode}
-              disabled={isPending}
-              isSending={sendOtpMutation.isPending}
-              isVerifying={verifyOtpMutation.isPending}
-              hasOtpSent={hasOtpSent}
-              resendCooldownSeconds={resendCooldownSeconds}
-              onEmailChange={(value) => form.setValue("email", value, { shouldDirty: true, shouldValidate: true })}
-              onOtpCodeChange={setOtpCode}
-              onSendCode={() => void handleRequestOtp()}
-              onVerifyCode={() => void handleVerifyOtp()}
-            />
-          ) : (
-            <RegisterCredentialsStep
-              userId={form.watch("user_id")}
-              password={form.watch("password")}
-              confirmPassword={form.watch("confirmPassword")}
-              userIdError={form.formState.errors.user_id?.message}
-              passwordError={form.formState.errors.password?.message}
-              confirmPasswordError={form.formState.errors.confirmPassword?.message}
-              disabled={isPending}
-              isRegistering={registerMutation.isPending}
-              onUserIdChange={(value) => form.setValue("user_id", value, { shouldDirty: true, shouldValidate: true })}
-              onPasswordChange={(value) => form.setValue("password", value, { shouldDirty: true, shouldValidate: true })}
-              onConfirmPasswordChange={(value) =>
-                form.setValue("confirmPassword", value, { shouldDirty: true, shouldValidate: true })
-              }
-            />
-          )}
-        </div>
-      </form>
-    </FormShell>
-  );
-}
-
-export function LoginPage(): JSX.Element {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const [mode, setMode] = useState<AuthMode>("login");
-  const { role, resolved, setSession } = useAuthStore();
-  const redirectTarget = getRedirectTarget(location.state);
 
   if (!resolved) {
-    return <PageSkeleton />;
+    return <AuthSplitPageSkeleton />;
   }
 
   if (role !== "visitor") {
     return <Navigate to="/dashboard" replace />;
   }
 
-  async function handleAuthenticated(token: string, source: "login" | "register"): Promise<void> {
-    const payload = decodeAccessToken(token);
-    const nextRole = mapTokenRole(payload.role);
-    let nextEntitlement = mapEntitlement("none");
-    try {
-      const status = await getBillingStatus(token);
-      nextEntitlement = resolveEntitlementFromBillingStatus(status);
-    } catch {
-      nextEntitlement = mapEntitlement("none");
-    }
-    setSession(token, nextRole, nextEntitlement);
-    toast.success(source === "register" ? "Registration successful." : "Login successful.");
-    navigate(redirectTarget, { replace: true });
-  }
-
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4 py-10">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(249,115,22,0.12),transparent_35%),linear-gradient(180deg,rgba(255,255,255,0.02),transparent_45%)]" />
-      <Card className="relative z-10 w-full max-w-md space-y-6 border-border-strong bg-shell/95 p-6 backdrop-blur hover:bg-shell/95">
-        <div className="space-y-2">
-          <p className="text-[11px] uppercase tracking-[0.12em] text-subtle-foreground">Trading Monitoring Console</p>
-          <div className="grid grid-cols-2 gap-2 rounded-sm border border-border bg-background/70 p-1">
-            <button
-              type="button"
-              className={cn(
-                "h-9 rounded-sm text-sm transition-colors",
-                mode === "login" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground",
-              )}
-              onClick={() => setMode("login")}
-            >
-              Sign in
-            </button>
-            <button
-              type="button"
-              className={cn(
-                "h-9 rounded-sm text-sm transition-colors",
-                mode === "register" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground",
-              )}
-              onClick={() => setMode("register")}
-            >
-              Create account
-            </button>
-          </div>
+    <div className="grid min-h-screen w-full bg-white md:grid-cols-2">
+      <section className="flex items-center justify-center bg-zinc-50 px-6 py-10 text-zinc-900 md:px-10">
+        <div className="w-full max-w-sm">
+          <LoginForm
+            userId={form.watch("user_id")}
+            password={form.watch("password")}
+            userIdError={form.formState.errors.user_id?.message}
+            passwordError={form.formState.errors.password?.message}
+            errorMessage={formatAuthError(mutation.error instanceof Error ? mutation.error.message : undefined)}
+            isPending={mutation.isPending}
+            onUserIdChange={(value) => form.setValue("user_id", value, { shouldDirty: true, shouldValidate: true })}
+            onPasswordChange={(value) => form.setValue("password", value, { shouldDirty: true, shouldValidate: true })}
+            onSubmit={() => {
+              void form.handleSubmit((values) => {
+                mutation.reset();
+                mutation.mutate(values);
+              })();
+            }}
+          />
         </div>
-
-        {mode === "login" ? <LoginForm onAuthenticated={handleAuthenticated} /> : <RegisterForm onAuthenticated={handleAuthenticated} />}
-      </Card>
+      </section>
+      <section className="relative hidden md:block">
+        <div className="absolute inset-0">
+          <img
+            src="https://images.unsplash.com/photo-1559526324-593bc073d938?auto=format&fit=crop&w=1800&q=80"
+            alt="Trading dashboard cover"
+            className="h-full w-full object-cover"
+          />
+        </div>
+        <div className="absolute inset-0 bg-black/25" />
+        <div className="absolute bottom-10 left-10 right-10 text-white">
+          <p className="text-xs uppercase tracking-[0.18em] text-white/80">Trading Monitoring Console</p>
+          <h2 className="mt-3 text-3xl font-semibold leading-tight">A faster way to monitor futures market moves</h2>
+          <p className="mt-3 max-w-md text-sm text-white/90">
+            Real-time snapshots, role-based access, and subscription-aware dashboard delivery in a single platform.
+          </p>
+        </div>
+      </section>
     </div>
   );
 }

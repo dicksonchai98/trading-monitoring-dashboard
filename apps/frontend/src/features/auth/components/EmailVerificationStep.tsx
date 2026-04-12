@@ -42,7 +42,7 @@ export function EmailVerificationStep({
           onChange={(event) => onEmailChange(event.target.value)}
           className="h-10 w-full rounded-sm border border-border bg-shell px-3 text-sm text-foreground outline-none transition-colors placeholder:text-subtle-foreground focus:border-border-strong disabled:cursor-not-allowed disabled:opacity-60"
         />
-        {emailError ? <span className="block text-xs text-danger">{emailError}</span> : null}
+        {emailError ? <span className="block text-xs text-red-600">{emailError}</span> : null}
       </label>
       <label className="space-y-2 text-sm text-foreground">
         <span className="block">Verification code</span>

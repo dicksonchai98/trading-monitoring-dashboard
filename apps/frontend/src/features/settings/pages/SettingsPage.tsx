@@ -1,14 +1,8 @@
 import type { JSX } from "react";
 import { useEffect, useState } from "react";
-import { LogOut, Settings } from "lucide-react";
-import { useNavigate } from "react-router-dom";
-import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
+import { Settings } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { PageLayout } from "@/components/ui/page-layout";
-import { logout } from "@/features/auth/api/auth";
-import { createPortalSession } from "@/features/subscription/api/billing";
-import { useAuthStore } from "@/lib/store/auth-store";
 
 type FontPreset = "mono" | "sans";
 type ThemePreset = "ember" | "ocean" | "graphite";
@@ -41,15 +35,9 @@ function applyLanguagePreset(value: LanguagePreset): void {
 }
 
 export function SettingsPage(): JSX.Element {
-  const navigate = useNavigate();
-  const { token, role, clearSession } = useAuthStore();
-  const isAuthenticated = role !== "visitor";
   const [fontPreset, setFontPreset] = useState<FontPreset>("mono");
   const [themePreset, setThemePreset] = useState<ThemePreset>("ember");
   const [languagePreset, setLanguagePreset] = useState<LanguagePreset>("en");
-  const [portalUrl, setPortalUrl] = useState<string | null>(null);
-  const [portalLoading, setPortalLoading] = useState(false);
-  const [portalError, setPortalError] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -91,38 +79,6 @@ export function SettingsPage(): JSX.Element {
     if (typeof window !== "undefined") {
       window.localStorage.setItem(LANGUAGE_STORAGE_KEY, nextLanguage);
     }
-  }
-
-  async function handleOpenPortal(): Promise<void> {
-    if (!token || portalLoading) {
-      return;
-    }
-    setPortalLoading(true);
-    setPortalError(null);
-    try {
-      const result = await createPortalSession(token);
-      setPortalUrl(result.portal_url);
-      toast.success("Billing portal opened.");
-      if (typeof window !== "undefined" && result.portal_url) {
-        window.open(result.portal_url, "_blank", "noopener,noreferrer");
-      }
-    } catch {
-      setPortalError("Unable to open billing portal right now.");
-      toast.error("Unable to open billing portal right now.");
-    } finally {
-      setPortalLoading(false);
-    }
-  }
-
-  async function handleLogout(): Promise<void> {
-    try {
-      await logout();
-      toast.success("Logged out successfully.");
-    } catch {
-      toast.error("Logout request failed.");
-    }
-    clearSession();
-    navigate("/login", { replace: true });
   }
 
   return (
@@ -170,28 +126,6 @@ export function SettingsPage(): JSX.Element {
           </select>
         </div>
 
-        <div className="flex items-center justify-between gap-4">
-          <p className="text-sm text-foreground">Billing portal</p>
-          <Button type="button" variant="outline" className="w-44" onClick={() => void handleOpenPortal()} disabled={!token || portalLoading}>
-            {portalLoading ? "Opening portal..." : "Open Billing Portal"}
-          </Button>
-        </div>
-
-        {portalUrl ? (
-          <a className="block text-xs text-primary underline-offset-4 hover:underline" href={portalUrl} target="_blank" rel="noreferrer">
-            Open latest billing portal link
-          </a>
-        ) : null}
-        {portalError ? <p className="text-xs text-danger">{portalError}</p> : null}
-
-        {isAuthenticated ? (
-          <Button type="button" className="w-full" onClick={() => void handleLogout()}>
-            <LogOut className="mr-2 h-4 w-4" />
-            Logout
-          </Button>
-        ) : (
-          <p className="text-xs text-muted-foreground">Login required to manage account actions.</p>
-        )}
       </Card>
     </PageLayout>
   );
