@@ -56,8 +56,8 @@ def list_metrics(
 def event_stats(
     event_id: str,
     code: str,
-    start_date: date,
-    end_date: date,
+    start_date: date | None = None,
+    end_date: date | None = None,
     version: str = "latest",
     _: Principal = Depends(require_user_or_admin),
     session: Session = Depends(get_db_session),
@@ -71,6 +71,48 @@ def event_stats(
                 status_code=status.HTTP_400_BAD_REQUEST, detail="invalid_version"
             ) from err
     service = KbarAnalyticsService(session)
+
+    def _to_item(entity: Any) -> dict[str, Any]:
+        return {
+            "event_id": entity.event_id,
+            "code": entity.code,
+            "start_date": entity.start_date.isoformat(),
+            "end_date": entity.end_date.isoformat(),
+            "sample_count": entity.sample_count,
+            "up_count": entity.up_count,
+            "down_count": entity.down_count,
+            "flat_count": entity.flat_count,
+            "up_probability": entity.up_probability,
+            "down_probability": entity.down_probability,
+            "flat_probability": entity.flat_probability,
+            "avg_next_day_return": entity.avg_next_day_return,
+            "median_next_day_return": entity.median_next_day_return,
+            "avg_next_day_range": entity.avg_next_day_range,
+            "avg_next_day_gap": entity.avg_next_day_gap,
+            "version": entity.version,
+        }
+
+    if event_id == "all":
+        if version != "latest":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="invalid_version"
+            )
+        items = service.get_latest_event_stats_by_code(code=code)
+        return {"items": [_to_item(entity) for entity in items]}
+
+    if start_date is None or end_date is None:
+        if version != "latest":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="missing_required_params"
+            )
+        items = service.get_latest_event_stats_by_code(code=code)
+        matched = next((entity for entity in items if entity.event_id == event_id), None)
+        if matched is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="event_stats_not_found"
+            )
+        return {"items": [_to_item(matched)]}
+
     try:
         entity = service.get_event_stats(
             event_id=event_id,
@@ -85,24 +127,7 @@ def event_stats(
         ) from err
     if entity is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="event_stats_not_found")
-    return {
-        "event_id": entity.event_id,
-        "code": entity.code,
-        "start_date": entity.start_date.isoformat(),
-        "end_date": entity.end_date.isoformat(),
-        "sample_count": entity.sample_count,
-        "up_count": entity.up_count,
-        "down_count": entity.down_count,
-        "flat_count": entity.flat_count,
-        "up_probability": entity.up_probability,
-        "down_probability": entity.down_probability,
-        "flat_probability": entity.flat_probability,
-        "avg_next_day_return": entity.avg_next_day_return,
-        "median_next_day_return": entity.median_next_day_return,
-        "avg_next_day_range": entity.avg_next_day_range,
-        "avg_next_day_gap": entity.avg_next_day_gap,
-        "version": entity.version,
-    }
+    return {"items": [_to_item(entity)]}
 
 
 @router.get("/events/{event_id}/samples", response_model=EventSamplesResponse)
@@ -159,8 +184,8 @@ def event_samples(
 def distribution_stats(
     metric_id: str,
     code: str,
-    start_date: date,
-    end_date: date,
+    start_date: date | None = None,
+    end_date: date | None = None,
     version: str = "latest",
     _: Principal = Depends(require_user_or_admin),
     session: Session = Depends(get_db_session),
@@ -283,7 +308,7 @@ def recompute_distribution_stats(
     session: Session = Depends(get_db_session),
 ) -> dict[str, Any]:
     _validate_job_range(payload)
-    if not payload.code or payload.start_date is None or payload.end_date is None:
+    if not payload.code:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="missing_required_params"
         )

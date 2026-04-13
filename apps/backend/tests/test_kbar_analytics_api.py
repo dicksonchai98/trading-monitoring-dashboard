@@ -66,7 +66,7 @@ def _seed_kbars(session: Session, code: str = "TXF") -> None:
 
 def test_kbar_analytics_endpoints_and_jobs_flow() -> None:
     client = TestClient(app)
-    auth = _register_and_login(client, "kbar-user@example.com", "pass-kbar")
+    auth = _register_and_login(client, "kbar-user@example.com", "PassKbar123")
     headers = {"Authorization": f"Bearer {auth['access_token']}"}
 
     with get_session() as session:
@@ -112,6 +112,16 @@ def test_kbar_analytics_endpoints_and_jobs_flow() -> None:
     )
     assert distribution_job_res.status_code == 202
 
+    distribution_job_without_dates_res = client.post(
+        "/analytics/jobs/recompute-distribution-stats",
+        json={
+            "code": "TXF",
+            "metric_ids": ["day_return"],
+        },
+        headers=headers,
+    )
+    assert distribution_job_without_dates_res.status_code == 202
+
     stats_res = client.get(
         "/analytics/events/day_up_gt_100/stats",
         params={
@@ -124,6 +134,18 @@ def test_kbar_analytics_endpoints_and_jobs_flow() -> None:
     )
     assert stats_res.status_code == 200
     assert stats_res.json()["sample_count"] >= 1
+
+    all_stats_res = client.get(
+        "/analytics/events/all/stats",
+        params={
+            "code": "TXF",
+            "version": "latest",
+        },
+        headers=headers,
+    )
+    assert all_stats_res.status_code == 200
+    assert isinstance(all_stats_res.json()["items"], list)
+    assert any(item["event_id"] == "day_up_gt_100" for item in all_stats_res.json()["items"])
 
     samples_res = client.get(
         "/analytics/events/day_up_gt_100/samples",
@@ -153,10 +175,9 @@ def test_kbar_analytics_endpoints_and_jobs_flow() -> None:
     assert distribution_res.status_code == 200
     assert distribution_res.json()["sample_count"] >= 1
 
-
 def test_kbar_analytics_rejects_unknown_registry_ids() -> None:
     client = TestClient(app)
-    auth = _register_and_login(client, "kbar-user2@example.com", "pass-kbar2")
+    auth = _register_and_login(client, "kbar-user2@example.com", "PassKbar234")
     headers = {"Authorization": f"Bearer {auth['access_token']}"}
 
     stats_res = client.get(
@@ -165,6 +186,13 @@ def test_kbar_analytics_rejects_unknown_registry_ids() -> None:
         headers=headers,
     )
     assert stats_res.status_code == 404
+
+    missing_date_res = client.get(
+        "/analytics/events/day_up_gt_100/stats",
+        params={"code": "TXF"},
+        headers=headers,
+    )
+    assert missing_date_res.status_code == 400
 
     dist_res = client.get(
         "/analytics/distributions/not-exist",
