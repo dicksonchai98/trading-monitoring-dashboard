@@ -32,7 +32,7 @@ export function EmailVerificationStep({
 }: EmailVerificationStepProps): JSX.Element {
   return (
     <div className="space-y-4">
-      <p className="text-xs uppercase tracking-[0.08em] text-subtle-foreground">Step 1: Verify email</p>
+      <p className="typo-overline text-subtle-foreground">Step 1: Verify email</p>
       <label className="space-y-2 text-sm text-foreground">
         <span className="block">Email</span>
         <input

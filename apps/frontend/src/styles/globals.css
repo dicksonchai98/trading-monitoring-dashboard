@@ -110,6 +110,26 @@
   --border-strong: 225 8% 34%;
 }
 
+:root[data-color-mode="light"] {
+  --background: 0 0% 98%;
+  --foreground: 222 47% 12%;
+  --shell: 0 0% 100%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 12%;
+  --panel-hover: 210 40% 96%;
+  --primary: 24 96% 52%;
+  --primary-foreground: 0 0% 100%;
+  --muted: 210 40% 96%;
+  --muted-foreground: 215 16% 40%;
+  --subtle-foreground: 215 14% 46%;
+  --border: 214 32% 91%;
+  --border-strong: 214 28% 83%;
+  --info: 204 89% 45%;
+  --success: 152 62% 36%;
+  --warning: 38 88% 44%;
+  --danger: 0 74% 46%;
+}
+
 * {
   @apply border-border;
 }

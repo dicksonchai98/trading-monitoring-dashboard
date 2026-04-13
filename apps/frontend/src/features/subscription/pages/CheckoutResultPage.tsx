@@ -8,13 +8,15 @@ import { Card } from "@/components/ui/card";
 import { Typography } from "@/components/ui/typography";
 import { getBillingStatus, getCheckoutSessionStatus } from "@/features/subscription/api/billing";
 import { resolveEntitlementFromBillingStatus } from "@/features/subscription/lib/entitlement";
+import { useT } from "@/lib/i18n";
 import { useAuthStore } from "@/lib/store/auth-store";
 
 function BackToDashboardButton(): JSX.Element {
+  const t = useT();
   const navigate = useNavigate();
   return (
     <Button className="min-w-56" onClick={() => navigate("/dashboard")}>
-      Back to dashboard
+      {t("subscription.checkout.backToDashboard")}
     </Button>
   );
 }
@@ -24,12 +26,13 @@ interface CheckoutResultLayoutProps {
 }
 
 function CheckoutVerificationLoading(): JSX.Element {
+  const t = useT();
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 p-4">
       <Card className="flex w-full max-w-xl flex-col items-center gap-5 border-slate-700 bg-slate-950/90 px-8 py-12 text-center">
         <div className="h-10 w-10 animate-pulse rounded-full bg-slate-700" />
         <Typography as="p" variant="meta" className="text-slate-400">
-          Verifying Checkout
+          {t("subscription.checkout.verifying")}
         </Typography>
         <div className="h-4 w-64 animate-pulse rounded bg-slate-700" />
         <div className="h-4 w-48 animate-pulse rounded bg-slate-700" />
@@ -39,6 +42,7 @@ function CheckoutVerificationLoading(): JSX.Element {
 }
 
 function CheckoutResultLayout({ kind }: CheckoutResultLayoutProps): JSX.Element {
+  const t = useT();
   const navigate = useNavigate();
   const { token, role, resolved, checkoutSessionId, setCheckoutSessionId, setSession } = useAuthStore();
   const [searchParams] = useSearchParams();
@@ -120,27 +124,27 @@ function CheckoutResultLayout({ kind }: CheckoutResultLayoutProps): JSX.Element 
   const cancelVerified = kind === "cancel" && checkoutStatusQuery.isSuccess && !checkoutStatusQuery.data.is_paid;
   const statusMessage = (() => {
     if (!resolved) {
-      return "Checking current session...";
+      return t("subscription.checkout.status.checkingSession");
     }
     if (!token) {
-      return "Unable to verify payment because you are not logged in.";
+      return t("subscription.checkout.status.notLoggedIn");
     }
     if (!effectiveSessionId) {
-      return "No checkout session id found. Please retry from the subscription page.";
+      return t("subscription.checkout.status.noSessionId");
     }
     if (checkoutStatusQuery.isLoading) {
-      return "Verifying checkout status with billing service...";
+      return t("subscription.checkout.status.verifying");
     }
     if (checkoutStatusQuery.isError) {
-      return "Failed to verify checkout status. Please refresh or retry from subscription.";
+      return t("subscription.checkout.status.verifyFailed");
     }
     if (kind === "success" && checkoutStatusQuery.data?.is_paid) {
-      return "Payment verified. Your entitlement status is being synchronized.";
+      return t("subscription.checkout.status.successVerified");
     }
     if (kind === "success") {
-      return "Checkout returned successfully, but payment is not marked as paid yet.";
+      return t("subscription.checkout.status.successNotPaid");
     }
-    return "Checkout was canceled before payment was completed.";
+    return t("subscription.checkout.status.canceled");
   })();
 
   if (kind === "success") {
@@ -156,22 +160,22 @@ function CheckoutResultLayout({ kind }: CheckoutResultLayoutProps): JSX.Element 
             <CheckCircle2 className="h-10 w-10" />
           </div>
           <Typography as="p" variant="meta" className="text-emerald-200/80">
-            Payment Completed
+            {t("subscription.checkout.success.meta")}
           </Typography>
           <Typography as="h1" variant="display" className="tracking-wide text-emerald-100">
-            success
+            {t("subscription.checkout.success.title")}
           </Typography>
           <Typography as="p" variant="body" className="max-w-lg leading-relaxed text-slate-300">
             {statusMessage}
           </Typography>
           {effectiveSessionId ? (
             <Typography as="p" variant="meta" className="text-slate-400">
-              Session: {effectiveSessionId}
+              {t("subscription.checkout.session")}: {effectiveSessionId}
             </Typography>
           ) : null}
           {paymentStatus ? (
             <Typography as="p" variant="meta" className="text-slate-400">
-              Payment status: {paymentStatus}
+              {t("subscription.checkout.paymentStatus")}: {paymentStatus}
             </Typography>
           ) : null}
           <BackToDashboardButton />
@@ -192,22 +196,22 @@ function CheckoutResultLayout({ kind }: CheckoutResultLayoutProps): JSX.Element 
           <CircleX className="h-10 w-10" />
         </div>
         <Typography as="p" variant="meta" className="text-rose-100/80">
-          Checkout Interrupted
+          {t("subscription.checkout.cancel.meta")}
         </Typography>
         <Typography as="h1" variant="display" className="tracking-wide text-rose-100">
-          cancel
+          {t("subscription.checkout.cancel.title")}
         </Typography>
         <Typography as="p" variant="body" className="max-w-lg leading-relaxed text-slate-300">
           {statusMessage}
         </Typography>
         {effectiveSessionId ? (
           <Typography as="p" variant="meta" className="text-slate-400">
-            Session: {effectiveSessionId}
+            {t("subscription.checkout.session")}: {effectiveSessionId}
           </Typography>
         ) : null}
         {paymentStatus ? (
           <Typography as="p" variant="meta" className="text-slate-400">
-            Payment status: {paymentStatus}
+            {t("subscription.checkout.paymentStatus")}: {paymentStatus}
           </Typography>
         ) : null}
         <BackToDashboardButton />

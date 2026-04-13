@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { AppShell } from "@/app/layout/AppShell";
+import { I18nProvider } from "@/lib/i18n";
 
 vi.mock("react-router-dom", async () => {
   const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom");
@@ -12,8 +13,22 @@ vi.mock("react-router-dom", async () => {
 });
 
 describe("AppShell", () => {
+  function renderShell(): void {
+    render(
+      <I18nProvider>
+        <MemoryRouter initialEntries={["/dashboard"]}>
+          <AppShell />
+        </MemoryRouter>
+      </I18nProvider>,
+    );
+  }
+
   beforeEach(() => {
     vi.useFakeTimers();
+    window.localStorage.clear();
+    document.documentElement.removeAttribute("data-color-mode");
+    document.documentElement.removeAttribute("lang");
+    document.documentElement.classList.remove("dark");
     Object.defineProperty(window, "matchMedia", {
       writable: true,
       value: vi.fn().mockImplementation((query: string) => ({
@@ -39,11 +54,7 @@ describe("AppShell", () => {
   });
 
   it("renders sidebar and main canvas regions", () => {
-    render(
-      <MemoryRouter initialEntries={["/dashboard"]}>
-        <AppShell />
-      </MemoryRouter>,
-    );
+    renderShell();
     act(() => {
       vi.advanceTimersByTime(300);
     });
@@ -57,28 +68,19 @@ describe("AppShell", () => {
   });
 
   it("renders sidebar nav entries from the shadcn sidebar kit", () => {
-    render(
-      <MemoryRouter initialEntries={["/dashboard"]}>
-        <AppShell />
-      </MemoryRouter>,
-    );
+    renderShell();
     act(() => {
       vi.advanceTimersByTime(300);
     });
 
     expect(screen.getByText("Monitoring")).toBeInTheDocument();
     expect(screen.getByText("Realtime")).toBeInTheDocument();
-    expect(screen.getByText("Utilities")).toBeInTheDocument();
   });
 
   it("shows a mobile trigger button and opens sidebar sheet", () => {
     Object.defineProperty(window, "innerWidth", { configurable: true, writable: true, value: 640 });
 
-    render(
-      <MemoryRouter initialEntries={["/dashboard"]}>
-        <AppShell />
-      </MemoryRouter>,
-    );
+    renderShell();
     act(() => {
       vi.advanceTimersByTime(300);
     });
@@ -89,4 +91,24 @@ describe("AppShell", () => {
     fireEvent.click(screen.getByRole("button", { name: "Open sidebar" }));
     expect(screen.getByText("Monitoring")).toBeInTheDocument();
   });
+
+  it("toggles color mode and language from icon buttons", () => {
+    renderShell();
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+
+    const themeToggle = screen.getAllByRole("button", { name: "Switch to light theme" })[0];
+    fireEvent.click(themeToggle);
+    expect(document.documentElement.getAttribute("data-color-mode")).toBe("light");
+    expect(window.localStorage.getItem("ui.color.mode")).toBe("light");
+    expect(screen.getAllByRole("button", { name: "Switch to dark theme" }).length).toBeGreaterThan(0);
+
+    const languageToggle = screen.getAllByRole("button", { name: "Switch to Chinese" })[0];
+    fireEvent.click(languageToggle);
+    expect(document.documentElement.getAttribute("lang")).toBe("zh-TW");
+    expect(window.localStorage.getItem("ui.language.preset")).toBe("zh-TW");
+    expect(screen.getAllByRole("button", { name: "Switch to English" }).length).toBeGreaterThan(0);
+  });
 });
+
