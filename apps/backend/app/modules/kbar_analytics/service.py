@@ -309,22 +309,26 @@ class KbarAnalyticsService:
         self,
         *,
         code: str,
-        start_date: date,
-        end_date: date,
+        start_date: date | None,
+        end_date: date | None,
         metric_ids: list[str] | None,
     ) -> dict[str, int]:
         metrics = metric_ids or METRIC_REGISTRY
         for metric_id in metrics:
             ensure_metric_exists(metric_id)
 
-        features = list(
-            self.session.execute(
-                select(KbarDailyFeatureModel)
-                .where(KbarDailyFeatureModel.code == code)
-                .where(KbarDailyFeatureModel.trade_date >= start_date)
-                .where(KbarDailyFeatureModel.trade_date <= end_date)
-            ).scalars()
-        )
+        feature_stmt = select(KbarDailyFeatureModel).where(KbarDailyFeatureModel.code == code)
+        if start_date is not None:
+            feature_stmt = feature_stmt.where(KbarDailyFeatureModel.trade_date >= start_date)
+        if end_date is not None:
+            feature_stmt = feature_stmt.where(KbarDailyFeatureModel.trade_date <= end_date)
+        features = list(self.session.execute(feature_stmt).scalars())
+        if not features:
+            self.session.flush()
+            return {"stats": 0}
+
+        effective_start_date = min(item.trade_date for item in features)
+        effective_end_date = max(item.trade_date for item in features)
 
         generated = 0
         for metric_id in metrics:
@@ -336,15 +340,15 @@ class KbarAnalyticsService:
                 KbarDistributionStatModel,
                 KbarDistributionStatModel.metric_id == metric_id,
                 KbarDistributionStatModel.code == code,
-                KbarDistributionStatModel.start_date == start_date,
-                KbarDistributionStatModel.end_date == end_date,
+                KbarDistributionStatModel.start_date == effective_start_date,
+                KbarDistributionStatModel.end_date == effective_end_date,
             )
             values_sorted = sorted(values)
             stat = KbarDistributionStatModel(
                 metric_id=metric_id,
                 code=code,
-                start_date=start_date,
-                end_date=end_date,
+                start_date=effective_start_date,
+                end_date=effective_end_date,
                 sample_count=len(values),
                 mean=sum(values) / len(values),
                 median=float(median(values)),
@@ -386,6 +390,26 @@ class KbarAnalyticsService:
         else:
             stmt = stmt.order_by(KbarEventStatModel.version.desc()).limit(1)
         return self.session.execute(stmt).scalar_one_or_none()
+
+    def get_latest_event_stats_by_code(self, *, code: str) -> list[KbarEventStatModel]:
+        rows = list(
+            self.session.execute(
+                select(KbarEventStatModel)
+                .where(KbarEventStatModel.code == code)
+                .order_by(
+                    KbarEventStatModel.event_id.asc(),
+                    KbarEventStatModel.end_date.desc(),
+                    KbarEventStatModel.version.desc(),
+                )
+            ).scalars()
+        )
+
+        latest_by_event: dict[str, KbarEventStatModel] = {}
+        for row in rows:
+            if row.event_id not in latest_by_event:
+                latest_by_event[row.event_id] = row
+
+        return sorted(latest_by_event.values(), key=lambda item: item.event_id)
 
     def get_event_samples(
         self,
@@ -432,8 +456,8 @@ class KbarAnalyticsService:
         *,
         metric_id: str,
         code: str,
-        start_date: date,
-        end_date: date,
+        start_date: date | None,
+        end_date: date | None,
         version: int | None,
     ) -> KbarDistributionStatModel | None:
         ensure_metric_exists(metric_id)
@@ -441,13 +465,17 @@ class KbarAnalyticsService:
             select(KbarDistributionStatModel)
             .where(KbarDistributionStatModel.metric_id == metric_id)
             .where(KbarDistributionStatModel.code == code)
-            .where(KbarDistributionStatModel.start_date == start_date)
-            .where(KbarDistributionStatModel.end_date == end_date)
         )
+        if start_date is not None:
+            stmt = stmt.where(KbarDistributionStatModel.start_date == start_date)
+        if end_date is not None:
+            stmt = stmt.where(KbarDistributionStatModel.end_date == end_date)
         if version is not None:
             stmt = stmt.where(KbarDistributionStatModel.version == version)
-        else:
-            stmt = stmt.order_by(KbarDistributionStatModel.version.desc()).limit(1)
+        stmt = stmt.order_by(
+            KbarDistributionStatModel.computed_at.desc(),
+            KbarDistributionStatModel.version.desc(),
+        ).limit(1)
         return self.session.execute(stmt).scalar_one_or_none()
 
     def create_job(self, *, job_type: str, payload: dict[str, Any]) -> AnalyticsJobModel:
