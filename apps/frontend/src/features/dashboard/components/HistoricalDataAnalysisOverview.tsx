@@ -2,6 +2,7 @@ import { useEffect, useState, type JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { BentoGridSection } from "@/components/ui/bento-grid";
+import { ApiStatusAlert } from "@/components/ui/api-status-alert";
 import { PageLayout } from "@/components/ui/page-layout";
 import {
   getAnalyticsEvents,
@@ -9,79 +10,35 @@ import {
 } from "@/features/analytics/api/analytics";
 import { PanelCard } from "@/components/ui/panel-card";
 import { DealerPositionChart } from "@/features/dashboard/components/PanelCharts";
+import { HistoricalDataAnalysisFilters } from "@/features/dashboard/components/HistoricalDataAnalysisFilters";
+import { ApiError } from "@/lib/api/client";
 import { useAuthStore } from "@/lib/store/auth-store";
 import { useT } from "@/lib/i18n";
 
-const signalKeyPairs = [
-  {
-    title: "dashboard.analysis.signal.nightSurge.title",
-    note: "dashboard.analysis.signal.nightSurge.note",
-  },
-  {
-    title: "dashboard.analysis.signal.nightDrop.title",
-    note: "dashboard.analysis.signal.nightDrop.note",
-  },
-  {
-    title: "dashboard.analysis.signal.gapUp.title",
-    note: "dashboard.analysis.signal.gapUp.note",
-  },
-  {
-    title: "dashboard.analysis.signal.gapDown.title",
-    note: "dashboard.analysis.signal.gapDown.note",
-  },
-  {
-    title: "dashboard.analysis.signal.foreignNetBuy.title",
-    note: "dashboard.analysis.signal.foreignNetBuy.note",
-  },
-  {
-    title: "dashboard.analysis.signal.foreignNetSell.title",
-    note: "dashboard.analysis.signal.foreignNetSell.note",
-  },
-  {
-    title: "dashboard.analysis.signal.volumeSpike.title",
-    note: "dashboard.analysis.signal.volumeSpike.note",
-  },
-  {
-    title: "dashboard.analysis.signal.volumeDry.title",
-    note: "dashboard.analysis.signal.volumeDry.note",
-  },
-  {
-    title: "dashboard.analysis.signal.volumeUpDayOverDay.title",
-    note: "dashboard.analysis.signal.volumeUpDayOverDay.note",
-  },
-  {
-    title: "dashboard.analysis.signal.volumeDownDayOverDay.title",
-    note: "dashboard.analysis.signal.volumeDownDayOverDay.note",
-  },
-  {
-    title: "dashboard.analysis.signal.largeTraderExcess.title",
-    note: "dashboard.analysis.signal.largeTraderExcess.note",
-  },
-  {
-    title: "dashboard.analysis.signal.largeTraderLight.title",
-    note: "dashboard.analysis.signal.largeTraderLight.note",
-  },
-  {
-    title: "dashboard.analysis.signal.dayNightUp.title",
-    note: "dashboard.analysis.signal.dayNightUp.note",
-  },
-  {
-    title: "dashboard.analysis.signal.dayNightDown.title",
-    note: "dashboard.analysis.signal.dayNightDown.note",
-  },
-] as const;
+const EVENT_LABEL_ZH_MAP: Record<string, string> = {
+  all: "全部事件",
+  day_up_gt_100: "單日上漲超過 100 點",
+  day_up_gt_200: "單日上漲超過 200 點",
+  day_down_lt_minus_100: "單日下跌超過 100 點",
+  day_down_lt_minus_200: "單日下跌超過 200 點",
+  day_range_gt_200: "單日振幅超過 200 點",
+  day_range_gt_300: "單日振幅超過 300 點",
+  close_position_gt_0_8: "收盤位於高檔（> 0.8）",
+  close_position_lt_0_2: "收盤位於低檔（< 0.2）",
+  gap_up_gt_100: "跳空上漲超過 100 點",
+  gap_down_lt_minus_100: "跳空下跌超過 100 點",
+};
+
+function toZhEventLabel(eventId: string, fallback?: string): string {
+  return EVENT_LABEL_ZH_MAP[eventId] ?? fallback ?? eventId;
+}
 
 export function HistoricalDataAnalysisOverview(): JSX.Element {
   const t = useT();
 
   const { token } = useAuthStore();
-  const [eventId, setEventId] = useState("day_up_gt_100");
+  const [eventId, setEventId] = useState("all");
   const [code, setCode] = useState("TXFR1");
-  const [startDate, setStartDate] = useState("2026-01-01");
-  const [endDate, setEndDate] = useState("2026-01-31");
-  const [version, setVersion] = useState("latest");
-
-  const hasInvalidDateRange = startDate > endDate;
   const hasInvalidRequiredInput = !eventId.trim();
   const eventsQuery = useQuery({
     queryKey: ["historical-event-registry"],
@@ -89,8 +46,18 @@ export function HistoricalDataAnalysisOverview(): JSX.Element {
     retry: false,
   });
   const eventOptions = eventsQuery.data?.events ?? [];
+  const eventSelectOptions = [
+    { value: "all", label: toZhEventLabel("all", "all") },
+    ...eventOptions.map((item) => ({
+      value: item.id,
+      label: toZhEventLabel(item.id, item.label ?? item.id),
+    })),
+  ];
 
   useEffect(() => {
+    if (eventId === "all") {
+      return;
+    }
     if (eventOptions.length === 0) {
       return;
     }
@@ -105,27 +72,25 @@ export function HistoricalDataAnalysisOverview(): JSX.Element {
       "historical-event-stats",
       eventId,
       code,
-      startDate,
-      endDate,
-      version,
     ],
     queryFn: () =>
       getEventStats(token, {
         eventId: eventId.trim(),
         code,
-        startDate,
-        endDate,
-        version,
         flatThreshold: 0,
       }),
-    enabled:
-      !hasInvalidDateRange &&
-      !hasInvalidRequiredInput &&
-      eventOptions.length > 0 &&
-      !eventsQuery.isLoading,
+    enabled: !hasInvalidRequiredInput,
     retry: false,
   });
 
+  const apiStatus = (() => {
+    const err = statsQuery.error ?? eventsQuery.error;
+    if (err instanceof ApiError) {
+      return err.status;
+    }
+    return undefined;
+  })();
+  const statsItems = statsQuery.data?.items ?? [];
   return (
     <PageLayout
       title={t("dashboard.analysis.title")}
@@ -134,113 +99,86 @@ export function HistoricalDataAnalysisOverview(): JSX.Element {
       }
       bodyClassName="space-y-[var(--section-gap)]"
     >
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
-        <label className="flex flex-col gap-1">
-          <span className="text-xs uppercase tracking-[0.08em] text-muted-foreground">
-            Event ID
-          </span>
-          <select
-            id="historical-event-id"
-            aria-label="event_id"
-            value={eventId}
-            onChange={(event) => setEventId(event.target.value)}
-            className="h-9 rounded-sm border border-border bg-card px-3 text-sm text-foreground"
-          >
-            {eventsQuery.isLoading ? (
-              <option value="">Loading events...</option>
-            ) : null}
-            {eventOptions.length === 0 && !eventsQuery.isLoading ? (
-              <option value="">No events available</option>
-            ) : null}
-            {eventOptions.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.label ?? item.id}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="flex flex-col gap-1">
-          <span className="text-xs uppercase tracking-[0.08em] text-muted-foreground">
-            Code
-          </span>
-          <select
-            id="historical-code"
-            aria-label="code"
-            value={code}
-            onChange={(event) => setCode(event.target.value)}
-            className="h-9 rounded-sm border border-border bg-card px-3 text-sm text-foreground"
-          >
-            <option value="TXFR1">TXFR1</option>
-            <option value="TXFD1">TXFD1</option>
-            <option value="TXF">TXF</option>
-          </select>
-        </label>
-
-        <label className="flex flex-col gap-1">
-          <span className="text-xs uppercase tracking-[0.08em] text-muted-foreground">
-            From
-          </span>
-          <input
-            id="historical-start-date"
-            aria-label="start_date"
-            type="date"
-            value={startDate}
-            onChange={(event) => setStartDate(event.target.value)}
-            className="h-9 rounded-sm border border-border bg-card px-3 text-sm text-foreground"
-          />
-        </label>
-
-        <label className="flex flex-col gap-1">
-          <span className="text-xs uppercase tracking-[0.08em] text-muted-foreground">
-            To
-          </span>
-          <input
-            id="historical-end-date"
-            aria-label="end_date"
-            type="date"
-            value={endDate}
-            onChange={(event) => setEndDate(event.target.value)}
-            className="h-9 rounded-sm border border-border bg-card px-3 text-sm text-foreground"
-          />
-        </label>
-
-        <label className="flex flex-col gap-1">
-          <span className="text-xs uppercase tracking-[0.08em] text-muted-foreground">
-            Version
-          </span>
-          <select
-            id="historical-version"
-            aria-label="version"
-            value={version}
-            onChange={(event) => setVersion(event.target.value)}
-            className="h-9 rounded-sm border border-border bg-card px-3 text-sm text-foreground"
-          >
-            <option value="latest">latest</option>
-            <option value="1">1</option>
-            <option value="2">2</option>
-          </select>
-        </label>
-      </div>
+      <HistoricalDataAnalysisFilters
+        eventId={eventId}
+        code={code}
+        eventOptions={eventSelectOptions}
+        isEventsLoading={eventsQuery.isLoading}
+        onEventIdChange={setEventId}
+        onCodeChange={setCode}
+      />
+      {apiStatus && apiStatus >= 400 ? (
+        <ApiStatusAlert message={`Historical signal API failed (HTTP ${apiStatus}).`} status={apiStatus} />
+      ) : null}
 
       <BentoGridSection
         title={t("dashboard.analysis.sectionTitle")}
         gridClassName="h-full auto-rows-fr lg:grid-cols-8"
       >
-        {signalKeyPairs.map((panel) => (
+        {statsQuery.isLoading ? (
           <PanelCard
-            key={panel.title}
-            title={t(panel.title)}
-            note={t(panel.note)}
+            title={eventId}
+            note={`Code: ${code}`}
             span={2}
             units={1}
             className="h-full"
             contentClassName="pt-[var(--panel-gap)]"
             data-testid="historical-signal-panel"
           >
-            <DealerPositionChart />
+            <div className="space-y-2" data-testid="historical-signal-loading">
+              <div className="h-24 animate-pulse rounded bg-muted" />
+              <div className="h-4 w-24 animate-pulse rounded bg-muted" />
+            </div>
           </PanelCard>
-        ))}
+        ) : statsItems.length > 0 ? (
+          statsItems.map((item) => {
+            const eventProbabilityData = [
+              {
+                name: "Up",
+                value: Number((item.up_probability * 100).toFixed(1)),
+                fill: "#ef4444",
+              },
+              {
+                name: "Flat",
+                value: Number((item.flat_probability * 100).toFixed(1)),
+                fill: "#9ca3af",
+              },
+              {
+                name: "Down",
+                value: Number((item.down_probability * 100).toFixed(1)),
+                fill: "#22c55e",
+              },
+            ];
+            return (
+              <PanelCard
+                key={`${item.event_id}-${item.version}`}
+                title={toZhEventLabel(item.event_id, item.event_id)}
+                note={`Code: ${item.code}`}
+                span={2}
+                units={1}
+                className="h-full"
+                contentClassName="pt-[var(--panel-gap)]"
+                data-testid="historical-signal-panel"
+              >
+                <DealerPositionChart data={eventProbabilityData} />
+              </PanelCard>
+            );
+          })
+        ) : (
+          <PanelCard
+            title={eventId}
+            note={`Code: ${code}`}
+            span={2}
+            units={1}
+            className="h-full"
+            contentClassName="pt-[var(--panel-gap)]"
+            data-testid="historical-signal-panel"
+          >
+            <div className="text-sm text-muted-foreground">
+              No historical signal data in current range.
+            </div>
+          </PanelCard>
+        )}
       </BentoGridSection>
     </PageLayout>
   );

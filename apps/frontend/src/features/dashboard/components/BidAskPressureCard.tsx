@@ -2,6 +2,7 @@ import type { JSX } from "react";
 import { MarketOverviewChartCard } from "@/features/dashboard/components/MarketOverviewChartCard";
 import { BidAskPressureChart } from "@/features/dashboard/components/PanelCharts";
 import type { OrderFlowSeriesPoint } from "@/features/dashboard/lib/market-overview-mapper";
+import { useT } from "@/lib/i18n";
 
 interface BidAskPressureCardProps {
   series: OrderFlowSeriesPoint[];
@@ -14,18 +15,19 @@ export function BidAskPressureCard({
   loading,
   error,
 }: BidAskPressureCardProps): JSX.Element {
+  const t = useT();
   return (
     <MarketOverviewChartCard
-      title="Bid / Ask Pressure"
+      title={t("dashboard.realtime.bidAsk.title")}
       testId="bid-ask-pressure-card"
       span={4}
-      meta="Depth skew"
+      meta={t("dashboard.realtime.bidAsk.meta")}
       loading={loading}
       error={error}
       hasData={series.length > 0}
-      loadingText="Loading bid / ask pressure..."
-      errorText="Unable to load bid / ask pressure data."
-      emptyText="No bid / ask pressure data available."
+      loadingText={t("dashboard.realtime.bidAsk.loading")}
+      errorText={t("dashboard.realtime.bidAsk.error")}
+      emptyText={t("dashboard.realtime.bidAsk.empty")}
     >
       <BidAskPressureChart data={series} />
     </MarketOverviewChartCard>

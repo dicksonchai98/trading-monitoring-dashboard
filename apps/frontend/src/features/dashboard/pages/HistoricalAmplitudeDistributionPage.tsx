@@ -14,9 +14,10 @@ import {
 import { Navigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { BentoGridSection } from "@/components/ui/bento-grid";
+import { ApiStatusAlert } from "@/components/ui/api-status-alert";
+import { FilterLayer, type FilterField } from "@/components/filter-layer";
 import { PageLayout } from "@/components/ui/page-layout";
 import { PanelCard } from "@/components/ui/panel-card";
-import { Typography } from "@/components/ui/typography";
 import { useT } from "@/lib/i18n";
 import {
   getAnalyticsMetrics,
@@ -32,6 +33,19 @@ interface HistogramRow {
   end: number;
 }
 
+const metricLabelMapZh: Record<string, string> = {
+  day_range: "日内振幅",
+  day_range_pct: "日内振幅比例",
+  day_return: "日涨跌点数",
+  day_return_pct: "日涨跌幅",
+  gap_from_prev_close: "相对昨收跳空",
+  close_position: "收盘位置",
+};
+
+function mapMetricLabel(metricId: string, fallbackLabel?: string): string {
+  return metricLabelMapZh[metricId] ?? fallbackLabel ?? metricId;
+}
+
 function parseBinRange(raw: string): { start: number; end: number } {
   const [startRaw, endRaw] = raw.split("~");
   const start = Number(startRaw);
@@ -42,7 +56,41 @@ function parseBinRange(raw: string): { start: number; end: number } {
   };
 }
 
-function toHistogramRows(bins: string[], counts: number[]): HistogramRow[] {
+function toHistogramRows(bins: Array<string | number>, counts: number[]): HistogramRow[] {
+  if (bins.length === 0) {
+    return [];
+  }
+
+  const toNumericEdges = (): number[] => {
+    if (typeof bins[0] === "number") {
+      return bins.filter((edge): edge is number => typeof edge === "number");
+    }
+    const stringBins = bins.filter((edge): edge is string => typeof edge === "string");
+    const allNumeric = stringBins.every((edge) => edge.includes("~") === false && Number.isFinite(Number(edge)));
+    if (!allNumeric) {
+      return [];
+    }
+    return stringBins.map((edge) => Number(edge));
+  };
+
+  const edges = toNumericEdges();
+  if (edges.length > 0) {
+    if (edges.length < 2) {
+      return [];
+    }
+
+    return counts.map((count, index) => {
+      const start = edges[index] ?? edges[0];
+      const end = edges[index + 1] ?? edges[edges.length - 1];
+      return {
+        label: `${start.toFixed(2)}~${end.toFixed(2)}`,
+        count,
+        start,
+        end,
+      };
+    });
+  }
+
   return bins.map((bin, index) => {
     const { start, end } = parseBinRange(bin);
     return {
@@ -55,13 +103,11 @@ function toHistogramRows(bins: string[], counts: number[]): HistogramRow[] {
 }
 
 export function HistoricalAmplitudeDistributionPage(): JSX.Element {
+  const t = useT();
   const { token } = useAuthStore();
-  const [code, setCode] = useState("TXF");
-  const [startDate, setStartDate] = useState("2026-01-01");
-  const [endDate, setEndDate] = useState("2026-01-31");
+  const [code, setCode] = useState("TXFR1");
   const [metricId, setMetricId] = useState("");
   const version = "latest";
-  const hasInvalidDateRange = startDate > endDate;
 
   const metricsQuery = useQuery({
     queryKey: ["historical-amplitude-metrics"],
@@ -80,19 +126,15 @@ export function HistoricalAmplitudeDistributionPage(): JSX.Element {
       "historical-amplitude-distribution",
       metricId,
       code,
-      startDate,
-      endDate,
       version,
     ],
     queryFn: () =>
       getDistributionStats(token, {
         metricId,
         code,
-        startDate,
-        endDate,
         version,
       }),
-    enabled: Boolean(metricId) && !hasInvalidDateRange,
+    enabled: Boolean(metricId),
   });
 
   const apiStatus = useMemo(() => {
@@ -120,6 +162,35 @@ export function HistoricalAmplitudeDistributionPage(): JSX.Element {
   const downDays = histogramRows
     .filter((row) => row.end <= 0)
     .reduce((sum, row) => sum + row.count, 0);
+  const filterFields: FilterField[] = [
+    {
+      id: "amplitude-code",
+      label: t("dashboard.amplitude.filter.code"),
+      type: "select",
+      value: code,
+      options: [
+        { value: "TXFR1", label: "TXFR1" },
+        { value: "TXFD1", label: "TXFD1" },
+        { value: "TXF", label: "TXF" },
+      ],
+      onValueChange: setCode,
+    },
+    {
+      id: "amplitude-metric",
+      label: t("dashboard.amplitude.filter.metric"),
+      className: "md:col-span-2",
+      type: "select",
+      value: metricId || "__none__",
+      options:
+        metrics.length > 0
+          ? metrics.map((metric) => ({
+              value: metric.id,
+              label: mapMetricLabel(metric.id, metric.label),
+            }))
+          : [{ value: "__none__", label: "No metrics available", disabled: true }],
+      onValueChange: setMetricId,
+    },
+  ];
 
   return (
     <PageLayout
@@ -127,92 +198,33 @@ export function HistoricalAmplitudeDistributionPage(): JSX.Element {
       actions={<Badge variant="info">{t("dashboard.amplitude.badge")}</Badge>}
       bodyClassName="space-y-[var(--section-gap)]"
     >
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
-        <label className="flex flex-col gap-1">
-          <span className="text-xs uppercase tracking-[0.08em] text-muted-foreground">
-            Code
-          </span>
-          <select
-            className="h-9 rounded-sm border border-border bg-card px-3 text-sm text-foreground"
-            onChange={(event) => setCode(event.target.value)}
-            value={code}
-          >
-            <option value="TXFR1">TXFR1</option>
-            <option value="TXFD1">TXFD1</option>
-            <option value="TXF">TXF</option>
-          </select>
-        </label>
+      <FilterLayer fields={filterFields} />
 
-        <label className="flex flex-col gap-1 md:col-span-2">
-          <span className="text-xs uppercase tracking-[0.08em] text-muted-foreground">
-            Metric
-          </span>
-          <select
-            className="h-9 rounded-sm border border-border bg-card px-3 text-sm text-foreground"
-            onChange={(event) => setMetricId(event.target.value)}
-            value={metricId}
-          >
-            {metrics.map((metric) => (
-              <option key={metric.id} value={metric.id}>
-                {metric.label ?? metric.id}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="flex flex-col gap-1">
-          <span className="text-xs uppercase tracking-[0.08em] text-muted-foreground">
-            From
-          </span>
-          <input
-            className="h-9 rounded-sm border border-border bg-card px-2 text-sm text-foreground"
-            onChange={(event) => setStartDate(event.target.value)}
-            type="date"
-            value={startDate}
-          />
-        </label>
-        <label className="flex flex-col gap-1">
-          <span className="text-xs uppercase tracking-[0.08em] text-muted-foreground">
-            To
-          </span>
-          <input
-            className="h-9 rounded-sm border border-border bg-card px-2 text-sm text-foreground"
-            onChange={(event) => setEndDate(event.target.value)}
-            type="date"
-            value={endDate}
-          />
-        </label>
-      </div>
-
-      <BentoGridSection title="HISTORICAL AMPLITUDE DISTRIBUTION">
+      <BentoGridSection title={t("dashboard.amplitude.sectionTitle")}>
         <PanelCard
-          title="Distribution Histogram"
+          title={t("dashboard.amplitude.hist.title")}
           span={12}
-          note="Center(0): neutral. Left side: down days. Right side: up days."
-          meta={`${distributionQuery.data?.sample_count ?? 0} samples`}
+          note={t("dashboard.amplitude.hist.note")}
+          meta={t("dashboard.amplitude.meta", {
+            count: String(distributionQuery.data?.sample_count ?? 0),
+          })}
           units={2}
         >
           <div className="mt-[var(--panel-gap)] space-y-3">
-            {hasInvalidDateRange ? (
-              <div className="rounded-sm border border-[#ef4444]/40 bg-[#ef4444]/10 px-3 py-2 text-sm text-[#ef4444]">
-                Invalid date range: start date must be before or equal to end
-                date.
-              </div>
-            ) : null}
-
             {apiStatus &&
             apiStatus >= 400 &&
             apiStatus !== 401 &&
             apiStatus !== 403 ? (
-              <div className="rounded-sm border border-[#ef4444]/40 bg-[#ef4444]/10 px-3 py-2 text-sm text-[#ef4444]">
-                Failed to load distribution data (HTTP {apiStatus}).
-              </div>
+              <ApiStatusAlert
+                message={t("dashboard.amplitude.error.fetch", { status: String(apiStatus) })}
+                status={apiStatus}
+              />
             ) : null}
 
             <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              <Badge variant="success">Up Days: {upDays}</Badge>
-              <Badge variant="danger">Down Days: {downDays}</Badge>
-              <Badge variant="neutral">Net: {upDays - downDays}</Badge>
+              <Badge variant="success">{t("dashboard.amplitude.upDays")}: {upDays}</Badge>
+              <Badge variant="danger">{t("dashboard.amplitude.downDays")}: {downDays}</Badge>
+              <Badge variant="neutral">{t("dashboard.amplitude.net")}: {upDays - downDays}</Badge>
             </div>
 
             {distributionQuery.isLoading ? (
@@ -225,7 +237,7 @@ export function HistoricalAmplitudeDistributionPage(): JSX.Element {
                 className="rounded-sm border border-border px-3 py-2 text-sm text-muted-foreground"
                 data-testid="amplitude-histogram-empty"
               >
-                No histogram data for current filters.
+                {t("dashboard.amplitude.empty")}
               </div>
             ) : (
               <div
@@ -271,11 +283,11 @@ export function HistoricalAmplitudeDistributionPage(): JSX.Element {
                         color: "hsl(var(--foreground))",
                       }}
                       formatter={(value) => [
-                        `${Number(value ?? 0)} days`,
-                        "Count",
+                        t("dashboard.amplitude.tooltip.days", { value: String(Number(value ?? 0)) }),
+                        t("dashboard.amplitude.tooltip.count"),
                       ]}
                       labelFormatter={(label) =>
-                        `Amplitude bucket: ${label} pts`
+                        t("dashboard.amplitude.tooltip.bucket", { label: String(label) })
                       }
                     />
                     <Bar dataKey="count">

@@ -1,10 +1,11 @@
 import type { JSX } from "react";
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
+import { FilterLayer, type FilterField } from "@/components/filter-layer";
 import { MultiSelect } from "@/components/multi-select";
+import { ApiStatusAlert } from "@/components/ui/api-status-alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { PanelCard } from "@/components/ui/panel-card";
 import {
   triggerHistoricalBackfillJob,
   type HistoricalBackfillTriggerResponse,
@@ -15,14 +16,6 @@ import { ApiError } from "@/lib/api/client";
 
 type DateMode = "single" | "range";
 type LoadStatus = "idle" | "loading" | "success" | "error";
-
-interface CreatedBackfillJob {
-  code: string;
-  endDate: string;
-  jobId: number;
-  startDate: string;
-  status: string;
-}
 
 interface TriggerBatchInput {
   codes: string[];
@@ -42,21 +35,6 @@ const backfillCodeOptions = [
   { value: "TXFD1", label: "TXFD1" },
   { value: "TXF", label: "TXF" },
 ];
-
-function toCreatedJob(
-  response: HistoricalBackfillTriggerResponse,
-  code: string,
-  startDate: string,
-  endDate: string,
-): CreatedBackfillJob {
-  return {
-    code,
-    endDate,
-    jobId: response.job_id,
-    startDate,
-    status: response.status,
-  };
-}
 
 function toUnifiedJob(
   response: HistoricalBackfillTriggerResponse,
@@ -105,7 +83,7 @@ export function BackfillPanel({ token, onJobsCreated }: BackfillPanelProps): JSX
   const [status, setStatus] = useState<LoadStatus>("idle");
   const [errorMessage, setErrorMessage] = useState("");
   const [progress, setProgress] = useState(0);
-  const [createdJobs, setCreatedJobs] = useState<CreatedBackfillJob[]>([]);
+  const [createdCount, setCreatedCount] = useState(0);
 
   const triggerMutation = useMutation({
     mutationFn: async ({
@@ -114,11 +92,7 @@ export function BackfillPanel({ token, onJobsCreated }: BackfillPanelProps): JSX
       endDate,
       overwriteMode: modeValue,
       token: authToken,
-    }: TriggerBatchInput): Promise<{
-      localRows: CreatedBackfillJob[];
-      unifiedRows: UnifiedLoaderJobRecord[];
-    }> => {
-      const localRows: CreatedBackfillJob[] = [];
+    }: TriggerBatchInput): Promise<{ unifiedRows: UnifiedLoaderJobRecord[] }> => {
       const unifiedRows: UnifiedLoaderJobRecord[] = [];
 
       for (const [index, code] of codes.entries()) {
@@ -128,12 +102,11 @@ export function BackfillPanel({ token, onJobsCreated }: BackfillPanelProps): JSX
           overwrite_mode: modeValue,
           start_date: startDate,
         });
-        localRows.push(toCreatedJob(response, code, startDate, endDate));
         unifiedRows.push(toUnifiedJob(response, code, startDate, endDate));
         setProgress(Math.round(((index + 1) / codes.length) * 100));
       }
 
-      return { localRows, unifiedRows };
+      return { unifiedRows };
     },
   });
 
@@ -160,14 +133,14 @@ export function BackfillPanel({ token, onJobsCreated }: BackfillPanelProps): JSX
     if (validationError) {
       setStatus("error");
       setErrorMessage(validationError);
-      setCreatedJobs([]);
+      setCreatedCount(0);
       setProgress(0);
       return;
     }
     if (!token) {
       setStatus("error");
       setErrorMessage("Please login before triggering backfill jobs.");
-      setCreatedJobs([]);
+      setCreatedCount(0);
       setProgress(0);
       return;
     }
@@ -187,107 +160,97 @@ export function BackfillPanel({ token, onJobsCreated }: BackfillPanelProps): JSX
         startDate,
         token,
       });
-      setCreatedJobs(result.localRows);
+      setCreatedCount(result.unifiedRows.length);
       onJobsCreated(result.unifiedRows);
       setStatus("success");
     } catch (error: unknown) {
       setStatus("error");
       setErrorMessage(mapApiError(error));
-      setCreatedJobs([]);
+      setCreatedCount(0);
       setProgress(0);
     }
   }
 
   const dateDisplay = mode === "single" ? singleDate : `${rangeStart} ~ ${rangeEnd}`;
+  const filterFields: FilterField[] = [
+    {
+      id: "backfill-date-mode",
+      label: "Date Mode",
+      type: "select",
+      value: mode,
+      triggerTestId: "backfill-date-mode",
+      options: [
+        { value: "single", label: "Single Date" },
+        { value: "range", label: "Date Range" },
+      ],
+      onValueChange: (value) => setMode(value as DateMode),
+    },
+    ...(mode === "single"
+      ? [
+          {
+            id: "backfill-single-date",
+            label: "Trading Date",
+            type: "date" as const,
+            value: singleDate,
+            onValueChange: setSingleDate,
+          },
+        ]
+      : [
+          {
+            id: "backfill-range-start",
+            label: "From",
+            type: "date" as const,
+            value: rangeStart,
+            onValueChange: setRangeStart,
+          },
+          {
+            id: "backfill-range-end",
+            label: "To",
+            type: "date" as const,
+            value: rangeEnd,
+            onValueChange: setRangeEnd,
+          },
+        ]),
+    {
+      type: "custom",
+      key: "backfill-load-items",
+      className: "flex flex-col gap-1 md:col-span-2",
+      render: () => (
+        <>
+          <span className="typo-overline text-muted-foreground">Load Items</span>
+          <MultiSelect
+            className="w-full"
+            dataTestId="backfill-items-select"
+            maxCount={2}
+            onValueChange={setSelectedCodes}
+            options={backfillCodeOptions}
+            placeholder="Select codes..."
+            value={selectedCodes}
+          />
+        </>
+      ),
+    },
+    {
+      id: "backfill-overwrite-mode",
+      label: "Overwrite Mode",
+      type: "select",
+      value: overwriteMode,
+      options: [
+        { value: "closed_only", label: "closed_only" },
+        { value: "force", label: "force" },
+      ],
+      onValueChange: (value) => setOverwriteMode(value as HistoricalOverwriteMode),
+    },
+  ];
 
   return (
-    <PanelCard title="Backfill Jobs" span={12} note="Trigger historical backfill jobs.">
-      <div className="mt-[var(--panel-gap)] space-y-3">
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-6">
-          <label className="flex flex-col gap-1">
-            <span className="text-xs uppercase tracking-[0.08em] text-muted-foreground">
-              Date Mode
-            </span>
-            <select
-              className="h-9 rounded-sm border border-border bg-card px-3 text-sm text-foreground"
-              data-testid="backfill-date-mode"
-              onChange={(event) => setMode(event.target.value as DateMode)}
-              value={mode}
-            >
-              <option value="single">Single Date</option>
-              <option value="range">Date Range</option>
-            </select>
-          </label>
-
-          {mode === "single" ? (
-            <label className="flex flex-col gap-1">
-              <span className="text-xs uppercase tracking-[0.08em] text-muted-foreground">
-                Trading Date
-              </span>
-              <input
-                className="h-9 rounded-sm border border-border bg-card px-3 text-sm text-foreground"
-                onChange={(event) => setSingleDate(event.target.value)}
-                type="date"
-                value={singleDate}
-              />
-            </label>
-          ) : (
-            <>
-              <label className="flex flex-col gap-1">
-                <span className="text-xs uppercase tracking-[0.08em] text-muted-foreground">
-                  From
-                </span>
-                <input
-                  className="h-9 rounded-sm border border-border bg-card px-3 text-sm text-foreground"
-                  onChange={(event) => setRangeStart(event.target.value)}
-                  type="date"
-                  value={rangeStart}
-                />
-              </label>
-              <label className="flex flex-col gap-1">
-                <span className="text-xs uppercase tracking-[0.08em] text-muted-foreground">
-                  To
-                </span>
-                <input
-                  className="h-9 rounded-sm border border-border bg-card px-3 text-sm text-foreground"
-                  onChange={(event) => setRangeEnd(event.target.value)}
-                  type="date"
-                  value={rangeEnd}
-                />
-              </label>
-            </>
-          )}
-
-          <label className="flex flex-col gap-1 md:col-span-2">
-            <span className="text-xs uppercase tracking-[0.08em] text-muted-foreground">
-              Load Items
-            </span>
-            <MultiSelect
-              className="w-full"
-              dataTestId="backfill-items-select"
-              maxCount={2}
-              onValueChange={setSelectedCodes}
-              options={backfillCodeOptions}
-              placeholder="Select codes..."
-              value={selectedCodes}
-            />
-          </label>
-
-          <label className="flex flex-col gap-1">
-            <span className="text-xs uppercase tracking-[0.08em] text-muted-foreground">
-              Overwrite Mode
-            </span>
-            <select
-              className="h-9 rounded-sm border border-border bg-card px-3 text-sm text-foreground"
-              onChange={(event) => setOverwriteMode(event.target.value as HistoricalOverwriteMode)}
-              value={overwriteMode}
-            >
-              <option value="closed_only">closed_only</option>
-              <option value="force">force</option>
-            </select>
-          </label>
-
-          <div className="md:col-span-6 flex items-center justify-end gap-2">
+    <div className="space-y-3">
+      <FilterLayer
+        fields={filterFields}
+        className="md:grid-cols-6"
+        actionsClassName="md:col-span-6"
+        actions={
+          <>
             <Button
               data-testid="backfill-load-button"
               disabled={status === "loading" || triggerMutation.isPending}
@@ -300,78 +263,47 @@ export function BackfillPanel({ token, onJobsCreated }: BackfillPanelProps): JSX
               onClick={() => {
                 setStatus("idle");
                 setErrorMessage("");
-                setCreatedJobs([]);
+                setCreatedCount(0);
                 setProgress(0);
               }}
               variant="outline"
             >
               Reset
             </Button>
-          </div>
+          </>
+        }
+      />
+
+      <div className="space-y-3 text-sm" data-testid="backfill-load-status">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="neutral">Mode: {mode === "single" ? "Single Date" : "Date Range"}</Badge>
+          <Badge variant="info">Date: {dateDisplay}</Badge>
+          <Badge variant="info">Codes: {selectedCodes.length}</Badge>
+          <Badge variant="info">Overwrite: {overwriteMode}</Badge>
         </div>
 
-        <div className="space-y-3 text-sm" data-testid="backfill-load-status">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="neutral">Mode: {mode === "single" ? "Single Date" : "Date Range"}</Badge>
-            <Badge variant="info">Date: {dateDisplay}</Badge>
-            <Badge variant="info">Codes: {selectedCodes.length}</Badge>
-            <Badge variant="info">Overwrite: {overwriteMode}</Badge>
+        {status === "loading" ? (
+          <div className="space-y-2" data-testid="backfill-loading">
+            <p className="text-muted-foreground">Triggering historical backfill jobs. Please wait...</p>
+            <div className="h-2 w-full rounded bg-muted">
+              <div
+                className="h-2 rounded bg-primary transition-all"
+                data-testid="backfill-progress"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">{progress}%</p>
           </div>
+        ) : null}
 
-          {status === "loading" ? (
-            <div className="space-y-2" data-testid="backfill-loading">
-              <p className="text-muted-foreground">Triggering historical backfill jobs. Please wait...</p>
-              <div className="h-2 w-full rounded bg-muted">
-                <div
-                  className="h-2 rounded bg-primary transition-all"
-                  data-testid="backfill-progress"
-                  style={{ width: `${progress}%` }}
-                />
-              </div>
-              <p className="text-xs text-muted-foreground">{progress}%</p>
-            </div>
-          ) : null}
+        {status === "error" ? <ApiStatusAlert message={errorMessage} /> : null}
 
-          {status === "error" ? (
-            <div className="rounded-sm border border-[#ef4444]/40 bg-[#ef4444]/10 px-3 py-2 text-[#ef4444]">
-              {errorMessage}
-            </div>
-          ) : null}
-
-          {status === "success" ? (
-            <div className="rounded-sm border border-[#22c55e]/35 bg-[#22c55e]/10 px-3 py-2 text-[#14532d]">
-              Created {createdJobs.length} backfill job(s) successfully.
-            </div>
-          ) : null}
-
-          {createdJobs.length > 0 ? (
-            <div className="overflow-x-auto rounded-sm border border-border" data-testid="backfill-result-table">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-shell text-muted-foreground">
-                  <tr>
-                    <th className="px-3 py-2 font-medium">Code</th>
-                    <th className="px-3 py-2 font-medium">Job ID</th>
-                    <th className="px-3 py-2 font-medium">Status</th>
-                    <th className="px-3 py-2 font-medium">From</th>
-                    <th className="px-3 py-2 font-medium">To</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {createdJobs.map((job) => (
-                    <tr className="border-t border-border" key={`${job.code}-${job.jobId}`}>
-                      <td className="px-3 py-2 text-foreground">{job.code}</td>
-                      <td className="px-3 py-2 text-foreground">{job.jobId}</td>
-                      <td className="px-3 py-2 text-foreground">{job.status}</td>
-                      <td className="px-3 py-2 text-foreground">{job.startDate}</td>
-                      <td className="px-3 py-2 text-foreground">{job.endDate}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : null}
-        </div>
+        {status === "success" ? (
+          <div className="rounded-sm border border-[#22c55e]/35 bg-[#22c55e]/10 px-3 py-2 text-[#14532d]">
+            Created {createdCount} backfill job(s) successfully.
+          </div>
+        ) : null}
       </div>
-    </PanelCard>
+    </div>
   );
 }
