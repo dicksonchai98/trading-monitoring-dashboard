@@ -49,6 +49,21 @@ interface GapKlineDatum {
   changePct: number;
 }
 
+type NeedleMetricKey =
+  | "mainForce"
+  | "mainChip"
+  | "longShortForce"
+  | "retailSmallOrder"
+  | "bigOrder";
+
+interface MetricPanelConfig {
+  key: "piechart with needle";
+  metricKey: NeedleMetricKey;
+  label: string;
+  strengthTestId: string;
+  gaugeTestId: string;
+}
+
 const KLINE_UP_COLOR = "#ef4444";
 const KLINE_DOWN_COLOR = "#22c55e";
 const GAP_K_SYMBOLS = ["2330", "2317", "2454", "2308", "2881", "6505"] as const;
@@ -142,8 +157,44 @@ export function getNeedleStyle(
   };
 }
 
-function getMetricConfigs(): MetricPanelConfig[] {
-  return metricsConfig as MetricPanelConfig[];
+function getMetricConfigs(t: ReturnType<typeof useT>): MetricPanelConfig[] {
+  return [
+    {
+      key: "piechart with needle",
+      metricKey: "mainForce",
+      label: t("dashboard.metrics.needle.mainForce"),
+      strengthTestId: "live-metrics-main-force-strength",
+      gaugeTestId: "live-metrics-main-force-gauge",
+    },
+    {
+      key: "piechart with needle",
+      metricKey: "mainChip",
+      label: t("dashboard.metrics.needle.mainChip"),
+      strengthTestId: "live-metrics-main-chip-strength",
+      gaugeTestId: "live-metrics-main-chip-gauge",
+    },
+    {
+      key: "piechart with needle",
+      metricKey: "longShortForce",
+      label: t("dashboard.metrics.needle.longShortForce"),
+      strengthTestId: "live-metrics-long-short-force-strength",
+      gaugeTestId: "live-metrics-long-short-force-gauge",
+    },
+    {
+      key: "piechart with needle",
+      metricKey: "retailSmallOrder",
+      label: t("dashboard.metrics.needle.retailSmallOrder"),
+      strengthTestId: "live-metrics-retail-small-order-strength",
+      gaugeTestId: "live-metrics-retail-small-order-gauge",
+    },
+    {
+      key: "piechart with needle",
+      metricKey: "bigOrder",
+      label: t("dashboard.metrics.needle.bigOrder"),
+      strengthTestId: "live-metrics-big-order-strength",
+      gaugeTestId: "live-metrics-big-order-gauge",
+    },
+  ];
 }
 
 function useStickyLatestNumber(
@@ -342,7 +393,7 @@ function MetricMiniPanel({
         <Typography
           as="p"
           variant="caption"
-          className="truncate font-mono text-[10px] text-muted-foreground"
+          className="truncate font-mono text-xs text-muted-foreground"
         >
           {title}
         </Typography>
@@ -354,7 +405,7 @@ function MetricMiniPanel({
   );
 }
 
-function OtcIndexLinePanel(): JSX.Element {
+function OtcIndexLinePanel({ title }: { title: string }): JSX.Element {
   const { series } = useOtcIndexSeries();
   const chartData = series;
   const xTicks =
@@ -371,7 +422,7 @@ function OtcIndexLinePanel(): JSX.Element {
 
   return (
     <PanelCard
-      title="OTC Index"
+      title={title}
       span={1}
       units={1}
       className="h-full"
@@ -748,7 +799,8 @@ function GapKlinePanelChart(): JSX.Element {
 }
 
 export function DashboardMetricPanels(): JSX.Element {
-  const needlePanels = getMetricConfigs().filter(
+  const t = useT();
+  const needlePanels = getMetricConfigs(t).filter(
     (panel) => panel.key === "piechart with needle",
   );
   const kbar = useKbarCurrent("TXFD6");
@@ -812,26 +864,12 @@ export function DashboardMetricPanels(): JSX.Element {
       testId: "live-metrics-contribution-long-short-force",
     },
   ];
-  const liveMetricStrengthByLabel: Record<string, number | null> = {
-    主力大戶: stickyMainForceStrength,
-    主力籌碼: stickyMainChipStrength,
-    多空力道: stickyLongShortForceStrength,
-    散戶小單: null,
-    大戶: null,
-  };
-  const liveMetricStrengthTestIdByLabel: Record<string, string> = {
-    主力大戶: "live-metrics-main-force-strength",
-    主力籌碼: "live-metrics-main-chip-strength",
-    多空力道: "live-metrics-long-short-force-strength",
-    散戶小單: "live-metrics-retail-small-order-strength",
-    大戶: "live-metrics-big-order-strength",
-  };
-  const liveMetricGaugeTestIdByLabel: Record<string, string> = {
-    主力大戶: "live-metrics-main-force-gauge",
-    主力籌碼: "live-metrics-main-chip-gauge",
-    多空力道: "live-metrics-long-short-force-gauge",
-    散戶小單: "live-metrics-retail-small-order-gauge",
-    大戶: "live-metrics-big-order-gauge",
+  const liveMetricStrengthByKey: Record<NeedleMetricKey, number | null> = {
+    mainForce: stickyMainForceStrength,
+    mainChip: stickyMainChipStrength,
+    longShortForce: stickyLongShortForceStrength,
+    retailSmallOrder: null,
+    bigOrder: null,
   };
 
   return (
@@ -840,9 +878,7 @@ export function DashboardMetricPanels(): JSX.Element {
       gridClassName="h-full auto-rows-fr lg:grid-cols-12"
     >
       {needlePanels.map((panel) => {
-        const strength = liveMetricStrengthByLabel[panel.label] ?? null;
-        const strengthTestId = liveMetricStrengthTestIdByLabel[panel.label];
-        const gaugeTestId = liveMetricGaugeTestIdByLabel[panel.label];
+        const strength = liveMetricStrengthByKey[panel.metricKey] ?? null;
         return (
           <StrengthGaugePanelCard
             key={panel.label}
@@ -851,8 +887,8 @@ export function DashboardMetricPanels(): JSX.Element {
             span={1}
             units={1}
             panelTestId="dashboard-metric-panel"
-            gaugeTestId={gaugeTestId}
-            strengthTestId={strengthTestId}
+            gaugeTestId={panel.gaugeTestId}
+            strengthTestId={panel.strengthTestId}
           />
         );
       })}

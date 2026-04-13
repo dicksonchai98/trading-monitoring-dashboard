@@ -127,7 +127,7 @@ export function StrengthGaugePanelCard({
       />
       {strengthTestId ? (
         <p
-          className="mt-0 text-center text-[10px] font-semibold leading-none text-muted-foreground"
+          className="mt-0 text-center text-xs font-semibold leading-none text-muted-foreground"
           data-testid={strengthTestId}
         >
           {strength === null ? "--" : formatPercentage(strength)}

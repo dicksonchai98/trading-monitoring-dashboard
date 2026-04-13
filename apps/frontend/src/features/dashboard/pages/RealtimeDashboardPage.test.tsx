@@ -1,7 +1,8 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { RealtimeDashboardPage } from "@/features/dashboard/pages/RealtimeDashboardPage";
 import { useAuthStore } from "@/lib/store/auth-store";
+import { useDashboardUiStore } from "@/lib/store/dashboard-ui-store";
 
 describe("RealtimeDashboardPage", () => {
   beforeEach(() => {
@@ -11,6 +12,7 @@ describe("RealtimeDashboardPage", () => {
       entitlement: "none",
       resolved: true,
     });
+    useDashboardUiStore.getState().resetStickyBanner();
   });
 
   it("shows skeleton while auth bootstrap is unresolved", () => {
@@ -48,6 +50,54 @@ describe("RealtimeDashboardPage", () => {
     expect(screen.getAllByTestId("sse-panel-skeleton").length).toBeGreaterThan(
       0,
     );
-    expect(screen.queryByText("SSE LIVE STREAM")).not.toBeInTheDocument();
+  });
+
+  it("does not render sticky banner for active entitlement users", () => {
+    useAuthStore.setState({
+      token: "token",
+      role: "member",
+      entitlement: "active",
+      resolved: true,
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/dashboard"]}>
+        <RealtimeDashboardPage />
+      </MemoryRouter>,
+    );
+
+    expect(
+      screen.queryByText("Unlock Pro insights now - subscribe to Pro."),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps sticky banner dismissed across remounts", () => {
+    const { unmount } = render(
+      <MemoryRouter initialEntries={["/dashboard"]}>
+        <RealtimeDashboardPage />
+      </MemoryRouter>,
+    );
+
+    expect(
+      screen.getByText("Unlock Pro insights now - subscribe to Pro."),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button"));
+
+    expect(
+      screen.queryByText("Unlock Pro insights now - subscribe to Pro."),
+    ).not.toBeInTheDocument();
+
+    unmount();
+
+    render(
+      <MemoryRouter initialEntries={["/dashboard"]}>
+        <RealtimeDashboardPage />
+      </MemoryRouter>,
+    );
+
+    expect(
+      screen.queryByText("Unlock Pro insights now - subscribe to Pro."),
+    ).not.toBeInTheDocument();
   });
 });

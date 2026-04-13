@@ -464,9 +464,7 @@ export function EstimatedVolumeCompareChart({
               return [normalized, name];
             }}
             labelFormatter={(value) => {
-              const matched = estimatedVolumeData.find(
-                (item) => item.minute === value,
-              );
+              const matched = data.find((item) => item.minuteOfDay === value);
               return `${t("dashboard.chart.volume.timePrefix")} ${matched?.time ?? value}`;
             }}
           />
@@ -607,7 +605,19 @@ function renderDealerLabel({
   );
 }
 
-export function DealerPositionChart(): JSX.Element {
+interface DealerPositionDatum {
+  name: string;
+  value: number;
+  fill: string;
+}
+
+export function DealerPositionChart({
+  data = dealerData,
+}: {
+  data?: DealerPositionDatum[];
+}): JSX.Element {
+  const chartData = data.length > 0 ? data : dealerData;
+
   return (
     <ChartShell testId="dealer-chart" compact>
       <ResponsiveContainer
@@ -619,7 +629,7 @@ export function DealerPositionChart(): JSX.Element {
         <PieChart>
           <Tooltip contentStyle={tooltipStyle} />
           <Pie
-            data={dealerData}
+            data={chartData}
             dataKey="value"
             innerRadius={28}
             outerRadius={46}
@@ -629,7 +639,7 @@ export function DealerPositionChart(): JSX.Element {
             labelLine={false}
             isAnimationActive={false}
           >
-            {dealerData.map((entry) => (
+            {chartData.map((entry) => (
               <Cell key={entry.name} fill={entry.fill} />
             ))}
           </Pie>

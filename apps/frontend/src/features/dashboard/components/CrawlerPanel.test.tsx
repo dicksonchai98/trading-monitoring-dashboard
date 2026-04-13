@@ -8,6 +8,13 @@ vi.mock("@/features/dashboard/api/crawler-jobs", () => ({
 }));
 
 describe("CrawlerPanel", () => {
+  beforeEach(() => {
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: vi.fn(),
+    });
+  });
+
   it("uses target_date in single mode", async () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -55,7 +62,8 @@ describe("CrawlerPanel", () => {
       </QueryClientProvider>,
     );
 
-    fireEvent.change(screen.getByTestId("crawler-date-mode"), { target: { value: "range" } });
+    fireEvent.click(screen.getByTestId("crawler-date-mode"));
+    fireEvent.click(screen.getByText("Date Range"));
     fireEvent.click(screen.getByTestId("crawler-load-button"));
 
     await waitFor(() => {

@@ -84,10 +84,10 @@ describe("EstimatedVolumeCard", () => {
       />,
     );
 
-    expect(screen.getByText("成交量量比")).toBeInTheDocument();
-    expect(screen.getByText("時間 09:00")).toBeInTheDocument();
-    expect(screen.getByText("今日 1.0k")).toBeInTheDocument();
-    expect(screen.getByText("昨日 900")).toBeInTheDocument();
+    expect(screen.getByText("Estimated Volume Delta")).toBeInTheDocument();
+    expect(screen.getByText("Latest: 09:00")).toBeInTheDocument();
+    expect(screen.getByText("Today: 1.0k")).toBeInTheDocument();
+    expect(screen.getByText("Yesterday: 900")).toBeInTheDocument();
     expect(screen.getByTestId("estimated-volume-compare-chart")).toBeInTheDocument();
   });
 });

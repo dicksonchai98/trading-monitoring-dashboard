@@ -1,7 +1,8 @@
 import type { JSX } from "react";
-import type { EstimatedVolumeSeriesPoint } from "@/features/dashboard/lib/estimated-volume-mapper";
 import { MarketOverviewChartCard } from "@/features/dashboard/components/MarketOverviewChartCard";
 import { EstimatedVolumeCompareChart } from "@/features/dashboard/components/PanelCharts";
+import type { EstimatedVolumeSeriesPoint } from "@/features/dashboard/lib/estimated-volume-mapper";
+import { useT } from "@/lib/i18n";
 
 interface EstimatedVolumeCardProps {
   series: EstimatedVolumeSeriesPoint[];
@@ -28,29 +29,40 @@ export function EstimatedVolumeCard({
   loading,
   error,
 }: EstimatedVolumeCardProps): JSX.Element {
+  const t = useT();
   const diff = latest ? latest.todayEstimated - latest.yesterdayEstimated : 0;
   const diffClassName = diff >= 0 ? "text-[#ef4444]" : "text-[#22c55e]";
 
   return (
     <MarketOverviewChartCard
-      title="成交量量比"
+      title={t("dashboard.realtime.estimatedVolume.title")}
       testId="estimated-volume-card"
       span={4}
-      meta="昨日 vs 今日預估成交量"
+      meta={t("dashboard.realtime.estimatedVolume.meta")}
       loading={loading}
       error={error}
       hasData={series.length > 0}
-      loadingText="Loading estimated volume timeline..."
-      errorText="Unable to load estimated volume data."
-      emptyText="No estimated volume data available."
+      loadingText={t("dashboard.realtime.estimatedVolume.loading")}
+      errorText={t("dashboard.realtime.estimatedVolume.error")}
+      emptyText={t("dashboard.realtime.estimatedVolume.empty")}
     >
       <>
         {latest ? (
-          <div className="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
-            <span>時間 {latest.time}</span>
-            <span>今日 {formatEstimate(latest.todayEstimated)}</span>
-            <span>昨日 {formatEstimate(latest.yesterdayEstimated)}</span>
-            <span className={diffClassName}>差值 {formatEstimate(diff)}</span>
+          <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+            <span>
+              {t("dashboard.realtime.estimatedVolume.latestTime")}: {latest.time}
+            </span>
+            <span>
+              {t("dashboard.realtime.estimatedVolume.today")}:{" "}
+              {formatEstimate(latest.todayEstimated)}
+            </span>
+            <span>
+              {t("dashboard.realtime.estimatedVolume.yesterday")}:{" "}
+              {formatEstimate(latest.yesterdayEstimated)}
+            </span>
+            <span className={diffClassName}>
+              {t("dashboard.realtime.estimatedVolume.diff")}: {formatEstimate(diff)}
+            </span>
           </div>
         ) : null}
         <EstimatedVolumeCompareChart data={series} />
@@ -58,4 +70,3 @@ export function EstimatedVolumeCard({
     </MarketOverviewChartCard>
   );
 }
-

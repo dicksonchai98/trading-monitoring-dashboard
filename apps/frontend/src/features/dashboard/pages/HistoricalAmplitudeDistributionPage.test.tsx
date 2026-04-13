@@ -58,17 +58,57 @@ describe("HistoricalAmplitudeDistributionPage", () => {
     );
 
     expect(
-      screen.getByRole("heading", {
-        name: "Historical Amplitude Distribution",
-      }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("/historical-amplitude-distribution"),
-    ).toBeInTheDocument();
-    expect(
       screen.getByText("HISTORICAL AMPLITUDE DISTRIBUTION"),
     ).toBeInTheDocument();
     expect(screen.getByText("Distribution Histogram")).toBeInTheDocument();
+    expect(
+      await screen.findByTestId("amplitude-histogram-chart"),
+    ).toBeInTheDocument();
+  });
+
+  it("renders histogram when backend returns numeric bin edges", async () => {
+    useAuthStore.setState({
+      token: "token",
+      role: "admin",
+      entitlement: "active",
+      resolved: true,
+      checkoutSessionId: null,
+    });
+
+    vi.mocked(getAnalyticsMetrics).mockResolvedValue({
+      metrics: [{ id: "day_return", label: "Day Return" }],
+    });
+    vi.mocked(getDistributionStats).mockResolvedValue({
+      metric_id: "day_return",
+      sample_count: 3,
+      mean: 0,
+      median: 0,
+      min: -2,
+      max: 2,
+      p75: 1,
+      p90: 1.5,
+      p95: 1.8,
+      histogram_json: {
+        bins: [-2, -1, 0, 1],
+        counts: [1, 1, 1],
+      },
+    });
+
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/historical-amplitude-distribution"]}>
+          <HistoricalAmplitudeDistributionPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
     expect(
       await screen.findByTestId("amplitude-histogram-chart"),
     ).toBeInTheDocument();

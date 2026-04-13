@@ -20,13 +20,22 @@ export function PanelHeader({
   const tooltipId = useId();
 
   return (
-    <div className={cn("flex items-start justify-between gap-3 text-left", className)}>
+    <div
+      className={cn(
+        "flex items-start justify-between gap-3 text-left",
+        className,
+      )}
+    >
       <div className="space-y-1">
-        <Typography as="p" variant="overline" className="normal-case tracking-normal text-foreground">
+        <Typography as="p" variant="overline">
           {title}
         </Typography>
         {meta ? (
-          <Typography as="p" variant="overline" className="text-subtle-foreground">
+          <Typography
+            as="p"
+            variant="overline"
+            className="text-subtle-foreground"
+          >
             {meta}
           </Typography>
         ) : null}
@@ -53,7 +62,11 @@ export function PanelHeader({
               role="tooltip"
               className="absolute right-0 top-7 z-10 w-56 rounded-md border border-border bg-card px-3 py-2 text-foreground shadow-lg"
             >
-              <Typography as="p" variant="caption" className="font-mono leading-5 text-foreground">
+              <Typography
+                as="p"
+                variant="caption"
+                className="font-mono leading-5 text-foreground"
+              >
                 {note}
               </Typography>
             </div>

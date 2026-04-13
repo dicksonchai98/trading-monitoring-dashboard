@@ -201,7 +201,7 @@ export function RealtimeDashboardOverview(): JSX.Element {
     >
       <DashboardMetricPanels />
 
-      <BentoGridSection title="MARKET OVERVIEW">
+      <BentoGridSection title={t("dashboard.realtime.marketOverview")}>
         <OrderFlowCard
           series={tickSeries}
           loading={tickLoading}
@@ -223,9 +223,9 @@ export function RealtimeDashboardOverview(): JSX.Element {
           error={tickError}
         />
         <PanelCard
-          title="漲跌家數"
+          title={t("dashboard.realtime.breadth.title")}
           span={4}
-          meta="Breadth distribution + swing"
+          meta={t("dashboard.realtime.breadth.meta")}
         >
           <BreadthDistributionChart />
         </PanelCard>
@@ -248,31 +248,41 @@ export function RealtimeDashboardOverview(): JSX.Element {
             data-testid="participant-amplitude-summary"
           >
             <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">5日平均振幅</span>
+              <span className="text-muted-foreground">
+                {t("dashboard.realtime.amplitudeSummary.fiveDay")}
+              </span>
               <span className="font-semibold text-foreground">
                 {formatAmplitude(summary.avg5)}
               </span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">10日平均振幅</span>
+              <span className="text-muted-foreground">
+                {t("dashboard.realtime.amplitudeSummary.tenDayAvg")}
+              </span>
               <span className="font-semibold text-foreground">
                 {formatAmplitude(summary.avg10)}
               </span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">昨日振幅</span>
+              <span className="text-muted-foreground">
+                {t("dashboard.realtime.amplitudeSummary.yesterday")}
+              </span>
               <span className="font-semibold text-foreground">
                 {formatAmplitude(summary.yesterday)}
               </span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">5日最高振幅</span>
+              <span className="text-muted-foreground">
+                {t("dashboard.realtime.amplitudeSummary.fiveDayHigh")}
+              </span>
               <span className="font-semibold text-[#ef4444]">
                 {formatAmplitude(summary.max5)}
               </span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">10日最高振幅</span>
+              <span className="text-muted-foreground">
+                {t("dashboard.realtime.amplitudeSummary.tenDayHigh")}
+              </span>
               <span className="font-semibold text-[#22c55e]">
                 {formatAmplitude(summary.max10)}
               </span>
@@ -291,11 +301,11 @@ export function RealtimeDashboardOverview(): JSX.Element {
           >
             {participantLoading ? (
               <div className="flex h-[240px] items-center justify-center text-xs text-muted-foreground">
-                Loading participant amplitude...
+                {t("dashboard.realtime.participantSignals.loading")}
               </div>
             ) : participantError ? (
               <div className="flex h-[240px] items-center justify-center text-xs text-muted-foreground">
-                Unable to load participant amplitude.
+                {t("dashboard.realtime.participantSignals.error")}
               </div>
             ) : (
               <div data-testid="panel-chart" className="h-[240px] w-full">
@@ -382,22 +392,22 @@ export function RealtimeDashboardOverview(): JSX.Element {
                 </ResponsiveContainer>
               </div>
             )}
-            <div className="mt-2 flex flex-wrap items-center gap-4 text-[11px] text-muted-foreground">
+            <div className="mt-2 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
               <span className="inline-flex items-center gap-1.5">
                 <span className="h-[6px] w-[10px] rounded-[1px] bg-[#ef4444]" />
-                K棒（振幅）
+                {t("dashboard.realtime.participantSignals.legend.daily")}
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <span className="h-[2px] w-4 bg-[#38bdf8]" />
-                MA3
+                {t("dashboard.realtime.participantSignals.legend.threeDay")}
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <span className="h-[2px] w-4 bg-[#22c55e]" />
-                MA5
+                {t("dashboard.realtime.participantSignals.legend.fiveDay")}
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <span className="h-[2px] w-4 bg-[#a855f7]" />
-                MA10
+                {t("dashboard.realtime.participantSignals.legend.tenDay")}
               </span>
             </div>
           </div>
