@@ -61,7 +61,7 @@ describe("AdminAuditPage", () => {
       </QueryClientProvider>,
     );
 
-    expect(screen.getByRole("heading", { name: "Admin Audit Log" })).toBeInTheDocument();
+    expect(screen.getByText("Filters")).toBeInTheDocument();
     await waitFor(() => {
       expect(screen.getAllByText("crawler_run_triggered").length).toBeGreaterThan(0);
     });

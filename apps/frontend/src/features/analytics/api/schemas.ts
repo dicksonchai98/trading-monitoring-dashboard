@@ -17,20 +17,32 @@ export const AnalyticsMetricsRegistryResponseSchema = z.object({
 
 export const EventStatsResponseSchema = z.object({
   event_id: z.string(),
+  code: z.string().optional(),
+  start_date: z.string().optional(),
+  end_date: z.string().optional(),
   sample_count: z.number(),
+  up_count: z.number().optional(),
+  down_count: z.number().optional(),
+  flat_count: z.number().optional(),
   up_probability: z.number(),
   down_probability: z.number(),
   flat_probability: z.number(),
   avg_next_day_return: z.number(),
+  median_next_day_return: z.number().optional(),
   avg_next_day_range: z.number(),
+  avg_next_day_gap: z.number().optional(),
   computed_at: z.string().optional(),
-  version: z.string().optional(),
+  version: z.union([z.string(), z.number()]).optional(),
   histogram: z
     .object({
       bins: z.array(z.string()),
       counts: z.array(z.number()),
     })
     .optional(),
+});
+
+export const EventStatsListResponseSchema = z.object({
+  items: z.array(EventStatsResponseSchema),
 });
 
 export const EventSampleItemSchema = z.object({
@@ -56,11 +68,11 @@ export const DistributionStatsResponseSchema = z.object({
   p75: z.number(),
   p90: z.number(),
   p95: z.number(),
-  version: z.string().optional(),
+  version: z.union([z.string(), z.number()]).optional(),
   computed_at: z.string().optional(),
   histogram_json: z
     .object({
-      bins: z.array(z.string()),
+      bins: z.array(z.union([z.string(), z.number()])),
       counts: z.array(z.number()),
       min: z.number().optional(),
       max: z.number().optional(),

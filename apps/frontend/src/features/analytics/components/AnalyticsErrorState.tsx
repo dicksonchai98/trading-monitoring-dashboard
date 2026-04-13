@@ -1,5 +1,6 @@
 import type { JSX } from "react";
 import { Button } from "@/components/ui/button";
+import { ApiStatusAlert } from "@/components/ui/api-status-alert";
 
 interface AnalyticsErrorStateProps {
   status?: number;
@@ -17,8 +18,8 @@ export function AnalyticsErrorState({ status, onRetry }: AnalyticsErrorStateProp
   }
 
   return (
-    <div className="space-y-2 rounded-sm border border-border bg-card p-3 text-sm">
-      <p>{message}</p>
+    <div className="space-y-2">
+      <ApiStatusAlert message={message} />
       {onRetry ? (
         <Button size="sm" type="button" variant="outline" onClick={onRetry}>
           Retry

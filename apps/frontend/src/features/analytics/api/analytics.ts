@@ -5,6 +5,7 @@ import {
   AnalyticsEventsRegistryResponseSchema,
   AnalyticsMetricsRegistryResponseSchema,
   DistributionStatsResponseSchema,
+  EventStatsListResponseSchema,
   EventSamplesResponseSchema,
   EventStatsResponseSchema,
 } from "@/features/analytics/api/schemas";
@@ -13,13 +14,13 @@ import type {
   AnalyticsMetricsRegistryResponse,
   DistributionStatsResponse,
   EventSamplesResponse,
-  EventStatsResponse,
+  EventStatsListResponse,
 } from "@/features/analytics/api/types";
 
 interface BaseWindowParams {
   code: string;
-  startDate: string;
-  endDate: string;
+  startDate?: string;
+  endDate?: string;
   version?: string;
 }
 
@@ -70,11 +71,32 @@ function normalizeRegistryPayload(payload: unknown, key: "events" | "metrics"): 
   }
 
   const record = payload as Record<string, unknown>;
+  const normalizeItems = (items: unknown[]): unknown[] =>
+    items.map((item) => {
+      if (!item || typeof item !== "object") {
+        return item;
+      }
+      const row = item as Record<string, unknown>;
+      if (typeof row.id === "string") {
+        return row;
+      }
+      const id =
+        typeof row.event_id === "string"
+          ? row.event_id
+          : typeof row.metric_id === "string"
+            ? row.metric_id
+            : undefined;
+      if (!id) {
+        return row;
+      }
+      return { ...row, id };
+    });
+
   if (Array.isArray(record[key])) {
-    return payload;
+    return { ...record, [key]: normalizeItems(record[key]) };
   }
   if (Array.isArray(record.items)) {
-    return { [key]: record.items };
+    return { [key]: normalizeItems(record.items) };
   }
   return payload;
 }
@@ -105,7 +127,7 @@ export function getAnalyticsMetrics(token: string | null): Promise<AnalyticsMetr
 export function getEventStats(
   token: string | null,
   { eventId, code, startDate, endDate, version = "latest", flatThreshold }: EventStatsParams,
-): Promise<EventStatsResponse> {
+): Promise<EventStatsListResponse> {
   const query = buildQuery({
     code,
     start_date: startDate,
@@ -117,7 +139,13 @@ export function getEventStats(
   return getJson<unknown>(`/analytics/events/${encodeURIComponent(eventId)}/stats?${query}`, {
     headers: authHeaders(token),
   })
-    .then((payload) => parseOrThrow(EventStatsResponseSchema, payload))
+    .then((payload) => {
+      if (payload && typeof payload === "object" && Array.isArray((payload as { items?: unknown[] }).items)) {
+        return parseOrThrow(EventStatsListResponseSchema, payload);
+      }
+      const single = parseOrThrow(EventStatsResponseSchema, payload);
+      return { items: [single] };
+    })
     .catch(normalizeAnalyticsError);
 }
 

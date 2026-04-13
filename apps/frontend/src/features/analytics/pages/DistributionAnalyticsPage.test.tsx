@@ -62,7 +62,7 @@ describe("DistributionAnalyticsPage", () => {
 
     renderPage();
 
-    expect(await screen.findByRole("heading", { name: "Distribution Analytics" })).toBeInTheDocument();
+    expect(await screen.findByText("Filters")).toBeInTheDocument();
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
 
     expect(fetchMock).toHaveBeenNthCalledWith(

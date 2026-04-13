@@ -5,6 +5,7 @@ import { Bar, BarChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxi
 import { Navigate } from "react-router-dom";
 import { PageLayout } from "@/components/ui/page-layout";
 import { PanelCard } from "@/components/ui/panel-card";
+import { Typography } from "@/components/ui/typography";
 import { getAnalyticsEvents, getAnalyticsMetrics, getEventSamples, getEventStats } from "@/features/analytics/api/analytics";
 import { AnalyticsEmptyState } from "@/features/analytics/components/AnalyticsEmptyState";
 import { AnalyticsErrorState } from "@/features/analytics/components/AnalyticsErrorState";
@@ -16,10 +17,12 @@ import {
   buildEventStatsQueryKey,
 } from "@/features/analytics/lib/query-keys";
 import { resetPageOnFilterChange } from "@/features/analytics/validation/filter-schema";
+import { useT } from "@/lib/i18n";
 import { ApiError } from "@/lib/api/client";
 import { useAuthStore } from "@/lib/store/auth-store";
 
 export function EventAnalyticsPage(): JSX.Element {
+  const t = useT();
   const { token } = useAuthStore();
   const [code, setCode] = useState("TXF");
   const [startDate, setStartDate] = useState("2026-01-01");
@@ -138,9 +141,9 @@ export function EventAnalyticsPage(): JSX.Element {
   const sampleItems = samplesQuery.data?.items ?? [];
   const canMoveNext = Boolean(samplesQuery.data && (samplesQuery.data.total > page * pageSize));
   const pieData = [
-    { name: "up", value: statsQuery.data?.up_probability ?? 0 },
-    { name: "down", value: statsQuery.data?.down_probability ?? 0 },
-    { name: "flat", value: statsQuery.data?.flat_probability ?? 0 },
+    { name: t("analytics.event.up"), value: statsQuery.data?.up_probability ?? 0 },
+    { name: t("analytics.event.down"), value: statsQuery.data?.down_probability ?? 0 },
+    { name: t("analytics.event.flat"), value: statsQuery.data?.flat_probability ?? 0 },
   ];
   const histogramData = (statsQuery.data?.histogram?.bins ?? []).map((bin, index) => ({
     bin,
@@ -148,8 +151,8 @@ export function EventAnalyticsPage(): JSX.Element {
   }));
 
   return (
-    <PageLayout title="Event Analytics" bodyClassName="space-y-[var(--section-gap)]">
-      <PanelCard title="Filters" span={12}>
+    <PageLayout title={t("analytics.event.title")} bodyClassName="space-y-[var(--section-gap)]">
+      <PanelCard title={t("analytics.filters.title")} span={12}>
         <AnalyticsFilterBar
           code={code}
           startDate={startDate}
@@ -164,7 +167,9 @@ export function EventAnalyticsPage(): JSX.Element {
           onFlatThresholdChange={(value) => updateFilter({ flatThreshold: value })}
         />
         {hasInvalidDateRange ? (
-          <p className="mt-2 text-sm text-danger">Invalid date range: start date must be before or equal to end date.</p>
+          <Typography as="p" variant="body" className="mt-2 text-danger">
+            {t("analytics.filters.invalidDateRange")}
+          </Typography>
         ) : null}
       </PanelCard>
 
@@ -174,10 +179,10 @@ export function EventAnalyticsPage(): JSX.Element {
       {hasInvalidDateRange ? <AnalyticsErrorState status={400} /> : null}
 
       <PanelCard
-        title="Summary"
+        title={t("analytics.summary.title")}
         span={6}
         note={
-          statsQuery.isLoading ? "Loading..." : `Samples: ${statsQuery.data?.sample_count ?? 0}`
+          statsQuery.isLoading ? t("analytics.common.loading") : `${t("analytics.event.samples")}: ${statsQuery.data?.sample_count ?? 0}`
         }
       >
         {statsQuery.isLoading ? (
@@ -188,16 +193,16 @@ export function EventAnalyticsPage(): JSX.Element {
           </div>
         ) : (
           <div className="space-y-2 text-sm">
-            <p>Up: {statsQuery.data?.up_probability ?? 0}</p>
-            <p>Down: {statsQuery.data?.down_probability ?? 0}</p>
-            <p>Flat: {statsQuery.data?.flat_probability ?? 0}</p>
-            <p>Avg Next Day Return: {statsQuery.data?.avg_next_day_return ?? 0}</p>
-            <p>Avg Next Day Range: {statsQuery.data?.avg_next_day_range ?? 0}</p>
+            <Typography as="p" variant="body">{t("analytics.event.up")}: {statsQuery.data?.up_probability ?? 0}</Typography>
+            <Typography as="p" variant="body">{t("analytics.event.down")}: {statsQuery.data?.down_probability ?? 0}</Typography>
+            <Typography as="p" variant="body">{t("analytics.event.flat")}: {statsQuery.data?.flat_probability ?? 0}</Typography>
+            <Typography as="p" variant="body">{t("analytics.event.avgNextDayReturn")}: {statsQuery.data?.avg_next_day_return ?? 0}</Typography>
+            <Typography as="p" variant="body">{t("analytics.event.avgNextDayRange")}: {statsQuery.data?.avg_next_day_range ?? 0}</Typography>
           </div>
         )}
       </PanelCard>
 
-      <PanelCard title="Charts" span={6}>
+      <PanelCard title={t("analytics.event.charts")} span={6}>
         {statsQuery.isLoading ? (
           <div className="space-y-2" data-testid="event-charts-skeleton">
             <div className="h-32 animate-pulse rounded bg-muted" />
@@ -227,7 +232,7 @@ export function EventAnalyticsPage(): JSX.Element {
         )}
       </PanelCard>
 
-      <PanelCard title="Samples" span={6} note={`Page ${page}`}>
+      <PanelCard title={t("analytics.event.samples")} span={6} note={`${t("analytics.event.page")} ${page}`}>
         {samplesQuery.isLoading ? (
           <div className="space-y-2" data-testid="event-samples-skeleton">
             <div className="h-4 w-full animate-pulse rounded bg-muted" />
@@ -235,26 +240,26 @@ export function EventAnalyticsPage(): JSX.Element {
             <div className="h-4 w-full animate-pulse rounded bg-muted" />
           </div>
         ) : sampleItems.length === 0 ? (
-          <AnalyticsEmptyState title="No samples" description="No event samples for current filter." />
+          <AnalyticsEmptyState title={t("analytics.event.emptyTitle")} description={t("analytics.event.emptyDescription")} />
         ) : (
           <>
             <label className="mb-2 flex items-center gap-2 text-sm" htmlFor="event-sample-sort">
-              <span>Sort</span>
+              <Typography as="span" variant="body">{t("analytics.event.sort")}</Typography>
               <select
                 id="event-sample-sort"
                 value={sort}
                 onChange={(event) => setSort(event.target.value)}
               >
-                <option value="-trade_date">Latest first</option>
-                <option value="trade_date">Oldest first</option>
+                <option value="-trade_date">{t("analytics.event.latestFirst")}</option>
+                <option value="trade_date">{t("analytics.event.oldestFirst")}</option>
               </select>
             </label>
             <table className="text-sm">
               <thead>
                 <tr>
-                  <th className="px-2 py-1 text-left">Trade Date</th>
-                  <th className="px-2 py-1 text-left">Next Day Return</th>
-                  <th className="px-2 py-1 text-left">Category</th>
+                  <th className="px-2 py-1 text-left">{t("analytics.event.tradeDate")}</th>
+                  <th className="px-2 py-1 text-left">{t("analytics.event.nextDayReturn")}</th>
+                  <th className="px-2 py-1 text-left">{t("analytics.event.category")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -271,14 +276,14 @@ export function EventAnalyticsPage(): JSX.Element {
         )}
         <div className="mt-3 flex items-center gap-2">
           <button type="button" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={page === 1}>
-            Prev page
+            {t("analytics.event.prevPage")}
           </button>
           <button
             type="button"
             onClick={() => setPage((current) => current + 1)}
             disabled={hasInvalidDateRange || (!canMoveNext && sampleItems.length === 0)}
           >
-            Next page
+            {t("analytics.event.nextPage")}
           </button>
         </div>
       </PanelCard>
