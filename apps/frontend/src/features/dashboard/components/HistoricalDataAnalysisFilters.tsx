@@ -31,7 +31,9 @@ export function HistoricalDataAnalysisFilters({
       ? eventOptions
       : [
           {
-            label: isEventsLoading ? "Loading events..." : "No events available",
+            label: isEventsLoading
+              ? t("dashboard.analysis.filter.loadingEvents")
+              : t("dashboard.analysis.filter.noEvents"),
             value: "__none__",
             disabled: true,
           },
@@ -44,7 +46,7 @@ export function HistoricalDataAnalysisFilters({
       ariaLabel: "code",
       type: "select",
       value: code,
-      placeholder: "Select code",
+      placeholder: t("dashboard.analysis.filter.codePlaceholder"),
       options: [
         { value: "TXFR1", label: "TXFR1" },
         { value: "TXFD1", label: "TXFD1" },
@@ -58,7 +60,7 @@ export function HistoricalDataAnalysisFilters({
       ariaLabel: "event_id",
       type: "select",
       value: eventOptions.length > 0 ? eventId : "__none__",
-      placeholder: "Select event",
+      placeholder: t("dashboard.analysis.filter.eventPlaceholder"),
       options: eventSelectOptions,
       onValueChange: onEventIdChange,
     },

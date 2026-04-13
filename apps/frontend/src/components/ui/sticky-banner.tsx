@@ -52,6 +52,7 @@ export const StickyBanner = ({
         animate={{
           scale: 1,
         }}
+        aria-label="Close sticky banner"
         className="absolute top-1/2 right-2 -translate-y-1/2 cursor-pointer"
         onClick={() => {
           setOpen(false);

@@ -18,7 +18,7 @@ import { ApiStatusAlert } from "@/components/ui/api-status-alert";
 import { FilterLayer, type FilterField } from "@/components/filter-layer";
 import { PageLayout } from "@/components/ui/page-layout";
 import { PanelCard } from "@/components/ui/panel-card";
-import { useT } from "@/lib/i18n";
+import { useT, type TranslationKey } from "@/lib/i18n";
 import {
   getAnalyticsMetrics,
   getDistributionStats,
@@ -33,17 +33,22 @@ interface HistogramRow {
   end: number;
 }
 
-const metricLabelMapZh: Record<string, string> = {
-  day_range: "日内振幅",
-  day_range_pct: "日内振幅比例",
-  day_return: "日涨跌点数",
-  day_return_pct: "日涨跌幅",
-  gap_from_prev_close: "相对昨收跳空",
-  close_position: "收盘位置",
+const METRIC_LABEL_KEYS: Partial<Record<string, TranslationKey>> = {
+  day_range: "dashboard.amplitude.metric.day_range",
+  day_range_pct: "dashboard.amplitude.metric.day_range_pct",
+  day_return: "dashboard.amplitude.metric.day_return",
+  day_return_pct: "dashboard.amplitude.metric.day_return_pct",
+  gap_from_prev_close: "dashboard.amplitude.metric.gap_from_prev_close",
+  close_position: "dashboard.amplitude.metric.close_position",
 };
 
-function mapMetricLabel(metricId: string, fallbackLabel?: string): string {
-  return metricLabelMapZh[metricId] ?? fallbackLabel ?? metricId;
+function mapMetricLabel(
+  metricId: string,
+  t: ReturnType<typeof useT>,
+  fallbackLabel?: string,
+): string {
+  const key = METRIC_LABEL_KEYS[metricId];
+  return key ? t(key) : fallbackLabel ?? metricId;
 }
 
 function parseBinRange(raw: string): { start: number; end: number } {
@@ -185,9 +190,9 @@ export function HistoricalAmplitudeDistributionPage(): JSX.Element {
         metrics.length > 0
           ? metrics.map((metric) => ({
               value: metric.id,
-              label: mapMetricLabel(metric.id, metric.label),
+              label: mapMetricLabel(metric.id, t, metric.label),
             }))
-          : [{ value: "__none__", label: "No metrics available", disabled: true }],
+          : [{ value: "__none__", label: t("dashboard.amplitude.filter.noMetrics"), disabled: true }],
       onValueChange: setMetricId,
     },
   ];
@@ -311,3 +316,4 @@ export function HistoricalAmplitudeDistributionPage(): JSX.Element {
     </PageLayout>
   );
 }
+
