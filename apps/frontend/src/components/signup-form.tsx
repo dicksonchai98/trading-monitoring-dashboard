@@ -1,7 +1,7 @@
 import { useState, type JSX } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { Link } from "react-router-dom";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ApiStatusAlert } from "@/components/ui/api-status-alert";
 import { Button } from "@/components/ui/button";
 import {
   Field,
@@ -85,7 +85,7 @@ function SignupStepIndicator({
           )}
         />
       </div>
-      <div className="flex justify-between text-[10px] leading-3 text-zinc-500">
+      <div className="flex justify-between text-xs leading-3 text-zinc-500">
         <span>{t("auth.signup.step1")}</span>
         <span>{t("auth.signup.step2")}</span>
       </div>
@@ -122,9 +122,7 @@ export function SignupForm(props: SignupFormProps): JSX.Element {
             </Typography>
           </div>
           {props.errorMessage ? (
-            <Alert variant="destructive">
-              <AlertDescription>{props.errorMessage}</AlertDescription>
-            </Alert>
+            <ApiStatusAlert message={props.errorMessage} />
           ) : null}
           <Field>
             <FieldLabel htmlFor="verification-code" className="text-zinc-800">
@@ -212,9 +210,7 @@ export function SignupForm(props: SignupFormProps): JSX.Element {
           </Typography>
         </div>
         {props.errorMessage ? (
-          <Alert variant="destructive">
-            <AlertDescription>{props.errorMessage}</AlertDescription>
-          </Alert>
+          <ApiStatusAlert message={props.errorMessage} />
         ) : null}
         <Field data-invalid={Boolean(props.userIdError)}>
           <FieldLabel htmlFor="signup-user-id">{t("auth.label.userId")}</FieldLabel>
@@ -230,7 +226,7 @@ export function SignupForm(props: SignupFormProps): JSX.Element {
             errors={
               props.userIdError ? [{ message: props.userIdError }] : undefined
             }
-            className="text-[10px] leading-3 text-red-600"
+            className="text-xs leading-3 text-red-600"
           />
         </Field>
         <Field data-invalid={Boolean(props.emailError)}>
@@ -248,7 +244,7 @@ export function SignupForm(props: SignupFormProps): JSX.Element {
             errors={
               props.emailError ? [{ message: props.emailError }] : undefined
             }
-            className="text-[10px] leading-3 text-red-600"
+            className="text-xs leading-3 text-red-600"
           />
         </Field>
         <Field data-invalid={Boolean(props.passwordError)}>
@@ -279,7 +275,7 @@ export function SignupForm(props: SignupFormProps): JSX.Element {
                 ? [{ message: props.passwordError }]
                 : undefined
             }
-            className="text-[10px] leading-3 text-red-600"
+            className="text-xs leading-3 text-red-600"
           />
         </Field>
         <Field data-invalid={Boolean(props.confirmPasswordError)}>
@@ -316,7 +312,7 @@ export function SignupForm(props: SignupFormProps): JSX.Element {
                 ? [{ message: props.confirmPasswordError }]
                 : undefined
             }
-            className="text-[10px] leading-3 text-red-600"
+            className="text-xs leading-3 text-red-600"
           />
         </Field>
         <Field>

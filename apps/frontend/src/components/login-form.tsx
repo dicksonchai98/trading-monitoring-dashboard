@@ -2,7 +2,7 @@ import { useState, type JSX } from "react";
 import { Link } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ApiStatusAlert } from "@/components/ui/api-status-alert";
 import {
   Field,
   FieldError,
@@ -64,9 +64,7 @@ export function LoginForm({
           </Typography>
         </div>
         {errorMessage ? (
-          <Alert variant="destructive">
-            <AlertDescription>{errorMessage}</AlertDescription>
-          </Alert>
+          <ApiStatusAlert message={errorMessage} />
         ) : null}
         <Field data-invalid={Boolean(userIdError)}>
           <FieldLabel htmlFor="user-id">{t("auth.label.userId")}</FieldLabel>
@@ -78,7 +76,7 @@ export function LoginForm({
             aria-invalid={Boolean(userIdError)}
             disabled={isPending}
           />
-          <FieldError errors={userIdErrors} className="text-[10px] leading-3 text-red-600" />
+          <FieldError errors={userIdErrors} className="text-xs leading-3 text-red-600" />
         </Field>
         <Field data-invalid={Boolean(passwordError)}>
           <FieldLabel htmlFor="password">{t("auth.label.password")}</FieldLabel>
@@ -104,7 +102,7 @@ export function LoginForm({
           </div>
           <FieldError
             errors={passwordErrors}
-            className="text-[10px] leading-3 text-red-600"
+            className="text-xs leading-3 text-red-600"
           />
         </Field>
         <Field>

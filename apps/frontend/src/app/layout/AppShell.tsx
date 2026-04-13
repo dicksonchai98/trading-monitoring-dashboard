@@ -1,12 +1,36 @@
 import type { JSX } from "react";
 import { Fragment, useEffect, useState } from "react";
+import { Languages, Moon, Sun } from "lucide-react";
 import { Outlet, Link, useLocation } from "react-router-dom";
 import { AppSidebar } from "@/components/app-sidebar";
 import { PageSkeleton } from "@/components/ui/page-skeleton";
 import { SidebarInset, SidebarProvider, SidebarSeparator, SidebarTrigger } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
-import { useT, type TranslationKey } from "@/lib/i18n";
+import { useI18n, type TranslationKey } from "@/lib/i18n";
+
+const COLOR_MODE_STORAGE_KEY = "ui.color.mode";
+
+type ColorMode = "light" | "dark";
+
+function normalizeColorMode(value: string | null | undefined): ColorMode {
+  return value === "light" ? "light" : "dark";
+}
+
+function readInitialColorMode(): ColorMode {
+  if (typeof window !== "undefined") {
+    return normalizeColorMode(window.localStorage.getItem(COLOR_MODE_STORAGE_KEY));
+  }
+  return "dark";
+}
+
+function applyColorModeToDocument(colorMode: ColorMode): void {
+  if (typeof document === "undefined") {
+    return;
+  }
+  document.documentElement.setAttribute("data-color-mode", colorMode);
+  document.documentElement.classList.toggle("dark", colorMode === "dark");
+}
 
 const BREADCRUMB_LABEL_KEYS: Record<string, TranslationKey> = {
   dashboard: "shell.breadcrumb.dashboard",
@@ -21,9 +45,10 @@ const BREADCRUMB_LABEL_KEYS: Record<string, TranslationKey> = {
 };
 
 export function AppShell(): JSX.Element {
-  const t = useT();
+  const { locale, setLocale, t } = useI18n();
   const location = useLocation();
   const [routeLoading, setRouteLoading] = useState(true);
+  const [colorMode, setColorMode] = useState<ColorMode>(readInitialColorMode);
   const segments = location.pathname.split("/").filter(Boolean);
 
   useEffect(() => {
@@ -31,6 +56,46 @@ export function AppShell(): JSX.Element {
     const timerId = window.setTimeout(() => setRouteLoading(false), 260);
     return () => window.clearTimeout(timerId);
   }, [location.pathname]);
+
+  useEffect(() => {
+    applyColorModeToDocument(colorMode);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(COLOR_MODE_STORAGE_KEY, colorMode);
+    }
+  }, [colorMode]);
+
+  function toggleColorMode(): void {
+    setColorMode((current) => (current === "dark" ? "light" : "dark"));
+  }
+
+  function toggleLanguage(): void {
+    setLocale(locale === "en" ? "zh-TW" : "en");
+  }
+
+  function renderHeaderActions(buttonSizeClassName: string): JSX.Element {
+    return (
+      <div className="ml-auto flex items-center gap-2">
+        <button
+          type="button"
+          aria-label={colorMode === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+          title={colorMode === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+          onClick={toggleColorMode}
+          className={`${buttonSizeClassName} inline-flex items-center justify-center rounded-sm border border-border bg-shell text-muted-foreground hover:bg-panel-hover hover:text-foreground`}
+        >
+          {colorMode === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+        </button>
+        <button
+          type="button"
+          aria-label={locale === "en" ? "Switch to Chinese" : "Switch to English"}
+          title={locale === "en" ? "Switch to Chinese" : "Switch to English"}
+          onClick={toggleLanguage}
+          className={`${buttonSizeClassName} inline-flex items-center justify-center rounded-sm border border-border bg-shell text-muted-foreground hover:bg-panel-hover hover:text-foreground`}
+        >
+          <Languages className="h-4 w-4" />
+        </button>
+      </div>
+    );
+  }
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -68,10 +133,12 @@ export function AppShell(): JSX.Element {
                 })}
               </BreadcrumbList>
             </Breadcrumb>
+            {renderHeaderActions("h-8 w-8")}
           </header>
           <header className="sticky top-0 z-20 flex h-14 items-center gap-2 border-b border-border bg-shell/95 px-3 backdrop-blur md:hidden">
             <SidebarTrigger aria-label={t("shell.openSidebar")} className="h-9 w-9 rounded-sm border border-border bg-shell text-muted-foreground hover:bg-panel-hover hover:text-foreground" />
             <span className="text-sm font-semibold text-foreground">{t("app.brand")}</span>
+            {renderHeaderActions("h-8 w-8")}
           </header>
           <div className="min-h-screen min-w-0 bg-background p-[var(--shell-padding)]">
             {routeLoading ? <PageSkeleton className="px-0 py-0" /> : <Outlet />}

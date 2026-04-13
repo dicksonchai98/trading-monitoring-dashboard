@@ -35,7 +35,7 @@ export function RegisterCredentialsStep({
 
   return (
     <div className="space-y-4">
-      <p className="text-xs uppercase tracking-[0.08em] text-subtle-foreground">Step 2: Create account</p>
+      <p className="typo-overline text-subtle-foreground">Step 2: Create account</p>
       <label className="space-y-2 text-sm text-foreground">
         <span className="block">User ID</span>
         <input
