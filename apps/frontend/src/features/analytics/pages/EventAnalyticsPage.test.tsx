@@ -86,7 +86,7 @@ describe("EventAnalyticsPage", () => {
 
     renderPage();
 
-    expect(await screen.findByRole("heading", { name: "Event Analytics" })).toBeInTheDocument();
+    expect(await screen.findByText("Filters")).toBeInTheDocument();
 
     await waitFor(() => {
       const calledUrls = fetchMock.mock.calls.map(([url]) => String(url));

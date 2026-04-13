@@ -66,4 +66,31 @@ describe("analytics api parsing and normalization", () => {
       metrics: [{ id: "metric_a", label: "Metric A" }],
     });
   });
+
+  it("normalizes events registry items that use event_id", async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ items: [{ event_id: "event_a", label: "Event A" }] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await expect(getAnalyticsEvents("token")).resolves.toEqual({
+      events: [{ id: "event_a", label: "Event A" }],
+    });
+  });
+
+  it("normalizes metrics registry items that use metric_id", async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ items: [{ metric_id: "metric_a", label: "Metric A" }] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await expect(getAnalyticsMetrics("token")).resolves.toEqual({
+      metrics: [{ id: "metric_a", label: "Metric A" }],
+    });
+  });
+
 });

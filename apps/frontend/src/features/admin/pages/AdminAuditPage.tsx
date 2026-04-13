@@ -3,6 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { FilterLayer, type FilterField } from "@/components/filter-layer";
+import { Typography } from "@/components/ui/typography";
 import { getAdminAuditLogs } from "@/features/admin/api/audit";
 import type {
   AdminAuditEventView,
@@ -12,22 +14,20 @@ import {
   formatAuditTimestamp,
   normalizeAdminAuditEvents,
 } from "@/features/admin/lib/audit-events";
+import { useT } from "@/lib/i18n";
 import { useAuthStore } from "@/lib/store/auth-store";
 import { PageLayout } from "@/components/ui/page-layout";
 
-const RESULT_OPTIONS: Array<{
-  value: "all" | AdminAuditResult;
-  label: string;
-}> = [
-  { value: "all", label: "All Results" },
-  { value: "success", label: "Success" },
-  { value: "accepted", label: "Accepted" },
-  { value: "denied", label: "Denied" },
-  { value: "error", label: "Error" },
-  { value: "unknown", label: "Unknown" },
+const RESULT_OPTIONS: Array<"all" | AdminAuditResult> = [
+  "all",
+  "success",
+  "accepted",
+  "denied",
+  "error",
+  "unknown",
 ];
 
-const RESULT_VALUES = new Set(RESULT_OPTIONS.map((option) => option.value));
+const RESULT_VALUES = new Set(RESULT_OPTIONS);
 
 function toResultBadgeVariant(
   result: AdminAuditResult,
@@ -56,6 +56,7 @@ function renderMetadata(metadata: Record<string, unknown> | null): string {
 }
 
 export function AdminAuditPage(): JSX.Element {
+  const t = useT();
   const token = useAuthStore((state) => state.token);
   const [searchParams, setSearchParams] = useSearchParams();
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
@@ -115,6 +116,53 @@ export function AdminAuditPage(): JSX.Element {
     const set = new Set(events.map((item) => item.action));
     return ["all", ...Array.from(set).sort()];
   }, [events]);
+  const resultLabelMap: Record<"all" | AdminAuditResult, string> = {
+    all: t("admin.audit.result.all"),
+    success: t("admin.audit.result.success"),
+    accepted: t("admin.audit.result.accepted"),
+    denied: t("admin.audit.result.denied"),
+    error: t("admin.audit.result.error"),
+    unknown: t("admin.audit.result.unknown"),
+  };
+  const filterFields: FilterField[] = [
+    {
+      id: "audit-filter-action",
+      label: t("admin.audit.filter.action"),
+      ariaLabel: "Filter action",
+      type: "select",
+      value: actionFilter,
+      options: actionOptions.map((action) => ({ value: action, label: action })),
+      onValueChange: (value) => updateFilterParam("action", value),
+    },
+    {
+      id: "audit-filter-result",
+      label: t("admin.audit.filter.result"),
+      ariaLabel: "Filter result",
+      type: "select",
+      value: resultFilter,
+      options: RESULT_OPTIONS.map((option) => ({
+        value: option,
+        label: resultLabelMap[option],
+      })),
+      onValueChange: (value) => updateFilterParam("result", value),
+    },
+    {
+      id: "audit-filter-actor",
+      label: t("admin.audit.filter.actor"),
+      ariaLabel: "Filter actor",
+      type: "input",
+      value: actorFilter,
+      onValueChange: (value) => updateFilterParam("actor", value),
+    },
+    {
+      id: "audit-filter-path",
+      label: t("admin.audit.filter.path"),
+      ariaLabel: "Filter path",
+      type: "input",
+      value: pathFilter,
+      onValueChange: (value) => updateFilterParam("path", value),
+    },
+  ];
 
   const filteredEvents = useMemo(() => {
     return events.filter((item) => {
@@ -147,100 +195,43 @@ export function AdminAuditPage(): JSX.Element {
 
   return (
     <PageLayout
-      title="Admin Audit Log"
+      title={t("admin.audit.title")}
       bodyClassName="space-y-[var(--panel-gap)]"
     >
-      <p className="text-sm text-muted-foreground">
-        Security and admin operation events with actor, action, path, result,
-        and metadata.
-      </p>
+      <Typography as="p" variant="body" className="text-muted-foreground">
+        {t("admin.audit.description")}
+      </Typography>
 
       <Card className="space-y-3">
-        <p className="text-xs font-semibold text-foreground">Filters</p>
-        <div className="grid grid-cols-1 gap-2 lg:grid-cols-4">
-          <label className="space-y-1">
-            <span className="text-xs text-muted-foreground">Action</span>
-            <select
-              aria-label="Filter action"
-              className="w-full rounded-sm border border-border bg-background px-2 py-1 text-sm text-foreground"
-              value={actionFilter}
-              onChange={(event) =>
-                updateFilterParam("action", event.target.value)
-              }
-            >
-              {actionOptions.map((action) => (
-                <option key={action} value={action}>
-                  {action}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="space-y-1">
-            <span className="text-xs text-muted-foreground">Result</span>
-            <select
-              aria-label="Filter result"
-              className="w-full rounded-sm border border-border bg-background px-2 py-1 text-sm text-foreground"
-              value={resultFilter}
-              onChange={(event) =>
-                updateFilterParam("result", event.target.value)
-              }
-            >
-              {RESULT_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="space-y-1">
-            <span className="text-xs text-muted-foreground">Actor</span>
-            <input
-              aria-label="Filter actor"
-              className="w-full rounded-sm border border-border bg-background px-2 py-1 text-sm text-foreground"
-              value={actorFilter}
-              onChange={(event) =>
-                updateFilterParam("actor", event.target.value)
-              }
-            />
-          </label>
-
-          <label className="space-y-1">
-            <span className="text-xs text-muted-foreground">Path</span>
-            <input
-              aria-label="Filter path"
-              className="w-full rounded-sm border border-border bg-background px-2 py-1 text-sm text-foreground"
-              value={pathFilter}
-              onChange={(event) =>
-                updateFilterParam("path", event.target.value)
-              }
-            />
-          </label>
-        </div>
+        <Typography as="p" variant="meta" className="text-foreground">
+          {t("admin.audit.filters")}
+        </Typography>
+        <FilterLayer fields={filterFields} className="lg:grid-cols-4 gap-2" />
       </Card>
 
       <div className="grid grid-cols-1 gap-[var(--panel-gap)] xl:grid-cols-3">
         <Card className="overflow-x-auto xl:col-span-2">
           {logsQuery.isLoading ? (
-            <p className="text-sm text-muted-foreground">
-              Loading audit events...
-            </p>
+            <Typography as="p" variant="body" className="text-muted-foreground">
+              {t("admin.audit.loading")}
+            </Typography>
           ) : logsQuery.isError ? (
-            <p className="text-sm text-danger">Failed to load audit events.</p>
+            <Typography as="p" variant="body" className="text-danger">
+              {t("admin.audit.error")}
+            </Typography>
           ) : filteredEvents.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No audit events match current filters.
-            </p>
+            <Typography as="p" variant="body" className="text-muted-foreground">
+              {t("admin.audit.empty")}
+            </Typography>
           ) : (
             <table className="w-full border-collapse text-left text-sm">
               <thead>
                 <tr className="border-b border-border text-xs text-muted-foreground">
-                  <th className="px-2 py-2">Time</th>
-                  <th className="px-2 py-2">Actor</th>
-                  <th className="px-2 py-2">Action</th>
-                  <th className="px-2 py-2">Path</th>
-                  <th className="px-2 py-2">Result</th>
+                  <th className="px-2 py-2">{t("admin.audit.table.time")}</th>
+                  <th className="px-2 py-2">{t("admin.audit.table.actor")}</th>
+                  <th className="px-2 py-2">{t("admin.audit.table.action")}</th>
+                  <th className="px-2 py-2">{t("admin.audit.table.path")}</th>
+                  <th className="px-2 py-2">{t("admin.audit.table.result")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -269,43 +260,65 @@ export function AdminAuditPage(): JSX.Element {
         </Card>
 
         <Card className="space-y-3">
-          <p className="text-xs font-semibold text-foreground">Event Details</p>
+          <Typography as="p" variant="meta" className="text-foreground">
+            {t("admin.audit.details.title")}
+          </Typography>
           {!selectedEvent ? (
-            <p className="text-sm text-muted-foreground">
-              Select a row to inspect details.
-            </p>
+            <Typography as="p" variant="body" className="text-muted-foreground">
+              {t("admin.audit.details.empty")}
+            </Typography>
           ) : (
             <div className="space-y-2 text-sm">
               <p>
-                <span className="text-muted-foreground">Summary:</span>{" "}
+                <span className="text-muted-foreground">
+                  {t("admin.audit.details.summary")}:
+                </span>{" "}
                 {selectedEvent.summary}
               </p>
               <p>
-                <span className="text-muted-foreground">Actor:</span>{" "}
+                <span className="text-muted-foreground">
+                  {t("admin.audit.details.actor")}:
+                </span>{" "}
                 {selectedEvent.actor}
               </p>
               <p>
-                <span className="text-muted-foreground">Role:</span>{" "}
+                <span className="text-muted-foreground">
+                  {t("admin.audit.details.role")}:
+                </span>{" "}
                 {selectedEvent.role}
               </p>
               <p>
-                <span className="text-muted-foreground">Action:</span>{" "}
+                <span className="text-muted-foreground">
+                  {t("admin.audit.details.action")}:
+                </span>{" "}
                 {selectedEvent.action}
               </p>
               <p>
-                <span className="text-muted-foreground">Path:</span>{" "}
+                <span className="text-muted-foreground">
+                  {t("admin.audit.details.path")}:
+                </span>{" "}
                 {selectedEvent.path}
               </p>
               <p>
-                <span className="text-muted-foreground">Result:</span>{" "}
+                <span className="text-muted-foreground">
+                  {t("admin.audit.details.result")}:
+                </span>{" "}
                 {selectedEvent.result}
               </p>
               <p>
-                <span className="text-muted-foreground">Timestamp:</span>{" "}
+                <span className="text-muted-foreground">
+                  {t("admin.audit.details.timestamp")}:
+                </span>{" "}
                 {formatAuditTimestamp(selectedEvent.timeMs)}
               </p>
               <div>
-                <p className="mb-1 text-muted-foreground">Metadata</p>
+                <Typography
+                  as="p"
+                  variant="caption"
+                  className="mb-1 text-muted-foreground"
+                >
+                  {t("admin.audit.details.metadata")}
+                </Typography>
                 <pre className="max-h-64 overflow-auto rounded-sm bg-muted p-2 text-xs">
                   {renderMetadata(selectedEvent.metadata)}
                 </pre>
