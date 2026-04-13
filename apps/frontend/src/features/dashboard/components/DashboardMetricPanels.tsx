@@ -22,7 +22,7 @@ import { useOtcIndexSeries } from "@/features/dashboard/hooks/use-otc-index-seri
 import { PanelCard } from "@/components/ui/panel-card";
 import { StrengthGaugePanelCard } from "@/features/dashboard/components/StrengthGaugePanelCard";
 import { Typography } from "@/components/ui/typography";
-import { useT } from "@/lib/i18n";
+import { useI18n, useT } from "@/lib/i18n";
 
 interface GaugeSegment {
   name: string;
@@ -71,13 +71,7 @@ const GAP_K_SYMBOLS = ["2330", "2317", "2454", "2308", "2881", "6505"] as const;
 const NEEDLE_BASE_RADIUS_PX = 4;
 const gaugeValues = [74, 66, 58, 82, 63];
 const GROUPED_INTEGER_FORMATTER = new Intl.NumberFormat("en-US");
-const coreMetricLabels = [
-  "\u6210\u4ea4\u632f\u5e45",
-  "\u9810\u4f30\u6210\u4ea4\u91cf",
-  "\u50f9\u5dee",
-] as const;
-const coreMetricValues = ["1.82%", "24.6K", "12"] as const;
-const contributionMetricValues = ["+84", "+176", "612 / 356"] as const;
+type CoreMetricType = "amplitude" | "projectedVolume" | "spread";
 function buildOtcIntradaySeries(): Array<{
   time: string;
   value: number;
@@ -228,13 +222,13 @@ function formatPercentage(value: number): string {
 }
 
 function formatCoreMetricValue(
-  label: (typeof coreMetricLabels)[number],
+  metricType: CoreMetricType,
   value: number | null,
 ): string {
   if (value === null) {
     return "--";
   }
-  if (label === "\u9810\u4f30\u6210\u4ea4\u91cf") {
+  if (metricType === "projectedVolume") {
     return formatYiUnit(value);
   }
   return formatFixed2(value);
@@ -406,6 +400,7 @@ function MetricMiniPanel({
 }
 
 function OtcIndexLinePanel({ title }: { title: string }): JSX.Element {
+  const { locale, t } = useI18n();
   const { series } = useOtcIndexSeries();
   const chartData = series;
   const xTicks =
@@ -431,7 +426,7 @@ function OtcIndexLinePanel({ title }: { title: string }): JSX.Element {
     >
       {chartData.length === 0 ? (
         <div className="flex h-full min-h-[120px] items-center justify-center text-xs text-muted-foreground">
-          No OTC data
+          {t("dashboard.metrics.otc.empty")}
         </div>
       ) : (
         <div className="h-full min-h-[120px] w-full" data-testid="panel-chart">
@@ -458,9 +453,9 @@ function OtcIndexLinePanel({ title }: { title: string }): JSX.Element {
                 width={0}
               />
               <Tooltip
-                formatter={(value) => [Number(value).toFixed(2), "OTC"]}
+                formatter={(value) => [Number(value).toFixed(2), t("dashboard.metrics.otc.title")]}
                 labelFormatter={(label) =>
-                  new Date(Number(label)).toLocaleString("zh-TW", {
+                  new Date(Number(label)).toLocaleString(locale === "zh-TW" ? "zh-TW" : "en-US", {
                     hour12: false,
                     month: "2-digit",
                     day: "2-digit",
@@ -823,27 +818,27 @@ export function DashboardMetricPanels(): JSX.Element {
   );
   const coreMetrics = [
     {
-      label: "\u6210\u4ea4\u632f\u5e45",
+      label: t("dashboard.metrics.core.amplitude"),
       value: formatCoreMetricValue(
-        "\u6210\u4ea4\u632f\u5e45",
+        "amplitude",
         stickyDayAmplitude,
       ),
     },
     {
-      label: "\u9810\u4f30\u6210\u4ea4\u91cf",
+      label: t("dashboard.metrics.core.projectedVolume"),
       value: formatCoreMetricValue(
-        "\u9810\u4f30\u6210\u4ea4\u91cf",
+        "projectedVolume",
         stickyEstimatedTurnover,
       ),
     },
     {
-      label: "\u50f9\u5dee",
-      value: formatCoreMetricValue("\u50f9\u5dee", stickySpread),
+      label: t("dashboard.metrics.core.spread"),
+      value: formatCoreMetricValue("spread", stickySpread),
     },
   ];
   const contributionMetrics = [
     {
-      label: "\u4e3b\u529b\u7c4c\u78bc",
+      label: t("dashboard.metrics.needle.mainChip"),
       value:
         stickyMainChipStrength === null
           ? "--"
@@ -851,12 +846,12 @@ export function DashboardMetricPanels(): JSX.Element {
       testId: "live-metrics-contribution-main-chip",
     },
     {
-      label: "\u6563\u6236\u5c0f\u55ae",
+      label: t("dashboard.metrics.needle.retailSmallOrder"),
       value: "--",
       testId: "live-metrics-contribution-retail-small-order",
     },
     {
-      label: "\u591a\u7a7a\u529b\u9053",
+      label: t("dashboard.metrics.needle.longShortForce"),
       value:
         stickyLongShortForceStrength === null
           ? "--"

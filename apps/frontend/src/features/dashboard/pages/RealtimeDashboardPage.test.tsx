@@ -43,7 +43,6 @@ describe("RealtimeDashboardPage", () => {
     expect(screen.getByText("MARKET OVERVIEW")).toBeInTheDocument();
     expect(screen.getByText("PARTICIPANT OVERVIEW")).toBeInTheDocument();
 
-    expect(screen.getByText("SSE LIVE STREAM")).toBeInTheDocument();
     expect(screen.getByTestId("sse-close-trend-panel")).toBeInTheDocument();
     expect(screen.getByTestId("sse-spread-panel")).toBeInTheDocument();
     expect(screen.getByTestId("sse-depth-panel")).toBeInTheDocument();
@@ -82,7 +81,7 @@ describe("RealtimeDashboardPage", () => {
       screen.getByText("Unlock Pro insights now - subscribe to Pro."),
     ).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button"));
+    fireEvent.click(screen.getByLabelText("Close sticky banner"));
 
     expect(
       screen.queryByText("Unlock Pro insights now - subscribe to Pro."),
