@@ -9,7 +9,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 
-from app.config import SERVING_HEARTBEAT_SECONDS, SERVING_POLL_INTERVAL_MS
+from app.config import INDEX_CONTRIBUTION_CODE, SERVING_HEARTBEAT_SECONDS, SERVING_POLL_INTERVAL_MS
 from app.db.deps import get_db_session
 from app.deps import (
     enforce_serving_rate_limit,
@@ -21,6 +21,8 @@ from app.services.serving_store import (
     default_kbar_window,
     default_metric_window,
     fetch_current_kbar,
+    fetch_index_contrib_ranking_latest,
+    fetch_index_contrib_sector_latest,
     fetch_kbar_history,
     fetch_kbar_today_range,
     fetch_metric_latest,
@@ -207,6 +209,8 @@ async def stream_sse(
     async def event_stream():
         last_kbar: dict[str, Any] | None = None
         last_metric: dict[str, Any] | None = None
+        last_index_contrib_ranking: dict[str, Any] | None = None
+        last_index_contrib_sector: dict[str, Any] | None = None
         last_heartbeat = 0.0
         poll_interval = max(SERVING_POLL_INTERVAL_MS / 1000, 0.05)
         try:
@@ -216,9 +220,16 @@ async def stream_sse(
                 try:
                     current_k = fetch_current_kbar(instrument)
                     metric_latest = fetch_metric_latest(instrument)
+                    index_contrib_ranking = fetch_index_contrib_ranking_latest(
+                        INDEX_CONTRIBUTION_CODE
+                    )
+                    index_contrib_sector = fetch_index_contrib_sector_latest(
+                        INDEX_CONTRIBUTION_CODE
+                    )
                 except Exception:
                     metrics.inc("serving_redis_errors_total")
                     break
+                now = asyncio.get_running_loop().time()
 
                 if current_k and current_k != last_kbar:
                     last_kbar = current_k
@@ -230,7 +241,28 @@ async def stream_sse(
                     metrics.inc("serving_sse_push_total")
                     yield _sse_message("metric_latest", metric_latest)
 
-                now = asyncio.get_running_loop().time()
+                if index_contrib_ranking and index_contrib_ranking != last_index_contrib_ranking:
+                    last_index_contrib_ranking = index_contrib_ranking
+                    metrics.inc("serving_sse_push_total")
+                    yield _sse_message(
+                        "index_contrib_ranking",
+                        {
+                            **index_contrib_ranking,
+                            "ts": int(now * 1000),
+                        },
+                    )
+
+                if index_contrib_sector and index_contrib_sector != last_index_contrib_sector:
+                    last_index_contrib_sector = index_contrib_sector
+                    metrics.inc("serving_sse_push_total")
+                    yield _sse_message(
+                        "index_contrib_sector",
+                        {
+                            **index_contrib_sector,
+                            "ts": int(now * 1000),
+                        },
+                    )
+
                 if now - last_heartbeat >= SERVING_HEARTBEAT_SECONDS:
                     last_heartbeat = now
                     yield _sse_message("heartbeat", {"ts": int(now * 1000)})

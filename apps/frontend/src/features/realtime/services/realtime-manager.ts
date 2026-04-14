@@ -1,5 +1,7 @@
 import {
   HeartbeatSchema,
+  IndexContributionRankingSchema,
+  IndexContributionSectorSchema,
   KbarCurrentSchema,
   MetricLatestSchema,
 } from "@/features/realtime/schemas/serving-event.schema";
@@ -98,6 +100,24 @@ export function applyServingSseEvent(eventName: string, data: unknown): void {
       return;
     }
     store.setHeartbeat(parsed.data.ts);
+    return;
+  }
+
+  if (eventName === "index_contrib_ranking") {
+    const parsed = IndexContributionRankingSchema.safeParse(data);
+    if (!parsed.success) {
+      return;
+    }
+    store.setIndexContribRanking(parsed.data);
+    return;
+  }
+
+  if (eventName === "index_contrib_sector") {
+    const parsed = IndexContributionSectorSchema.safeParse(data);
+    if (!parsed.success) {
+      return;
+    }
+    store.setIndexContribSector(parsed.data);
   }
 }
 
