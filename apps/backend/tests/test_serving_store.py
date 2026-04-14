@@ -60,16 +60,32 @@ def test_fetch_index_contrib_ranking_latest_from_zsets(monkeypatch) -> None:
 
 
 def test_fetch_index_contrib_sector_latest_from_json(monkeypatch) -> None:
+    """Test with new treemap format (array of sectors with children)."""
     redis = _FakeRedis()
     trade_date = serving_store.trade_date_for(
         serving_store.datetime.now(tz=serving_store.TZ_TAIPEI)
     )
     key = f"{serving_store.SERVING_ENV}:state:index_contrib:TSE001:{trade_date.isoformat()}:sector"
-    redis.strings[key] = json.dumps({"Semiconductor": 4.3, "Finance": -1.2})
+    redis.strings[key] = json.dumps(
+        [
+            {
+                "name": "Semiconductor",
+                "children": [{"name": "2330", "size": 34.5, "contribution_points": 4.3}],
+            },
+            {
+                "name": "Finance",
+                "children": [{"name": "2881", "size": 7.8, "contribution_points": -1.2}],
+            },
+        ]
+    )
     monkeypatch.setattr(serving_store, "get_serving_redis_client", lambda: redis)
 
     result = serving_store.fetch_index_contrib_sector_latest("TSE001")
 
     assert result is not None
     assert result["index_code"] == "TSE001"
-    assert result["sectors"]["Semiconductor"] == 4.3
+    assert isinstance(result["sectors"], list)
+    assert len(result["sectors"]) == 2
+    assert result["sectors"][0]["name"] == "Semiconductor"
+    assert result["sectors"][0]["children"][0]["name"] == "2330"
+    assert result["sectors"][0]["children"][0]["contribution_points"] == 4.3

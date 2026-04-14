@@ -43,10 +43,21 @@ export const IndexContributionRankingSchema = z.object({
   ts: z.number(),
 });
 
+export const IndexContributionSectorItemSchema = z.object({
+  name: z.string().min(1),
+  size: z.number(),
+  contribution_points: z.number(),
+});
+
+export const IndexContributionSectorGroupSchema = z.object({
+  name: z.string().min(1),
+  children: z.array(IndexContributionSectorItemSchema),
+});
+
 export const IndexContributionSectorSchema = z.object({
   index_code: z.string().min(1),
   trade_date: z.string().min(1),
-  sectors: z.record(z.number()),
+  sectors: z.array(IndexContributionSectorGroupSchema),
   ts: z.number(),
 });
 

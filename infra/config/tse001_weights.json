@@ -1,10 +1,163 @@
-﻿[
-  {
+{
+  "2330": {
     "symbol": "2330",
-    "symbol_name": "TSMC",
-    "weight": 0.31,
-    "weight_version": "seed-v1",
-    "weight_generated_at": "2026-04-06T08:30:00+08:00",
-    "sector": "Semiconductor"
+    "symbol_name": "台積電",
+    "weight": 0.345,
+    "sector": "semiconductor",
+    "weight_version": "v1",
+    "weight_generated_at": "2026-04-14T00:00:00+08:00"
+  },
+  "2454": {
+    "symbol": "2454",
+    "symbol_name": "聯發科",
+    "weight": 0.052,
+    "sector": "semiconductor",
+    "weight_version": "v1",
+    "weight_generated_at": "2026-04-14T00:00:00+08:00"
+  },
+  "2317": {
+    "symbol": "2317",
+    "symbol_name": "鴻海",
+    "weight": 0.045,
+    "sector": "electronics",
+    "weight_version": "v1",
+    "weight_generated_at": "2026-04-14T00:00:00+08:00"
+  },
+  "2881": {
+    "symbol": "2881",
+    "symbol_name": "富邦金",
+    "weight": 0.038,
+    "sector": "financial",
+    "weight_version": "v1",
+    "weight_generated_at": "2026-04-14T00:00:00+08:00"
+  },
+  "2882": {
+    "symbol": "2882",
+    "symbol_name": "國泰金",
+    "weight": 0.037,
+    "sector": "financial",
+    "weight_version": "v1",
+    "weight_generated_at": "2026-04-14T00:00:00+08:00"
+  },
+  "2303": {
+    "symbol": "2303",
+    "symbol_name": "聯電",
+    "weight": 0.028,
+    "sector": "semiconductor",
+    "weight_version": "v1",
+    "weight_generated_at": "2026-04-14T00:00:00+08:00"
+  },
+  "2412": {
+    "symbol": "2412",
+    "symbol_name": "中華電",
+    "weight": 0.025,
+    "sector": "telecom",
+    "weight_version": "v1",
+    "weight_generated_at": "2026-04-14T00:00:00+08:00"
+  },
+  "2308": {
+    "symbol": "2308",
+    "symbol_name": "台達電",
+    "weight": 0.024,
+    "sector": "electronics",
+    "weight_version": "v1",
+    "weight_generated_at": "2026-04-14T00:00:00+08:00"
+  },
+  "2886": {
+    "symbol": "2886",
+    "symbol_name": "兆豐金",
+    "weight": 0.022,
+    "sector": "financial",
+    "weight_version": "v1",
+    "weight_generated_at": "2026-04-14T00:00:00+08:00"
+  },
+  "2891": {
+    "symbol": "2891",
+    "symbol_name": "中信金",
+    "weight": 0.021,
+    "sector": "financial",
+    "weight_version": "v1",
+    "weight_generated_at": "2026-04-14T00:00:00+08:00"
+  },
+  "2382": {
+    "symbol": "2382",
+    "symbol_name": "廣達",
+    "weight": 0.019,
+    "sector": "electronics",
+    "weight_version": "v1",
+    "weight_generated_at": "2026-04-14T00:00:00+08:00"
+  },
+  "2002": {
+    "symbol": "2002",
+    "symbol_name": "中鋼",
+    "weight": 0.018,
+    "sector": "steel",
+    "weight_version": "v1",
+    "weight_generated_at": "2026-04-14T00:00:00+08:00"
+  },
+  "1301": {
+    "symbol": "1301",
+    "symbol_name": "台塑",
+    "weight": 0.017,
+    "sector": "plastics",
+    "weight_version": "v1",
+    "weight_generated_at": "2026-04-14T00:00:00+08:00"
+  },
+  "1303": {
+    "symbol": "1303",
+    "symbol_name": "南亞",
+    "weight": 0.016,
+    "sector": "plastics",
+    "weight_version": "v1",
+    "weight_generated_at": "2026-04-14T00:00:00+08:00"
+  },
+  "2884": {
+    "symbol": "2884",
+    "symbol_name": "玉山金",
+    "weight": 0.015,
+    "sector": "financial",
+    "weight_version": "v1",
+    "weight_generated_at": "2026-04-14T00:00:00+08:00"
+  },
+  "2892": {
+    "symbol": "2892",
+    "symbol_name": "第一金",
+    "weight": 0.014,
+    "sector": "financial",
+    "weight_version": "v1",
+    "weight_generated_at": "2026-04-14T00:00:00+08:00"
+  },
+  "2207": {
+    "symbol": "2207",
+    "symbol_name": "和泰車",
+    "weight": 0.013,
+    "sector": "automobile",
+    "weight_version": "v1",
+    "weight_generated_at": "2026-04-14T00:00:00+08:00"
+  },
+  "2357": {
+    "symbol": "2357",
+    "symbol_name": "華碩",
+    "weight": 0.012,
+    "sector": "electronics",
+    "weight_version": "v1",
+    "weight_generated_at": "2026-04-14T00:00:00+08:00"
+  },
+  "3711": {
+    "symbol": "3711",
+    "symbol_name": "日月光投控",
+    "weight": 0.011,
+    "sector": "semiconductor",
+    "weight_version": "v1",
+    "weight_generated_at": "2026-04-14T00:00:00+08:00"
+  },
+  "2603": {
+    "symbol": "2603",
+    "symbol_name": "長榮",
+    "weight": 0.010,
+    "sector": "shipping",
+    "weight_version": "v1",
+    "weight_generated_at": "2026-04-14T00:00:00+08:00"
   }
-]
+}
+

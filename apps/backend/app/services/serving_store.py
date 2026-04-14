@@ -419,13 +419,25 @@ def fetch_index_contrib_sector_latest(index_code: str) -> dict[str, Any] | None:
         sectors = json.loads(payload)
     except json.JSONDecodeError:
         return None
-    if not isinstance(sectors, dict):
-        return None
-    return {
-        "index_code": index_code,
-        "trade_date": trade_date.isoformat(),
-        "sectors": sectors,
-    }
+
+    # Support both old format (dict) and new format (array)
+    if isinstance(sectors, dict):
+        # Old format: {"Semiconductor": 4.3, "Finance": -1.2}
+        # Keep for backward compatibility but not used by treemap
+        return {
+            "index_code": index_code,
+            "trade_date": trade_date.isoformat(),
+            "sectors": sectors,
+        }
+    elif isinstance(sectors, list):
+        # New format: [{"name": "semiconductor", "children": [...]}]
+        return {
+            "index_code": index_code,
+            "trade_date": trade_date.isoformat(),
+            "sectors": sectors,
+        }
+
+    return None
 
 
 def fetch_quote_latest(code: str) -> dict[str, Any] | None:

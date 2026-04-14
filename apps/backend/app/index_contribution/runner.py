@@ -390,11 +390,34 @@ class IndexContributionRunner:
         )
 
     def publish_sector_aggregate(self, *, trade_date: date) -> None:
+        """Publish sector treemap data with symbol details."""
         key = (
             f"{self._env}:state:index_contrib:{self.engine.index_code}:"
             f"{trade_date.isoformat()}:sector"
         )
-        payload = json.dumps(self.engine.sector_aggregate, ensure_ascii=False)
+
+        # Build treemap structure: group symbols by sector
+        sectors_dict: dict[str, list[dict[str, Any]]] = {}
+        for symbol_data in self.engine.symbol_state.values():
+            sector = str(symbol_data.get("sector", "other"))
+            if sector not in sectors_dict:
+                sectors_dict[sector] = []
+
+            sectors_dict[sector].append(
+                {
+                    "name": str(symbol_data["symbol"]),
+                    "size": float(symbol_data["weight"]) * 100,  # Convert to percentage
+                    "contribution_points": float(symbol_data["contribution_points"]),
+                }
+            )
+
+        # Convert to array format for frontend
+        sectors = [
+            {"name": sector_name, "children": children}
+            for sector_name, children in sectors_dict.items()
+        ]
+
+        payload = json.dumps(sectors, ensure_ascii=False)
         self._with_redis_retry(
             lambda: self._set_with_ttl(key, payload),
             success_metric="index_contribution_redis_sector_write_total",

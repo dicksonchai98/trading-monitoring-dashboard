@@ -171,6 +171,23 @@ def test_publish_rankings_and_sector_aggregate() -> None:
     assert bottom_key in redis.expirations
     assert sector_key in redis.strings
 
+    # Verify treemap data structure
+    import json
+
+    sector_data = json.loads(redis.strings[sector_key])
+    assert isinstance(sector_data, list)
+    assert len(sector_data) > 0
+    # Find semiconductor sector
+    semiconductor_sector = next((s for s in sector_data if s["name"] == "semiconductor"), None)
+    assert semiconductor_sector is not None
+    assert "children" in semiconductor_sector
+    assert isinstance(semiconductor_sector["children"], list)
+    # Check for 2330 in children
+    symbol_2330 = next((c for c in semiconductor_sector["children"] if c["name"] == "2330"), None)
+    assert symbol_2330 is not None
+    assert "size" in symbol_2330
+    assert "contribution_points" in symbol_2330
+
 
 def test_publish_symbol_latest_retries_on_redis_failure() -> None:
     runner = IndexContributionRunner(
