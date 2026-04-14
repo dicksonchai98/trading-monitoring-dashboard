@@ -10,13 +10,9 @@ services:
       - redis
     ports:
       - "8000:8000"
+    volumes:
+      - ./infra/config:/app/infra/config:ro
     environment:
-      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-xxx}
-      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-xxx}
-      STRIPE_PRICE_ID: ${STRIPE_PRICE_ID:-xxx}
-      STRIPE_SUCCESS_URL: ${STRIPE_SUCCESS_URL:-http://localhost:3000/success}
-      STRIPE_CANCEL_URL: ${STRIPE_CANCEL_URL:-http://localhost:3000/cancel}
-      STRIPE_PORTAL_RETURN_URL: ${STRIPE_PORTAL_RETURN_URL:-http://localhost:3000/success}
       DATABASE_URL: ${DATABASE_URL_DOCKER:-postgresql+psycopg://postgres:981025060598Cc!@host.docker.internal:5432/trading_dashboard}
       REDIS_URL: ${REDIS_URL_DOCKER:-redis://redis:6379/0}
       AGGREGATOR_ENABLED: "false"
@@ -60,6 +56,19 @@ services:
       DATABASE_URL: ${DATABASE_URL_DOCKER:-postgresql+psycopg://postgres:981025060598Cc!@host.docker.internal:5432/trading_dashboard}
       REDIS_URL: ${REDIS_URL_DOCKER:-redis://redis:6379/0}
 
+  backend-quote-worker:
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile
+    command: python -m workers.quote_worker
+    env_file:
+      - ./.env
+    depends_on:
+      - redis
+    environment:
+      DATABASE_URL: ${DATABASE_URL_DOCKER:-postgresql+psycopg://postgres:981025060598Cc!@host.docker.internal:5432/trading_dashboard}
+      REDIS_URL: ${REDIS_URL_DOCKER:-redis://redis:6379/0}
+
   backend-latest-state-worker:
     build:
       context: ./apps/backend
@@ -78,6 +87,24 @@ services:
       context: ./apps/backend
       dockerfile: Dockerfile
     command: python -m workers.index_contribution_worker
+  backend-market-summary-worker:
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile
+    command: python -m workers.market_summary_worker
+    env_file:
+      - ./.env
+    depends_on:
+      - redis
+    environment:
+      DATABASE_URL: ${DATABASE_URL_DOCKER:-postgresql+psycopg://postgres:981025060598Cc!@host.docker.internal:5432/trading_dashboard}
+      REDIS_URL: ${REDIS_URL_DOCKER:-redis://redis:6379/0}
+
+  backend-otc-summary-worker:
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile
+    command: python -m workers.otc_summary_worker
     env_file:
       - ./.env
     depends_on:
@@ -96,6 +123,36 @@ services:
     depends_on:
       - redis
     environment:
+      DATABASE_URL: ${DATABASE_URL_DOCKER:-postgresql+psycopg://postgres:981025060598Cc!@host.docker.internal:5432/trading_dashboard}
+      REDIS_URL: ${REDIS_URL_DOCKER:-redis://redis:6379/0}
+
+  backend-backfill-worker:
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile
+    command: python -m workers.backfill_worker
+    env_file:
+      - ./.env
+    depends_on:
+      - redis
+    environment:
+      DATABASE_URL: ${DATABASE_URL_DOCKER:-postgresql+psycopg://postgres:981025060598Cc!@host.docker.internal:5432/trading_dashboard}
+      REDIS_URL: ${REDIS_URL_DOCKER:-redis://redis:6379/0}
+
+  backend-kbar-analytics-cron-worker:
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile
+    command: python -m workers.kbar_analytics_cron_worker
+    env_file:
+      - ./.env
+    depends_on:
+      - redis
+    environment:
+      KBAR_ANALYTICS_CRON_ENABLED: ${KBAR_ANALYTICS_CRON_ENABLED:-1}
+      KBAR_ANALYTICS_CRON_INTERVAL_SECONDS: ${KBAR_ANALYTICS_CRON_INTERVAL_SECONDS:-86400}
+      KBAR_ANALYTICS_CRON_WINDOW_DAYS: ${KBAR_ANALYTICS_CRON_WINDOW_DAYS:-30}
+      KBAR_ANALYTICS_CRON_CODE: ${KBAR_ANALYTICS_CRON_CODE:-TXF}
       DATABASE_URL: ${DATABASE_URL_DOCKER:-postgresql+psycopg://postgres:981025060598Cc!@host.docker.internal:5432/trading_dashboard}
       REDIS_URL: ${REDIS_URL_DOCKER:-redis://redis:6379/0}
 

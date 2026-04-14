@@ -78,7 +78,7 @@ class OtpService:
             raise ValueError("unsupported_channel")
         if not _is_valid_email(email):
             raise ValueError("invalid_email")
-        if self._user_repository.get_by_username(email) is not None:
+        if self._user_repository.get_by_email(email) is not None:
             raise ValueError("user_exists")
         allowed, retry_after = self._rate_limiter.check_request(
             f"otp:email:{email}", limit=5, window_seconds=3600

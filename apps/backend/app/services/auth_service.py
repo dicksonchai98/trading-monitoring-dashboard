@@ -23,11 +23,14 @@ class AuthService:
         self._denylist = denylist
         self._metrics = metrics
 
-    def register(self, username: str, password: str) -> tuple[str, str]:
+    def register(self, user_id: str, email: str, password: str) -> tuple[str, str]:
         password_hash = hash_password(password)
         try:
             user = self._user_repository.create_user(
-                username=username, password_hash=password_hash, role="user"
+                user_id=user_id,
+                email=email,
+                password_hash=password_hash,
+                role="user",
             )
         except ValueError as err:
             if str(err) == "user_exists":
@@ -36,18 +39,35 @@ class AuthService:
         return self._mint_pair(user)
 
     @staticmethod
-    def is_valid_email_username(username: str) -> bool:
-        local_domain = username.split("@")
+    def is_valid_email(email: str) -> bool:
+        local_domain = email.split("@")
         return len(local_domain) == 2 and bool(local_domain[0]) and bool(local_domain[1])
 
-    def user_exists(self, username: str) -> bool:
-        return self._user_repository.get_by_username(username) is not None
+    @staticmethod
+    def is_valid_user_id(user_id: str) -> bool:
+        trimmed = user_id.strip()
+        return len(trimmed) >= 3 and len(trimmed) <= 64
 
-    def delete_user(self, username: str) -> None:
-        self._user_repository.delete_by_username(username)
+    @staticmethod
+    def is_valid_password(password: str) -> bool:
+        if len(password) < 8:
+            return False
+        has_upper = any(ch.isupper() for ch in password)
+        has_lower = any(ch.islower() for ch in password)
+        has_digit = any(ch.isdigit() for ch in password)
+        return has_upper and has_lower and has_digit
 
-    def login(self, username: str, password: str) -> tuple[str, str]:
-        user = self._user_repository.get_by_username(username)
+    def email_exists(self, email: str) -> bool:
+        return self._user_repository.get_by_email(email) is not None
+
+    def user_id_exists(self, user_id: str) -> bool:
+        return self._user_repository.get_by_user_id(user_id) is not None
+
+    def delete_user(self, user_id: str) -> None:
+        self._user_repository.delete_by_user_id(user_id)
+
+    def login(self, user_id: str, password: str) -> tuple[str, str]:
+        user = self._user_repository.get_by_user_id(user_id)
         if user is None or not verify_password(password, user.password_hash):
             self._metrics.inc("login_failure")
             raise ValueError("invalid_credentials")
@@ -94,7 +114,7 @@ class AuthService:
         return verify_token(token, JWT_SECRET, expected_type=ACCESS_TOKEN_TYPE)
 
     def _mint_pair(self, user: UserRecord) -> tuple[str, str]:
-        claims = {"sub": user.username, "role": user.role}
+        claims = {"sub": user.username, "user_id": user.user_id, "role": user.role}
         access_token = issue_token(
             claims,
             ACCESS_TOKEN_TTL_SECONDS,

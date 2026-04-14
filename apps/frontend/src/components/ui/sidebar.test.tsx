@@ -1,109 +1,49 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
-import { Sidebar } from "@/components/ui/sidebar";
-import { useAuthStore } from "@/lib/store/auth-store";
+import { render, screen } from "@testing-library/react"
+import { MemoryRouter } from "react-router-dom"
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+} from "@/components/ui/sidebar"
 
-function b64url(value: string): string {
-  return Buffer.from(value).toString("base64url");
-}
-
-function makeToken(role: "user" | "admin" = "user", sub = "alice"): string {
-  return [
-    b64url(JSON.stringify({ alg: "none", typ: "JWT" })),
-    b64url(JSON.stringify({ sub, role, exp: 9_999_999_999, type: "access" })),
-    "signature",
-  ].join(".");
-}
-
-describe("Sidebar", () => {
+describe("Sidebar primitives", () => {
   beforeEach(() => {
-    useAuthStore.setState({
-      token: null,
-      role: "visitor",
-      entitlement: "none",
-      resolved: true,
-    });
-  });
+    Object.defineProperty(window, "matchMedia", {
+      writable: true,
+      value: vi.fn().mockImplementation((query: string) => ({
+        matches: query.includes("max-width") ? window.innerWidth <= 767 : false,
+        media: query,
+        onchange: null,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })),
+    })
+  })
 
-  it("pins user info to the bottom section and keeps the toggle button near the header", () => {
+  it("renders sidebar content inside provider", () => {
     render(
       <MemoryRouter initialEntries={["/dashboard"]}>
-        <Sidebar />
-      </MemoryRouter>,
-    );
+        <SidebarProvider>
+          <Sidebar role="complementary">
+            <SidebarContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton>Dashboard</SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarContent>
+          </Sidebar>
+        </SidebarProvider>
+      </MemoryRouter>
+    )
 
-    expect(screen.getByTestId("sidebar-footer")).toBeInTheDocument();
-    expect(screen.getByTestId("sidebar-user-info")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Collapse sidebar" })).toHaveClass(
-      "top-[var(--shell-padding)]",
-    );
-  });
-
-  it("shows a login link when the user is not authenticated", () => {
-    render(
-      <MemoryRouter initialEntries={["/dashboard"]}>
-        <Sidebar />
-      </MemoryRouter>,
-    );
-
-    const loginLink = screen
-      .getAllByRole("link")
-      .find((element) => element.getAttribute("href") === "/login");
-    expect(loginLink).toBeDefined();
-    expect(screen.queryByText("Account")).not.toBeInTheDocument();
-  });
-
-  it("shows account and role from the current auth session when authenticated", () => {
-    useAuthStore.setState({
-      token: makeToken("admin", "trader01"),
-      role: "admin",
-      entitlement: "active",
-      resolved: true,
-    });
-
-    render(
-      <MemoryRouter initialEntries={["/dashboard"]}>
-        <Sidebar />
-      </MemoryRouter>,
-    );
-
-    expect(screen.getByText("Account")).toBeInTheDocument();
-    expect(screen.getByText("trader01")).toBeInTheDocument();
-    expect(screen.getByText("Role")).toBeInTheDocument();
-    expect(screen.getByText("admin")).toBeInTheDocument();
-    expect(screen.getByTestId("sidebar-user-info-trigger")).toBeInTheDocument();
-  });
-
-  it("opens settings modal with font, theme, billing portal and logout controls", () => {
-    useAuthStore.setState({
-      token: makeToken("user", "member01"),
-      role: "member",
-      entitlement: "active",
-      resolved: true,
-    });
-
-    render(
-      <MemoryRouter initialEntries={["/dashboard"]}>
-        <Sidebar />
-      </MemoryRouter>,
-    );
-
-    fireEvent.click(screen.getByTestId("sidebar-user-info-trigger"));
-
-    expect(screen.getByRole("dialog", { name: "Settings dialog" })).toBeInTheDocument();
-    expect(screen.getByText("Font")).toBeInTheDocument();
-    expect(screen.getByText("Color style")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Open Billing Portal" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Logout" })).toBeInTheDocument();
-  });
-
-  it("does not show settings trigger when user is not authenticated", () => {
-    render(
-      <MemoryRouter initialEntries={["/dashboard"]}>
-        <Sidebar />
-      </MemoryRouter>,
-    );
-
-    expect(screen.queryByTestId("sidebar-user-info-trigger")).not.toBeInTheDocument();
-  });
-});
+    expect(screen.getByRole("complementary")).toBeInTheDocument()
+    expect(screen.getByText("Dashboard")).toBeInTheDocument()
+  })
+})

@@ -1,3 +1,6 @@
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/geist";
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -45,6 +48,29 @@
   --sidebar-w-expanded: 17rem;
   --sidebar-w-collapsed: 4.5rem;
   --sidebar-toggle-size: 1.75rem;
+  --popover: var(--card);
+  --popover-foreground: var(--card-foreground);
+  --sidebar: var(--shell);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: var(--panel-hover);
+  --sidebar-accent-foreground: var(--foreground);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--primary);
+}
+
+.dark {
+  --popover: var(--card);
+  --popover-foreground: var(--card-foreground);
+  --sidebar: var(--shell);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: var(--panel-hover);
+  --sidebar-accent-foreground: var(--foreground);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--primary);
 }
 
 :root[data-font="sans"] {
@@ -84,15 +110,103 @@
   --border-strong: 225 8% 34%;
 }
 
+:root[data-color-mode="light"] {
+  --background: 0 0% 98%;
+  --foreground: 222 47% 12%;
+  --shell: 0 0% 100%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 12%;
+  --panel-hover: 210 40% 96%;
+  --primary: 24 96% 52%;
+  --primary-foreground: 0 0% 100%;
+  --muted: 210 40% 96%;
+  --muted-foreground: 215 16% 40%;
+  --subtle-foreground: 215 14% 46%;
+  --border: 214 32% 91%;
+  --border-strong: 214 28% 83%;
+  --info: 204 89% 45%;
+  --success: 152 62% 36%;
+  --warning: 38 88% 44%;
+  --danger: 0 74% 46%;
+}
+
 * {
   @apply border-border;
 }
 
 body {
-  @apply bg-background font-mono text-foreground antialiased;
-  font-family: var(--font-mono);
+  @apply bg-background text-foreground antialiased;
+  font-family: var(--font-sans);
 }
 
 #root {
   min-height: 100vh;
+}
+
+@keyframes auth-step-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(-16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.auth-step-enter {
+  animation: auth-step-slide-in 240ms ease-out both;
+}
+
+@layer base {
+  .theme {
+    --font-heading: var(--font-sans);
+  }
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}
+
+@layer components {
+  .typo-display {
+    @apply font-sans text-4xl leading-tight font-semibold tracking-tight;
+  }
+
+  .typo-h1 {
+    @apply font-sans text-[28px] leading-tight font-semibold tracking-tight;
+  }
+
+  .typo-h2 {
+    @apply font-sans text-2xl leading-tight font-semibold tracking-tight;
+  }
+
+  .typo-title {
+    @apply font-sans text-base leading-snug font-semibold;
+  }
+
+  .typo-body {
+    @apply font-sans text-sm leading-normal font-normal;
+  }
+
+  .typo-caption {
+    @apply font-sans text-xs leading-normal font-normal;
+  }
+
+  .typo-overline {
+    @apply font-mono text-[11px] leading-none font-semibold uppercase tracking-[0.08em];
+  }
+
+  .typo-meta {
+    @apply font-mono text-[11px] leading-none font-medium uppercase tracking-[0.12em];
+  }
+
+  .typo-metric {
+    @apply font-mono text-lg leading-tight font-semibold tracking-tight tabular-nums;
+  }
 }

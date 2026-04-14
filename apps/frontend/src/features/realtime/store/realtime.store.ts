@@ -3,8 +3,12 @@ import type {
   IndexContributionRankingPayload,
   IndexContributionSectorPayload,
   KbarCurrentPayload,
+  MarketSummaryLatestPayload,
   MetricLatestPayload,
+  OtcSummaryLatestPayload,
+  QuoteLatestPayload,
   SseConnectionStatus,
+  SpotLatestListPayload,
 } from "@/features/realtime/types/realtime.types";
 
 interface RealtimeStore {
@@ -14,12 +18,28 @@ interface RealtimeStore {
   metricLatestByCode: Record<string, MetricLatestPayload>;
   indexContribRanking: IndexContributionRankingPayload | null;
   indexContribSector: IndexContributionSectorPayload | null;
+  marketSummaryLatestByCode: Record<string, MarketSummaryLatestPayload>;
+  otcSummaryLatestByCode: Record<string, OtcSummaryLatestPayload>;
+  quoteLatestByCode: Record<string, QuoteLatestPayload>;
+  spotLatestList: SpotLatestListPayload | null;
   lastHeartbeatTs: number | null;
   setConnectionStatus: (status: SseConnectionStatus, errorReason?: string | null) => void;
   upsertKbarCurrent: (payload: KbarCurrentPayload) => void;
   upsertMetricLatest: (code: string, payload: MetricLatestPayload) => void;
   setIndexContribRanking: (payload: IndexContributionRankingPayload) => void;
   setIndexContribSector: (payload: IndexContributionSectorPayload) => void;
+  upsertMarketSummaryLatest: (code: string, payload: MarketSummaryLatestPayload) => void;
+  upsertOtcSummaryLatest: (code: string, payload: OtcSummaryLatestPayload) => void;
+  upsertQuoteLatest: (code: string, payload: QuoteLatestPayload) => void;
+  applySseBatch: (batch: {
+    kbarCurrent?: KbarCurrentPayload;
+    metricLatest?: { code: string; payload: MetricLatestPayload };
+    marketSummaryLatest?: { code: string; payload: MarketSummaryLatestPayload };
+    otcSummaryLatest?: { code: string; payload: OtcSummaryLatestPayload };
+    quoteLatest?: { code: string; payload: QuoteLatestPayload };
+    spotLatestList?: SpotLatestListPayload;
+    heartbeatTs?: number;
+  }) => void;
   setHeartbeat: (ts: number) => void;
   resetRealtime: () => void;
 }
@@ -31,6 +51,10 @@ const initialState = {
   metricLatestByCode: {} as Record<string, MetricLatestPayload>,
   indexContribRanking: null as IndexContributionRankingPayload | null,
   indexContribSector: null as IndexContributionSectorPayload | null,
+  marketSummaryLatestByCode: {} as Record<string, MarketSummaryLatestPayload>,
+  otcSummaryLatestByCode: {} as Record<string, OtcSummaryLatestPayload>,
+  quoteLatestByCode: {} as Record<string, QuoteLatestPayload>,
+  spotLatestList: null as SpotLatestListPayload | null,
   lastHeartbeatTs: null as number | null,
 };
 
@@ -53,6 +77,88 @@ export const useRealtimeStore = create<RealtimeStore>((set) => ({
     })),
   setIndexContribRanking: (payload) => set({ indexContribRanking: payload }),
   setIndexContribSector: (payload) => set({ indexContribSector: payload }),
+  upsertMarketSummaryLatest: (code, payload) =>
+    set((state) => ({
+      marketSummaryLatestByCode: {
+        ...state.marketSummaryLatestByCode,
+        [code]: payload,
+      },
+    })),
+  upsertOtcSummaryLatest: (code, payload) =>
+    set((state) => ({
+      otcSummaryLatestByCode: {
+        ...state.otcSummaryLatestByCode,
+        [code]: payload,
+      },
+    })),
+  upsertQuoteLatest: (code, payload) =>
+    set((state) => ({
+      quoteLatestByCode: {
+        ...state.quoteLatestByCode,
+        [code]: payload,
+      },
+    })),
+  applySseBatch: (batch) =>
+    set((state) => {
+      const nextState: Partial<RealtimeStore> = {};
+      let changed = false;
+
+      if (batch.kbarCurrent) {
+        nextState.kbarCurrentByCode = {
+          ...state.kbarCurrentByCode,
+          [batch.kbarCurrent.code]: batch.kbarCurrent,
+        };
+        changed = true;
+      }
+
+      if (batch.metricLatest) {
+        nextState.metricLatestByCode = {
+          ...state.metricLatestByCode,
+          [batch.metricLatest.code]: batch.metricLatest.payload,
+        };
+        changed = true;
+      }
+
+      if (batch.marketSummaryLatest) {
+        nextState.marketSummaryLatestByCode = {
+          ...state.marketSummaryLatestByCode,
+          [batch.marketSummaryLatest.code]: batch.marketSummaryLatest.payload,
+        };
+        changed = true;
+      }
+
+      if (batch.otcSummaryLatest) {
+        nextState.otcSummaryLatestByCode = {
+          ...state.otcSummaryLatestByCode,
+          [batch.otcSummaryLatest.code]: batch.otcSummaryLatest.payload,
+        };
+        changed = true;
+      }
+
+      if (batch.quoteLatest) {
+        nextState.quoteLatestByCode = {
+          ...state.quoteLatestByCode,
+          [batch.quoteLatest.code]: batch.quoteLatest.payload,
+        };
+        changed = true;
+      }
+
+      if (batch.spotLatestList) {
+        nextState.spotLatestList = batch.spotLatestList;
+        changed = true;
+      }
+
+      if (typeof batch.heartbeatTs === "number" && Number.isFinite(batch.heartbeatTs)) {
+        nextState.lastHeartbeatTs = batch.heartbeatTs;
+        changed = true;
+      }
+
+      if (!changed) {
+        return state;
+      }
+
+      return nextState as Partial<RealtimeStore>;
+    }),
   setHeartbeat: (ts) => set({ lastHeartbeatTs: ts }),
   resetRealtime: () => set(initialState),
 }));

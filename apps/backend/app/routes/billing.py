@@ -4,8 +4,13 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from pydantic import BaseModel
+from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 
+from app.config import get_stripe_settings
+from app.db.session import SessionLocal
 from app.deps import Principal, require_user_or_admin
+from app.models.billing_plan import BillingPlanModel
 from app.services.billing_service import BillingError
 from app.state import billing_service
 
@@ -16,9 +21,83 @@ class CheckoutRequest(BaseModel):
     price_id: str | None = None
 
 
+def _plan_price_text(amount: int | None, currency: str, interval: str) -> str:
+    if amount is None:
+        return "configured"
+    if amount <= 0:
+        return "free"
+    normalized = amount / 100
+    return f"{normalized:.2f} {currency.upper()}/{interval}"
+
+
+def _plan_price_text(amount: int | None, currency: str, interval: str) -> str:
+    if amount is None:
+        return "configured"
+    if amount <= 0:
+        return "free"
+    normalized = amount / 100
+    return f"{normalized:.2f} {currency.upper()}/{interval}"
+
+
 @router.get("/plans")
 def plans() -> dict[str, list[dict[str, str]]]:
-    return {"plans": [{"id": "basic", "name": "Basic", "price": "stripe-configured"}]}
+    settings = get_stripe_settings()
+    configured_plans: list[BillingPlanModel] = []
+
+    try:
+        with SessionLocal() as session:
+            configured_plans = list(
+                session.execute(
+                    select(BillingPlanModel)
+                    .where(BillingPlanModel.is_active.is_(True))
+                    .order_by(BillingPlanModel.sort_order.asc())
+                ).scalars()
+            )
+    except SQLAlchemyError:
+        configured_plans = []
+
+    if not configured_plans:
+        configured_plans = [
+            BillingPlanModel(id="free", name="Free", is_active=True, sort_order=0),
+            BillingPlanModel(
+                id="basic", name=settings.plan_name or "Basic", is_active=True, sort_order=1
+            ),
+        ]
+
+    response_plans: list[dict[str, str]] = []
+    for plan in configured_plans:
+        if plan.id == "free":
+            response_plans.append(
+                {
+                    "id": "free",
+                    "name": plan.name,
+                    "price": "free",
+                    "price_id": "",
+                    "amount": "0",
+                    "currency": settings.price_currency,
+                    "interval": settings.price_interval,
+                }
+            )
+            continue
+
+        if plan.id == "basic":
+            response_plans.append(
+                {
+                    "id": "basic",
+                    "name": plan.name,
+                    "price": _plan_price_text(
+                        settings.price_amount, settings.price_currency, settings.price_interval
+                    ),
+                    "price_id": settings.price_id,
+                    "amount": str(settings.price_amount)
+                    if settings.price_amount is not None
+                    else "",
+                    "currency": settings.price_currency,
+                    "interval": settings.price_interval,
+                }
+            )
+
+    return {"plans": response_plans}
 
 
 @router.post("/checkout")

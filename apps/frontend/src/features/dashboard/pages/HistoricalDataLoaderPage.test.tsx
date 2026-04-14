@@ -1,25 +1,27 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { HistoricalDataLoaderPage } from "@/features/dashboard/pages/HistoricalDataLoaderPage";
 
 describe("HistoricalDataLoaderPage", () => {
-  it("renders load controls and status panel", () => {
+  it("renders tabs with active filter layer and unified feed", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+
     render(
-      <MemoryRouter initialEntries={["/historical-data-loader"]}>
-        <HistoricalDataLoaderPage />
-      </MemoryRouter>,
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/historical-data-loader"]}>
+          <HistoricalDataLoaderPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
     );
 
-    expect(
-      screen.getByRole("heading", { name: "Historical Data Loader" }),
-    ).toBeInTheDocument();
-    expect(screen.getByText("/historical-data-loader")).toBeInTheDocument();
-    expect(screen.getByText("LOAD CONFIGURATION")).toBeInTheDocument();
-    expect(screen.getByText("Query Controls")).toBeInTheDocument();
-    expect(screen.getByText("Load Status")).toBeInTheDocument();
-    expect(screen.getByTestId("loader-mode-single")).toBeChecked();
-    expect(screen.getByTestId("loader-mode-range")).not.toBeChecked();
-    expect(screen.getByTestId("history-load-button")).toBeInTheDocument();
-    expect(screen.getByTestId("history-load-status")).toBeInTheDocument();
+    expect(screen.getByText("Backfill Jobs")).toBeInTheDocument();
+    expect(screen.getByText("Crawler Jobs")).toBeInTheDocument();
+    expect(screen.getByText("Unified Job Feed")).toBeInTheDocument();
+    expect(screen.getByTestId("backfill-date-mode")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Crawler Jobs" })).toBeInTheDocument();
+    expect(screen.getByTestId("unified-jobs-empty")).toBeInTheDocument();
   });
 });

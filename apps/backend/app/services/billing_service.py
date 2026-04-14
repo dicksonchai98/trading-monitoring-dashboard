@@ -60,13 +60,18 @@ class BillingService:
         if requested_price_id and requested_price_id != self._settings.price_id:
             raise BillingError("invalid_price_id")
         customer_id = self._ensure_customer(user)
+        current = self._subscriptions.get_by_user_id(user.id)
+        preserve_active = (
+            current is not None and current.status == "active" and current.entitlement_active
+        )
         self._subscriptions.upsert_for_user(
             user.id,
             stripe_customer_id=customer_id,
+            stripe_subscription_id=current.stripe_subscription_id if current else None,
             stripe_price_id=self._settings.price_id,
-            current_period_end=None,
-            status="pending",
-            entitlement_active=False,
+            current_period_end=current.current_period_end if preserve_active and current else None,
+            status="active" if preserve_active else "pending",
+            entitlement_active=preserve_active,
         )
         session = self._stripe.create_checkout_session(
             customer_id=customer_id,
@@ -128,7 +133,9 @@ class BillingService:
 
         payload_hash = hashlib.sha256(payload).hexdigest()
         created = self._events.create_if_absent(event_id, event_type, payload_hash)
-        if not created:
+        if created == "duplicate_conflict":
+            raise BillingError("invalid_event")
+        if created == "duplicate_same_payload":
             return "ignored"
 
         try:
@@ -159,6 +166,10 @@ class BillingService:
             return self._handle_invoice_state(obj, next_status="past_due")
         if event_type == "customer.subscription.deleted":
             return self._handle_subscription_deleted(obj)
+        if event_type == "customer.subscription.updated":
+            return self._handle_subscription_updated(obj)
+        if event_type == "checkout.session.expired":
+            return self._handle_checkout_expired(obj)
         return False
 
     def _handle_checkout_completed(self, obj: dict[str, Any]) -> bool:
@@ -298,6 +309,8 @@ class BillingService:
     def _can_transition(current: SubscriptionRecord | None, next_status: str) -> bool:
         if current is None:
             return next_status in {"pending", "active", "past_due", "canceled"}
+        if current.status == next_status:
+            return True
         transitions = {
             "pending": {"active", "past_due", "canceled"},
             "active": {"past_due", "canceled"},
@@ -305,3 +318,74 @@ class BillingService:
             "canceled": set(),
         }
         return next_status in transitions.get(current.status, set())
+
+    def _handle_subscription_updated(self, obj: dict[str, Any]) -> bool:
+        subscription_id = str(obj.get("id", ""))
+        if not subscription_id:
+            return False
+        subscription = self._subscriptions.get_by_stripe_subscription_id(subscription_id)
+        if subscription is None:
+            return False
+
+        stripe_status = str(obj.get("status", "")).lower()
+        mapped = self._map_stripe_status(stripe_status)
+        if mapped is None:
+            return False
+        next_status, next_entitlement = mapped
+        if not self._can_transition(subscription, next_status):
+            return False
+        period_end = self._extract_period_end(obj) or subscription.current_period_end
+        user = self._users.get_by_id(subscription.user_id)
+        self._subscriptions.upsert_for_user(
+            subscription.user_id,
+            stripe_customer_id=str(obj.get("customer", "")) or subscription.stripe_customer_id,
+            stripe_subscription_id=subscription_id,
+            stripe_price_id=subscription.stripe_price_id,
+            current_period_end=period_end,
+            status=next_status,
+            entitlement_active=next_entitlement,
+        )
+        self._audit_log.record(
+            event_type="subscription_status_changed",
+            path="/billing/webhooks/stripe",
+            actor=user.username if user else None,
+            role=user.role if user else None,
+        )
+        return True
+
+    def _handle_checkout_expired(self, obj: dict[str, Any]) -> bool:
+        metadata = obj.get("metadata") or {}
+        user_id = str(metadata.get("user_id", ""))
+        customer_id = str(obj.get("customer", ""))
+        user = self._users.get_by_id(user_id) if user_id else None
+        if user is None and customer_id:
+            user = self._users.get_by_stripe_customer_id(customer_id)
+        if user is None:
+            return False
+        current = self._subscriptions.get_by_user_id(user.id)
+        if current is None:
+            return False
+        if current.status == "active":
+            return False
+        if not self._can_transition(current, "pending"):
+            return False
+        self._subscriptions.upsert_for_user(
+            user.id,
+            stripe_customer_id=customer_id or current.stripe_customer_id,
+            stripe_subscription_id=current.stripe_subscription_id,
+            stripe_price_id=current.stripe_price_id,
+            current_period_end=current.current_period_end,
+            status="pending",
+            entitlement_active=False,
+        )
+        return True
+
+    @staticmethod
+    def _map_stripe_status(stripe_status: str) -> tuple[str, bool] | None:
+        if stripe_status in {"active", "trialing"}:
+            return ("active", True)
+        if stripe_status in {"past_due", "unpaid", "incomplete"}:
+            return ("past_due", False)
+        if stripe_status in {"canceled", "incomplete_expired"}:
+            return ("canceled", False)
+        return None

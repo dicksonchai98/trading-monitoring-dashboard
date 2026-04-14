@@ -49,4 +49,26 @@ describe("GuardedRoute", () => {
 
     expect(screen.getByText("Subscription")).toBeInTheDocument();
   });
+
+  it("allows admin even without active entitlement when entitlement is required", () => {
+    useAuthStore.setState({ token: "token", role: "admin", entitlement: "pending", resolved: true });
+
+    render(
+      <MemoryRouter initialEntries={["/dashboard"]}>
+        <Routes>
+          <Route
+            path="/dashboard"
+            element={
+              <GuardedRoute requiredRole="member" requireActiveEntitlement>
+                <div>Dashboard</div>
+              </GuardedRoute>
+            }
+          />
+          <Route path="/subscription" element={<div>Subscription</div>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText("Dashboard")).toBeInTheDocument();
+  });
 });

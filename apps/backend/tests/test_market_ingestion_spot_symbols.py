@@ -13,6 +13,11 @@ def test_parse_spot_symbols_supports_blank_and_comment_lines() -> None:
     assert parsed == ["2330", "2317"]
 
 
+def test_parse_spot_symbols_supports_utf8_bom_prefixed_comment() -> None:
+    parsed = parse_spot_symbols("\ufeff# comment\n2330\n2317\n")
+    assert parsed == ["2330", "2317"]
+
+
 def test_validate_spot_symbols_rejects_duplicates() -> None:
     with pytest.raises(ValueError, match="duplicates"):
         validate_spot_symbols(["2330", "2330"], expected_count=2)
