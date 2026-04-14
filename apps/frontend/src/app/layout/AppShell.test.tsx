@@ -1,6 +1,7 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { AppShell } from "@/app/layout/AppShell";
+import { I18nProvider } from "@/lib/i18n";
 
 vi.mock("react-router-dom", async () => {
   const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom");
@@ -12,46 +13,102 @@ vi.mock("react-router-dom", async () => {
 });
 
 describe("AppShell", () => {
-  it("renders sidebar and main canvas regions", () => {
+  function renderShell(): void {
     render(
-      <MemoryRouter initialEntries={["/dashboard"]}>
-        <AppShell />
-      </MemoryRouter>,
+      <I18nProvider>
+        <MemoryRouter initialEntries={["/dashboard"]}>
+          <AppShell />
+        </MemoryRouter>
+      </I18nProvider>,
     );
+  }
 
+  beforeEach(() => {
+    vi.useFakeTimers();
+    window.localStorage.clear();
+    document.documentElement.removeAttribute("data-color-mode");
+    document.documentElement.removeAttribute("lang");
+    document.documentElement.classList.remove("dark");
+    Object.defineProperty(window, "matchMedia", {
+      writable: true,
+      value: vi.fn().mockImplementation((query: string) => ({
+        matches: query.includes("max-width") ? window.innerWidth <= 767 : false,
+        media: query,
+        onchange: null,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })),
+    });
+  });
+
+  afterEach(() => {
+    Object.defineProperty(window, "innerWidth", { configurable: true, writable: true, value: 1024 });
+    act(() => {
+      window.dispatchEvent(new Event("resize"));
+    });
+    vi.runOnlyPendingTimers();
+    vi.useRealTimers();
+  });
+
+  it("renders sidebar and main canvas regions", () => {
+    renderShell();
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+
+    const mainRegion = screen.getByRole("main");
     expect(screen.getByRole("complementary")).toBeInTheDocument();
-    expect(screen.getByRole("complementary")).toHaveClass("w-[var(--sidebar-w-expanded)]");
-    expect(screen.getByRole("complementary")).toHaveClass("fixed", "inset-y-0", "left-0", "h-screen");
-    expect(screen.getByRole("main")).toBeInTheDocument();
-    expect(screen.getByRole("main")).toHaveClass("min-h-screen", "p-[var(--shell-padding)]");
-    expect(screen.getByRole("main")).toHaveStyle({ marginLeft: "var(--sidebar-w-expanded)" });
+    expect(mainRegion).toBeInTheDocument();
+    expect(mainRegion).toHaveClass("min-h-screen", "bg-background");
+    expect(mainRegion.querySelector("div.p-\\[var\\(--shell-padding\\)\\]")).not.toBeNull();
     expect(screen.getByTestId("outlet-content")).toBeInTheDocument();
   });
 
-  it("toggles the sidebar collapsed state", () => {
-    render(
-      <MemoryRouter initialEntries={["/dashboard"]}>
-        <AppShell />
-      </MemoryRouter>,
-    );
+  it("renders sidebar nav entries from the shadcn sidebar kit", () => {
+    renderShell();
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
 
-    const collapseButton = screen.getByRole("button", { name: "Collapse sidebar" });
-    expect(screen.getByText("Dashboard")).toBeInTheDocument();
-    expect(screen.getByLabelText("Trading Monitor brand")).toBeInTheDocument();
-    expect(screen.getByText("Trading Monitor")).toBeInTheDocument();
+    expect(screen.getByText("Monitoring")).toBeInTheDocument();
+    expect(screen.getByText("Realtime")).toBeInTheDocument();
+  });
 
-    fireEvent.click(collapseButton);
+  it("shows a mobile trigger button and opens sidebar sheet", () => {
+    Object.defineProperty(window, "innerWidth", { configurable: true, writable: true, value: 640 });
 
-    expect(screen.queryByText("Dashboard")).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Trading Monitor brand")).toBeInTheDocument();
-    expect(screen.queryByText("Trading Monitor")).not.toBeInTheDocument();
-    expect(screen.getByRole("complementary")).toHaveClass("w-[var(--sidebar-w-collapsed)]");
-    expect(screen.getByRole("main")).toHaveStyle({ marginLeft: "var(--sidebar-w-collapsed)" });
-    expect(screen.getByRole("button", { name: "Expand sidebar" })).toBeInTheDocument();
+    renderShell();
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
 
-    fireEvent.click(screen.getByRole("button", { name: "Expand sidebar" }));
+    expect(screen.getByRole("button", { name: "Open sidebar" })).toBeInTheDocument();
+    expect(screen.queryByText("Monitoring")).not.toBeInTheDocument();
 
-    expect(screen.getByText("Dashboard")).toBeInTheDocument();
-    expect(screen.getByText("Trading Monitor")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Open sidebar" }));
+    expect(screen.getByText("Monitoring")).toBeInTheDocument();
+  });
+
+  it("toggles color mode and language from icon buttons", () => {
+    renderShell();
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+
+    const themeToggle = screen.getAllByRole("button", { name: "Switch to light theme" })[0];
+    fireEvent.click(themeToggle);
+    expect(document.documentElement.getAttribute("data-color-mode")).toBe("light");
+    expect(window.localStorage.getItem("ui.color.mode")).toBe("light");
+    expect(screen.getAllByRole("button", { name: "Switch to dark theme" }).length).toBeGreaterThan(0);
+
+    const languageToggle = screen.getAllByRole("button", { name: "Switch to Chinese" })[0];
+    fireEvent.click(languageToggle);
+    expect(document.documentElement.getAttribute("lang")).toBe("zh-TW");
+    expect(window.localStorage.getItem("ui.language.preset")).toBe("zh-TW");
+    expect(screen.getAllByRole("button", { name: "Switch to English" }).length).toBeGreaterThan(0);
   });
 });
+

@@ -23,7 +23,6 @@ export function PageLayout({
       className={cn("space-y-[var(--section-gap)]", className)}
       data-testid="page-layout"
     >
-      <PageHeader title={title} context={context} actions={actions} />
       <div className={bodyClassName} data-testid="page-layout-body">
         {children}
       </div>

@@ -26,3 +26,5 @@ class Kbar1mModel(Base):
     low: Mapped[float] = mapped_column(Float, nullable=False)
     close: Mapped[float] = mapped_column(Float, nullable=False)
     volume: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    amplitude: Mapped[float | None] = mapped_column(Float, nullable=True, default=0)
+    amplitude_pct: Mapped[float | None] = mapped_column(Float, nullable=True, default=0)

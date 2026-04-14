@@ -13,9 +13,13 @@ Based on Context7 source `/llmstxt/sinotrade_github_io_llms-full_txt`, the start
 3. Register callbacks:
    - `api.quote.set_on_tick_fop_v1_callback(...)`
    - `api.quote.set_on_bidask_fop_v1_callback(...)`
+   - `api.quote.set_on_tick_stk_v1_callback(...)` (spot stock ticks)
+   - `api.quote.set_on_quote_stk_v1_callback(...)` (market/index quote path)
 4. Subscribe near-month futures contract:
    - `api.quote.subscribe(contract, quote_type=QuoteType.Tick, version=QuoteVersion.v1)`
    - `api.quote.subscribe(contract, quote_type=QuoteType.BidAsk, version=QuoteVersion.v1)`
+5. Subscribe market index contract:
+   - `api.quote.subscribe(index_contract, quote_type=QuoteType.Quote, version=QuoteVersion.v1)`
 
 ## Required environment
 
@@ -31,6 +35,8 @@ Based on Context7 source `/llmstxt/sinotrade_github_io_llms-full_txt`, the start
 - Examples:
   - `dev:stream:tick:MTX`
   - `dev:stream:bidask:MTX`
+  - `dev:stream:quote:MTX`
+  - `dev:stream:market:TSE001`
 - Retention: approximate `MAXLEN ~` (default `100000`, tune per environment)
 
 ## Ordering and reliability scope
@@ -81,20 +87,23 @@ Based on Context7 source `/llmstxt/sinotrade_github_io_llms-full_txt`, the start
 ## MVP boundaries
 
 Deferred to phase 2:
+
 - K-line correction/recompute.
 - Multi-session sharding.
 
 Historical backfill is operated by dedicated worker runtime:
+
 - Start worker: `python -m workers.backfill_worker`
 - Trigger jobs via admin API: `POST /api/admin/batch/backfill/jobs`
 
 Batch workers now consume Redis list queues with blocking pop:
+
 - Historical backfill queue: `queue:batch:historical_backfill`
 - Market crawler queue: `queue:batch:market_crawler`
 
 Shared admin batch job operations:
+
 - Create backfill job: `POST /api/admin/batch/backfill/jobs`
 - Create crawler job: `POST /api/admin/batch/crawler/jobs`
 - List jobs: `GET /api/admin/batch/jobs`
 - Get job detail: `GET /api/admin/batch/jobs/{job_id}`
-

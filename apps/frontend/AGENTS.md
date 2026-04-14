@@ -23,6 +23,7 @@ Do not expand beyond MVP unless explicitly requested by the user.
 - Dashboard UI for near-month Taiwan index futures snapshot display
 - SSE client integration for 1-second snapshot refresh
 - Login/session handling using JWT from backend API
+- Auth contract: login with `user_id`; register with `user_id + email + verification_token`
 - Frontend route guards based on role and subscription entitlement state
 - Admin/member/visitor page-level access handling
 - UX states for loading, disconnected SSE, unauthorized, and forbidden
@@ -60,6 +61,13 @@ Do not expand beyond MVP unless explicitly requested by the user.
 - Assume backend webhook simulation activates entitlement asynchronously.
 - Keep state transitions resilient to refresh/reconnect.
 
+### Auth UX Flow
+
+- Registration must use deterministic two-step flow:
+  - Step 1: email OTP verification
+  - Step 2: credentials input (`user_id`, `password`)
+- Do not mix OTP modal state with credentials form submission state.
+
 ## Routing Contract
 
 - Organize routes by access level (public/member/admin).
@@ -71,6 +79,7 @@ Do not expand beyond MVP unless explicitly requested by the user.
 - Prioritize operational clarity over decorative complexity.
 - Surface key market snapshot fields clearly and consistently.
 - Show connection status for SSE (connected/retrying/disconnected).
+- Use page-level skeletons for bootstrap/loading states (`page-skeleton` test id) on auth/dashboard/subscription pages.
 - Provide deterministic fallback UI for:
   - Empty snapshot
   - Stale snapshot

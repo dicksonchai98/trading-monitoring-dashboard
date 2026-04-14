@@ -12,6 +12,10 @@ from typing import Any
 from app.config import (
     INGESTOR_CODE,
     INGESTOR_ENV,
+    INGESTOR_MARKET_CODE,
+    INGESTOR_MARKET_ENABLED,
+    INGESTOR_OTC_CODE,
+    INGESTOR_OTC_ENABLED,
     INGESTOR_QUOTE_TYPES,
     INGESTOR_RECONNECT_MAX_SECONDS,
     INGESTOR_SPOT_REQUIRED,
@@ -22,6 +26,8 @@ from app.market_ingestion.pipeline import IngestionPipeline
 from app.market_ingestion.shioaji_client import ShioajiClient
 from app.market_ingestion.shioaji_subscription import (
     resolve_contract,
+    resolve_market_contract,
+    subscribe_market_topic,
     subscribe_spot_ticks,
     subscribe_topics,
 )
@@ -95,6 +101,12 @@ class MarketIngestionRunner:
         self._spot_symbols: list[str] = []
         self._spot_enabled = False
         self._spot_ingest_seq: dict[str, int] = {}
+        self._market_enabled = INGESTOR_MARKET_ENABLED
+        self._market_code = INGESTOR_MARKET_CODE
+        self._market_contract: Any = None
+        self._otc_enabled = INGESTOR_OTC_ENABLED
+        self._otc_code = INGESTOR_OTC_CODE
+        self._otc_contract: Any = None
 
     def _register_callbacks(self) -> None:
         def on_futures_tick(_exchange: Any, tick: Any) -> None:
@@ -103,15 +115,29 @@ class MarketIngestionRunner:
         def on_bidask(_exchange: Any, bidask: Any) -> None:
             self._on_futures_quote("bidask", bidask)
 
+        def on_quote(_exchange: Any, quote: Any) -> None:
+            self._on_futures_quote("quote", quote)
+
         def on_spot_tick(_exchange: Any, tick: Any) -> None:
             self._on_spot_quote(tick)
+
+        def on_market_tick(*args: Any) -> None:
+            # Market/index callbacks can differ by SDK version:
+            # some emit (exchange, quote), others emit only quote.
+            if not args:
+                return
+            quote = args[-1]
+            self._on_market_quote(quote)
 
         def on_event(resp_code: int, event_code: int, info: str, event: str) -> None:
             self._on_quote_event(resp_code, event_code, info, event)
 
         self._client.set_on_tick_fop_v1_callback(on_futures_tick)
         self._client.set_on_bidask_fop_v1_callback(on_bidask)
+        self._client.set_on_quote_fop_v1_callback(on_quote)
         self._client.set_on_tick_stk_v1_callback(on_spot_tick)
+        if self._market_enabled or self._otc_enabled:
+            self._client.set_on_market_callback(on_market_tick)
         self._client.set_on_event_callback(on_event)
 
     def _on_futures_quote(self, quote_type: str, quote: Any) -> None:
@@ -131,15 +157,86 @@ class MarketIngestionRunner:
         self._futures_pipeline.enqueue(stream_key=stream_key, event=event)
 
     @staticmethod
-    def _extract_last_price(quote: Any, payload: dict[str, Any]) -> float | int:
+    def _coerce_float(value: Any) -> float | None:
+        try:
+            if value is None:
+                return None
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
+    def _extract_last_price(self, quote: Any, payload: dict[str, Any]) -> float:
         for key in ("close", "last_price", "price", "avg_price"):
-            value = payload.get(key)
-            if isinstance(value, (int, float)):
+            value = self._coerce_float(payload.get(key))
+            if value is not None:
                 return value
-            attr = getattr(quote, key, None)
-            if isinstance(attr, (int, float)):
+            attr = self._coerce_float(getattr(quote, key, None))
+            if attr is not None:
                 return attr
-        return 0
+        return 0.0
+
+    def _extract_numeric_value(
+        self, payload: dict[str, Any], quote: Any, keys: tuple[str, ...]
+    ) -> float | None:
+        for key in keys:
+            value = self._coerce_float(payload.get(key))
+            if value is not None:
+                return value
+            attr = self._coerce_float(getattr(quote, key, None))
+            if attr is not None:
+                return attr
+        return None
+
+    def _extract_spot_price_fields(self, quote: Any, payload: dict[str, Any]) -> dict[str, float]:
+        last_price = float(self._extract_last_price(quote, payload))
+        close = self._extract_numeric_value(payload, quote, ("close", "last_price", "price"))
+        open_price = self._extract_numeric_value(
+            payload, quote, ("open", "open_price", "opening_price")
+        )
+        high = self._extract_numeric_value(payload, quote, ("high", "high_price"))
+        low = self._extract_numeric_value(payload, quote, ("low", "low_price"))
+        reference_price = self._extract_numeric_value(
+            payload,
+            quote,
+            (
+                "reference",
+                "reference_price",
+                "ref_price",
+                "yesterday_close",
+                "previous_close",
+                "pre_close",
+            ),
+        )
+        price_chg = self._extract_numeric_value(
+            payload,
+            quote,
+            ("price_chg",),
+        )
+        pct_chg = self._extract_numeric_value(
+            payload,
+            quote,
+            ("pct_chg", "pcct_chg"),
+        )
+
+        close = close if close is not None else last_price
+        open_price = open_price if open_price is not None else close
+        high = high if high is not None else max(open_price, close)
+        low = low if low is not None else min(open_price, close)
+
+        result = {
+            "last_price": last_price,
+            "open": float(open_price),
+            "high": float(high),
+            "low": float(low),
+            "close": float(close),
+        }
+        if reference_price is not None:
+            result["reference_price"] = float(reference_price)
+        if price_chg is not None:
+            result["price_chg"] = float(price_chg)
+        if pct_chg is not None:
+            result["pct_chg"] = float(pct_chg)
+        return result
 
     def _next_spot_ingest_seq(self, symbol: str) -> int:
         current = self._spot_ingest_seq.get(symbol, 0) + 1
@@ -157,10 +254,11 @@ class MarketIngestionRunner:
         event_ts = isoformat() if callable(isoformat) else str(event_ts_obj)
         raw_payload = quote.to_dict(raw=True) if hasattr(quote, "to_dict") else dict(vars(quote))
         ingest_seq = self._next_spot_ingest_seq(symbol)
+        price_fields = self._extract_spot_price_fields(quote, raw_payload)
         payload = {
             "symbol": symbol,
             "event_ts": event_ts,
-            "last_price": self._extract_last_price(quote, raw_payload),
+            **price_fields,
             "source": "shioaji",
             "ingest_seq": ingest_seq,
             "raw_quote": raw_payload,
@@ -173,8 +271,122 @@ class MarketIngestionRunner:
             asset_type="spot",
             ingest_seq=ingest_seq,
         )
-        stream_key = build_stream_key(INGESTOR_ENV, "spot", symbol)
+        stream_key = build_stream_key(INGESTOR_ENV, "spot", "")
         self._spot_pipeline.enqueue(stream_key=stream_key, event=event)
+
+    def _on_market_quote(self, quote: Any) -> None:
+        raw_payload: dict[str, Any]
+        if isinstance(quote, dict):
+            raw_payload = dict(quote)
+            code_value = raw_payload.get(
+                "symbol",
+                raw_payload.get("Symbol", raw_payload.get("code", raw_payload.get("Code"))),
+            )
+            event_ts = self._market_event_ts_from_payload(raw_payload)
+        else:
+            raw_payload = (
+                quote.to_dict(raw=True) if hasattr(quote, "to_dict") else dict(vars(quote))
+            )
+            code_value = getattr(quote, "symbol", getattr(quote, "code", None))
+            event_ts_obj = getattr(quote, "datetime", datetime.utcnow())
+            isoformat = getattr(event_ts_obj, "isoformat", None)
+            event_ts = isoformat() if callable(isoformat) else str(event_ts_obj)
+        self._route_market_quote(code_value=code_value, raw_payload=raw_payload, event_ts=event_ts)
+        self._route_otc_quote(code_value=code_value, raw_payload=raw_payload, event_ts=event_ts)
+
+    def _route_market_quote(
+        self, code_value: Any, raw_payload: dict[str, Any], event_ts: str
+    ) -> None:
+        if not self._market_enabled:
+            return
+        code = self._canonical_market_code(code_value)
+        if code is None:
+            return
+        payload = {
+            "index_value": raw_payload.get(
+                "index_value",
+                raw_payload.get("close", raw_payload.get("Close", raw_payload.get("price"))),
+            ),
+            "cumulative_turnover": raw_payload.get(
+                "cumulative_turnover",
+                raw_payload.get(
+                    "amount",
+                    raw_payload.get("AmountSum", raw_payload.get("turnover")),
+                ),
+            ),
+            "raw_quote": raw_payload,
+        }
+        event = self._futures_pipeline.build_event(
+            code=code,
+            quote_type="market",
+            payload=payload,
+            event_ts=event_ts,
+            asset_type="market",
+        )
+        stream_key = build_stream_key(INGESTOR_ENV, "market", code)
+        self._futures_pipeline.enqueue(stream_key=stream_key, event=event)
+
+    def _route_otc_quote(self, code_value: Any, raw_payload: dict[str, Any], event_ts: str) -> None:
+        if not self._otc_enabled:
+            return
+        raw = str(code_value or "").strip()
+        if not raw and self._market_enabled:
+            return
+        code = self._canonical_otc_code(code_value)
+        if code is None:
+            return
+        payload = {
+            "index_value": raw_payload.get(
+                "index_value",
+                raw_payload.get("close", raw_payload.get("Close", raw_payload.get("price"))),
+            ),
+            "raw_quote": raw_payload,
+        }
+        event = self._futures_pipeline.build_event(
+            code=code,
+            quote_type="market",
+            payload=payload,
+            event_ts=event_ts,
+            asset_type="market",
+        )
+        stream_key = build_stream_key(INGESTOR_ENV, "market", code)
+        self._futures_pipeline.enqueue(stream_key=stream_key, event=event)
+
+    def _canonical_market_code(self, code_value: Any) -> str | None:
+        configured = str(self._market_code or "").strip().upper()
+        raw = str(code_value or "").strip().upper()
+        if raw in {"001", "TSE001"}:
+            return "TSE001"
+        if raw and raw == configured:
+            return configured
+        if not raw and configured:
+            return configured
+        if configured in {"001", "TSE001"}:
+            return "TSE001"
+        return None
+
+    def _canonical_otc_code(self, code_value: Any) -> str | None:
+        configured = str(self._otc_code or "").strip().upper()
+        raw = str(code_value or "").strip().upper()
+        if raw in {"001", "OTC001"}:
+            return "OTC001"
+        if raw and raw == configured:
+            return configured
+        if not raw and configured:
+            return configured
+        if configured in {"001", "OTC001"}:
+            return "OTC001"
+        return None
+
+    @staticmethod
+    def _market_event_ts_from_payload(raw_payload: dict[str, Any]) -> str:
+        for key in ("datetime", "DateTime", "event_ts", "EventTs", "Time"):
+            value = raw_payload.get(key)
+            if value:
+                if key in {"Time"} and raw_payload.get("Date"):
+                    return f"{raw_payload.get('Date')} {value}"
+                return str(value)
+        return datetime.utcnow().isoformat()
 
     async def start(self) -> None:
         self._loop = asyncio.get_running_loop()
@@ -254,6 +466,12 @@ class MarketIngestionRunner:
         self._client.fetch_contracts()
         self._contract = resolve_contract(self._client.api, INGESTOR_CODE)
         subscribe_topics(self._client.api, self._contract, INGESTOR_QUOTE_TYPES)
+        if self._market_enabled:
+            self._market_contract = resolve_market_contract(self._client.api, self._market_code)
+            subscribe_market_topic(self._client.api, self._market_contract)
+        if self._otc_enabled:
+            self._otc_contract = resolve_market_contract(self._client.api, self._otc_code)
+            subscribe_market_topic(self._client.api, self._otc_contract)
         self._subscribe_spot_symbols()
         logger.info(
             "ingestor subscribed code=%s quote_types=%s",
@@ -265,6 +483,12 @@ class MarketIngestionRunner:
         self._client.fetch_contracts()
         self._contract = resolve_contract(self._client.api, INGESTOR_CODE)
         subscribe_topics(self._client.api, self._contract, INGESTOR_QUOTE_TYPES)
+        if self._market_enabled:
+            self._market_contract = resolve_market_contract(self._client.api, self._market_code)
+            subscribe_market_topic(self._client.api, self._market_contract)
+        if self._otc_enabled:
+            self._otc_contract = resolve_market_contract(self._client.api, self._otc_code)
+            subscribe_market_topic(self._client.api, self._otc_contract)
         if self._spot_enabled:
             subscribe_spot_ticks(self._client.api, self._spot_symbols)
         logger.info(

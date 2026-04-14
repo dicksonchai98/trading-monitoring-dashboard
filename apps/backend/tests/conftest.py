@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+# ruff: noqa: E402
 import os
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
+_TEST_DB_FILE = f"test_backend_{os.getpid()}.db"
 # Ensure DB URL is set before importing app modules that create engine/session.
-os.environ["DATABASE_URL"] = "sqlite+pysqlite:///./test_backend.db"
+os.environ["DATABASE_URL"] = f"sqlite+pysqlite:///./{_TEST_DB_FILE}"
 os.environ.setdefault("STRIPE_SECRET_KEY", "sk_test_local")
 os.environ.setdefault("STRIPE_WEBHOOK_SECRET", "whsec_local")
 os.environ.setdefault("STRIPE_PRICE_ID", "price_local")
@@ -29,7 +31,7 @@ def build_client() -> TestClient:
 @pytest.fixture(autouse=True)
 def _reset_state_between_tests() -> None:
     engine.dispose()
-    db_path = Path("test_backend.db")
+    db_path = Path(_TEST_DB_FILE)
     if db_path.exists():
         db_path.unlink()
     Base.metadata.create_all(bind=engine)

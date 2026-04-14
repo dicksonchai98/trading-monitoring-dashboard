@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
+from app.config import REDIS_URL
 from app.deps import Principal, require_admin
 from app.modules.batch_shared.queue.redis_queue import RedisBatchQueue
 from app.modules.batch_shared.repositories.job_repository import JobRepository
@@ -25,7 +26,7 @@ def _build_queue() -> RedisBatchQueue:
         import redis
     except ImportError as err:  # pragma: no cover - depends on runtime dependency
         raise RuntimeError("redis package is required for batch admin queue operations") from err
-    return RedisBatchQueue(client=redis.Redis(decode_responses=True))
+    return RedisBatchQueue(client=redis.Redis.from_url(REDIS_URL, decode_responses=True))
 
 
 def _service() -> HistoricalBackfillService:

@@ -97,6 +97,7 @@ def require_admin(
             path=request.url.path,
             actor=principal.username,
             role=principal.role,
+            metadata={"reason": "insufficient_role"},
         )
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="insufficient_role")
     return principal

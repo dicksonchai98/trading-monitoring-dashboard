@@ -17,6 +17,9 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { useT } from "@/lib/i18n";
+import type { EstimatedVolumeSeriesPoint } from "@/features/dashboard/lib/estimated-volume-mapper";
+import type { OrderFlowSeriesPoint } from "@/features/dashboard/lib/market-overview-mapper";
 
 const axisTick = { fill: "hsl(var(--subtle-foreground))", fontSize: 11 };
 const tooltipStyle = {
@@ -26,10 +29,22 @@ const tooltipStyle = {
   color: "hsl(var(--foreground))",
 };
 
-function ChartShell({ children, testId, compact = false }: { children: JSX.Element; testId: string; compact?: boolean }): JSX.Element {
+function ChartShell({
+  children,
+  testId,
+  compact = false,
+}: {
+  children: JSX.Element;
+  testId: string;
+  compact?: boolean;
+}): JSX.Element {
   return (
     <div
-      className={compact ? "mt-[var(--panel-gap)] min-h-[120px] w-full flex-1" : "mt-[var(--panel-gap)] min-h-[180px] w-full flex-1"}
+      className={
+        compact
+          ? "mt-[var(--panel-gap)] min-h-[120px] w-full flex-1"
+          : "mt-[var(--panel-gap)] min-h-[180px] w-full flex-1"
+      }
       data-testid={testId}
     >
       <div data-testid="panel-chart" className="h-full w-full">
@@ -50,14 +65,6 @@ interface MarketOverviewDatum extends MarketOverviewPoint {
   sellVolume: number;
 }
 
-function formatMinuteLabel(offsetMinutes: number): string {
-  const totalMinutes = 9 * 60 + offsetMinutes;
-  const hour = Math.floor(totalMinutes / 60);
-  const minute = totalMinutes % 60;
-
-  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
-}
-
 function withSignedBars(data: MarketOverviewPoint[]): MarketOverviewDatum[] {
   return data.map((point) => ({
     ...point,
@@ -66,60 +73,16 @@ function withSignedBars(data: MarketOverviewPoint[]): MarketOverviewDatum[] {
   }));
 }
 
-const SESSION_MINUTES = 271;
-
-function generateMarketOverviewData(
-  basePrice: number,
-  volatilityScale: number,
-  pricePhase: number,
-  volumePhase: number,
+function toOrderFlowMarketData(
+  data: OrderFlowSeriesPoint[],
 ): MarketOverviewDatum[] {
-  const generated: MarketOverviewPoint[] = [];
-  let previousPrice = basePrice;
-
-  for (let i = 0; i < SESSION_MINUTES; i += 1) {
-    const progress = i / (SESSION_MINUTES - 1);
-    const drift =
-      progress < 0.22
-        ? volatilityScale * 0.22
-        : progress < 0.48
-          ? volatilityScale * -0.16
-          : progress < 0.74
-            ? volatilityScale * 0.12
-            : volatilityScale * -0.1;
-    const openCloseRegime =
-      progress < 0.16 || progress > 0.84 ? 1.45 : 1;
-    const noise =
-      (Math.sin((i + pricePhase) * 0.91) * 0.9 +
-        Math.cos((i + pricePhase) * 0.37) * 0.7 +
-        Math.sin((i + pricePhase) * 1.73) * 0.45) *
-      volatilityScale *
-      openCloseRegime;
-    const tickJitter =
-      (Math.sin((i + pricePhase) * 2.9) > 0 ? 1 : -1) *
-      volatilityScale *
-      0.22;
-    const shockPulse =
-      Math.exp(-((i - 45) ** 2) / 85) * volatilityScale * -3.2 +
-      Math.exp(-((i - 132) ** 2) / 110) * volatilityScale * 2.6 +
-      Math.exp(-((i - 218) ** 2) / 90) * volatilityScale * -2.9;
-    const minuteMove = drift + noise + tickJitter + shockPulse;
-    const indexPrice = Math.round(previousPrice + minuteMove);
-    const chipDelta = Math.round(
-      minuteMove * 38 +
-        Math.sin((i + volumePhase) * 0.48) * 520 +
-        Math.cos((i + volumePhase) * 0.21) * 310,
-    );
-
-    generated.push({
-      time: formatMinuteLabel(i),
-      indexPrice,
-      chipDelta,
-    });
-    previousPrice = indexPrice;
-  }
-
-  return withSignedBars(generated);
+  return withSignedBars(
+    data.map((point) => ({
+      time: point.time,
+      indexPrice: point.indexPrice,
+      chipDelta: point.chipDelta,
+    })),
+  );
 }
 
 function MarketOverviewHybridChart({
@@ -133,14 +96,23 @@ function MarketOverviewHybridChart({
 }): JSX.Element {
   return (
     <ChartShell testId={testId}>
-      <ResponsiveContainer width="100%" height="100%" minHeight={180} minWidth={0}>
+      <ResponsiveContainer
+        width="100%"
+        height="100%"
+        minHeight={180}
+        minWidth={0}
+      >
         <ComposedChart
           data={data}
           margin={{ top: 8, right: 8, bottom: 0, left: -14 }}
           barCategoryGap={0}
           barGap={0}
         >
-          <CartesianGrid vertical={false} stroke="hsl(var(--border-strong))" strokeDasharray="3 3" />
+          <CartesianGrid
+            vertical={false}
+            stroke="hsl(var(--border-strong))"
+            strokeDasharray="3 3"
+          />
           <XAxis
             axisLine={false}
             dataKey="time"
@@ -154,8 +126,10 @@ function MarketOverviewHybridChart({
             yAxisId="price"
             axisLine={false}
             domain={[
-              (dataMin: number) => dataMin - Math.max(8, Math.round(Math.abs(dataMin) * 0.0005)),
-              (dataMax: number) => dataMax + Math.max(8, Math.round(Math.abs(dataMax) * 0.0005)),
+              (dataMin: number) =>
+                dataMin - Math.max(8, Math.round(Math.abs(dataMin) * 0.0005)),
+              (dataMax: number) =>
+                dataMax + Math.max(8, Math.round(Math.abs(dataMax) * 0.0005)),
             ]}
             tick={axisTick}
             tickCount={10}
@@ -164,7 +138,16 @@ function MarketOverviewHybridChart({
             type="number"
             width={58}
           />
-          <YAxis yAxisId="chip" axisLine={false} orientation="right" tick={axisTick} tickFormatter={(value) => `${value}`} tickLine={false} type="number" width={56} />
+          <YAxis
+            yAxisId="chip"
+            axisLine={false}
+            orientation="right"
+            tick={axisTick}
+            tickFormatter={(value) => `${value}`}
+            tickLine={false}
+            type="number"
+            width={56}
+          />
           <Tooltip
             contentStyle={tooltipStyle}
             labelStyle={{ color: "hsl(var(--foreground))" }}
@@ -186,6 +169,7 @@ function MarketOverviewHybridChart({
             fillOpacity={0.3}
             stroke="none"
             type="step"
+            isAnimationActive={false}
           />
           <Area
             yAxisId="chip"
@@ -194,36 +178,77 @@ function MarketOverviewHybridChart({
             fillOpacity={0.3}
             stroke="none"
             type="step"
+            isAnimationActive={false}
           />
-          <Line yAxisId="price" dataKey="indexPrice" dot={false} stroke="hsl(var(--primary))" strokeWidth={2} type="linear" />
+          <Line
+            yAxisId="price"
+            dataKey="indexPrice"
+            dot={false}
+            stroke="hsl(var(--primary))"
+            strokeWidth={2}
+            type="linear"
+            isAnimationActive={false}
+          />
         </ComposedChart>
       </ResponsiveContainer>
     </ChartShell>
   );
 }
 
-const orderFlowData = generateMarketOverviewData(22380, 7.2, 0, 1);
-
-export function OrderFlowChart(): JSX.Element {
-  return <MarketOverviewHybridChart data={orderFlowData} priceLabel="TAIEX Spot" testId="order-flow-chart" />;
+export function OrderFlowChart({
+  data,
+}: {
+  data: OrderFlowSeriesPoint[];
+}): JSX.Element {
+  return (
+    <MarketOverviewHybridChart
+      data={toOrderFlowMarketData(data)}
+      priceLabel="TXFD6 Near Month"
+      testId="order-flow-chart"
+    />
+  );
 }
 
-const volumeLadderData = generateMarketOverviewData(22420, 6.8, 3, 6);
-
-export function VolumeLadderChart(): JSX.Element {
-  return <MarketOverviewHybridChart data={volumeLadderData} priceLabel="TXF Near Month" testId="volume-ladder-chart" />;
+export function VolumeLadderChart({
+  data,
+}: {
+  data: OrderFlowSeriesPoint[];
+}): JSX.Element {
+  return (
+    <MarketOverviewHybridChart
+      data={toOrderFlowMarketData(data)}
+      priceLabel="TXFD6 Near Month"
+      testId="volume-ladder-chart"
+    />
+  );
 }
 
-const pressureData = generateMarketOverviewData(1210, 1.8, 7, 2);
-
-export function BidAskPressureChart(): JSX.Element {
-  return <MarketOverviewHybridChart data={pressureData} priceLabel="TAIEX Electronics" testId="bid-ask-pressure-chart" />;
+export function BidAskPressureChart({
+  data,
+}: {
+  data: OrderFlowSeriesPoint[];
+}): JSX.Element {
+  return (
+    <MarketOverviewHybridChart
+      data={toOrderFlowMarketData(data)}
+      priceLabel="TXFD6 Near Month"
+      testId="bid-ask-pressure-chart"
+    />
+  );
 }
 
-const programActivityData = generateMarketOverviewData(2085, 2.4, 11, 9);
-
-export function ProgramActivityChart(): JSX.Element {
-  return <MarketOverviewHybridChart data={programActivityData} priceLabel="TAIEX Finance" testId="program-activity-chart" />;
+export function ProgramActivityChart({
+  data,
+}: {
+  data: OrderFlowSeriesPoint[];
+}): JSX.Element {
+  return (
+    <MarketOverviewHybridChart
+      data={toOrderFlowMarketData(data)}
+      priceLabel="TXFD6 Near Month"
+      testId="program-activity-chart"
+    />
+  );
 }
 
 interface BreadthDistributionDatum {
@@ -273,11 +298,25 @@ const breadthDistributionData: BreadthDistributionDatum[] = Array.from(
 );
 
 export function BreadthDistributionChart(): JSX.Element {
+  const t = useT();
+
   return (
     <ChartShell testId="breadth-distribution-chart">
-      <ResponsiveContainer width="100%" height="100%" minHeight={180} minWidth={0}>
-        <ComposedChart data={breadthDistributionData} margin={{ top: 8, right: 10, bottom: 0, left: -10 }}>
-          <CartesianGrid vertical={false} stroke="hsl(var(--border-strong))" strokeDasharray="3 3" />
+      <ResponsiveContainer
+        width="100%"
+        height="100%"
+        minHeight={180}
+        minWidth={0}
+      >
+        <ComposedChart
+          data={breadthDistributionData}
+          margin={{ top: 8, right: 10, bottom: 0, left: -10 }}
+        >
+          <CartesianGrid
+            vertical={false}
+            stroke="hsl(var(--border-strong))"
+            strokeDasharray="3 3"
+          />
           <XAxis
             axisLine={false}
             dataKey="bucket"
@@ -291,7 +330,14 @@ export function BreadthDistributionChart(): JSX.Element {
             tick={axisTick}
             tickLine={false}
             width={44}
-            label={{ value: "家數", angle: -90, position: "insideLeft", offset: 6, fill: "hsl(var(--subtle-foreground))", fontSize: 10 }}
+            label={{
+              value: t("dashboard.chart.breadth.countAxis"),
+              angle: -90,
+              position: "insideLeft",
+              offset: 6,
+              fill: "hsl(var(--subtle-foreground))",
+              fontSize: 10,
+            }}
           />
           <YAxis
             yAxisId="breadth"
@@ -305,87 +351,80 @@ export function BreadthDistributionChart(): JSX.Element {
             contentStyle={tooltipStyle}
             labelStyle={{ color: "hsl(var(--foreground))" }}
             formatter={(value, name) => {
-              const normalized = typeof value === "number" ? value : Number(value ?? 0);
-              if (name === "count") return [normalized, "漲跌家數"];
-              return [normalized, "總漲跌家數變化"];
+              const normalized =
+                typeof value === "number" ? value : Number(value ?? 0);
+              if (name === "count")
+                return [normalized, t("dashboard.chart.breadth.count")];
+              return [normalized, t("dashboard.chart.breadth.swing")];
             }}
-            labelFormatter={(value) => `漲跌幅度 ${String(value)}`}
+            labelFormatter={(value) =>
+              `${t("dashboard.chart.breadth.labelPrefix")} ${String(value)}`
+            }
           />
-          <Bar yAxisId="count" dataKey="count" barSize={12} radius={[2, 2, 0, 0]}>
+          <Bar
+            yAxisId="count"
+            dataKey="count"
+            barSize={12}
+            radius={[2, 2, 0, 0]}
+          >
             {breadthDistributionData.map((entry) => (
-              <Cell key={`${entry.bucket}-${entry.side}`} fill={entry.side === "up" ? "#ef4444" : "#22c55e"} />
+              <Cell
+                key={`${entry.bucket}-${entry.side}`}
+                fill={entry.side === "up" ? "#ef4444" : "#22c55e"}
+              />
             ))}
           </Bar>
-          <Line yAxisId="breadth" dataKey="breadthSwing" dot={false} stroke="#f59e0b" strokeWidth={2} type="linear" />
+          <Line
+            yAxisId="breadth"
+            dataKey="breadthSwing"
+            dot={false}
+            stroke="#f59e0b"
+            strokeWidth={2}
+            type="linear"
+            isAnimationActive={false}
+          />
         </ComposedChart>
       </ResponsiveContainer>
     </ChartShell>
   );
 }
 
-interface EstimatedVolumeDatum {
-  minute: number;
-  time: string;
-  yesterdayEstimated: number;
-  todayEstimated: number;
-  positiveDiff: number;
-  negativeDiff: number;
-}
+export function EstimatedVolumeCompareChart({
+  data,
+}: {
+  data: EstimatedVolumeSeriesPoint[];
+}): JSX.Element {
+  const t = useT();
 
-const estimatedVolumeData: EstimatedVolumeDatum[] = Array.from(
-  { length: 28 },
-  (_, index) => {
-    const minute = index * 10;
-    const hour = 9 + Math.floor(minute / 60);
-    const clockMinute = minute % 60;
-    const time = `${String(hour).padStart(2, "0")}:${String(clockMinute).padStart(2, "0")}`;
-    const baseYesterday =
-      4200 +
-      minute * 36 +
-      Math.sin(index * 0.58) * 520 +
-      Math.cos(index * 0.21) * 420;
-    const baseToday =
-      4000 +
-      minute * 38 +
-      Math.sin((index + 1) * 0.53) * 640 +
-      Math.cos((index + 1) * 0.24) * 470;
-
-    return {
-      minute,
-      time,
-      yesterdayEstimated: Math.max(0, Math.round(baseYesterday)),
-      todayEstimated: Math.max(0, Math.round(baseToday)),
-      positiveDiff: 0,
-      negativeDiff: 0,
-    };
-  },
-).map((row) => {
-  const diff = row.todayEstimated - row.yesterdayEstimated;
-  return {
-    ...row,
-    positiveDiff: diff > 0 ? diff : 0,
-    negativeDiff: diff < 0 ? diff : 0,
-  };
-});
-
-export function EstimatedVolumeCompareChart(): JSX.Element {
   return (
     <ChartShell testId="estimated-volume-compare-chart">
-      <ResponsiveContainer width="100%" height="100%" minHeight={180} minWidth={0}>
-        <ComposedChart data={estimatedVolumeData} margin={{ top: 8, right: 10, bottom: 0, left: -6 }}>
-          <CartesianGrid vertical={false} stroke="hsl(var(--border-strong))" strokeDasharray="3 3" />
+      <ResponsiveContainer
+        width="100%"
+        height="100%"
+        minHeight={180}
+        minWidth={0}
+      >
+        <ComposedChart
+          data={data}
+          margin={{ top: 8, right: 10, bottom: 0, left: -6 }}
+        >
+          <CartesianGrid
+            vertical={false}
+            stroke="hsl(var(--border-strong))"
+            strokeDasharray="3 3"
+          />
           <XAxis
             axisLine={false}
-            dataKey="minute"
+            dataKey="minuteOfDay"
             tick={axisTick}
             tickFormatter={(value) => {
-              const matched = estimatedVolumeData.find((item) => item.minute === value);
+              const matched = data.find((item) => item.minuteOfDay === value);
               return matched?.time ?? "";
             }}
             tickLine={false}
             type="number"
-            domain={[0, 270]}
-            ticks={[0, 60, 120, 180, 240]}
+            domain={[9 * 60, 13 * 60 + 30]}
+            ticks={[9 * 60, 10 * 60, 11 * 60, 12 * 60, 13 * 60]}
           />
           <YAxis
             yAxisId="volume"
@@ -409,22 +448,62 @@ export function EstimatedVolumeCompareChart(): JSX.Element {
             contentStyle={tooltipStyle}
             labelStyle={{ color: "hsl(var(--foreground))" }}
             formatter={(value, name) => {
-              const normalized = typeof value === "number" ? value : Number(value ?? 0);
-              if (name === "yesterdayEstimated") return [normalized, "昨日預估成交量"];
-              if (name === "todayEstimated") return [normalized, "今日即時預估成交量"];
-              if (name === "positiveDiff") return [normalized, "高於昨日"];
-              if (name === "negativeDiff") return [Math.abs(normalized), "低於昨日"];
+              const normalized =
+                typeof value === "number" ? value : Number(value ?? 0);
+              if (name === "yesterdayEstimated")
+                return [normalized, t("dashboard.chart.volume.yesterday")];
+              if (name === "todayEstimated")
+                return [normalized, t("dashboard.chart.volume.today")];
+              if (name === "positiveDiff")
+                return [normalized, t("dashboard.chart.volume.aboveYesterday")];
+              if (name === "negativeDiff")
+                return [
+                  Math.abs(normalized),
+                  t("dashboard.chart.volume.belowYesterday"),
+                ];
               return [normalized, name];
             }}
             labelFormatter={(value) => {
-              const matched = estimatedVolumeData.find((item) => item.minute === value);
-              return `時間 ${matched?.time ?? value}`;
+              const matched = data.find((item) => item.minuteOfDay === value);
+              return `${t("dashboard.chart.volume.timePrefix")} ${matched?.time ?? value}`;
             }}
           />
-          <Area yAxisId="diff" dataKey="positiveDiff" type="linear" stroke="none" fill="#ef4444" fillOpacity={0.3} />
-          <Area yAxisId="diff" dataKey="negativeDiff" type="linear" stroke="none" fill="#22c55e" fillOpacity={0.3} />
-          <Line yAxisId="volume" dataKey="yesterdayEstimated" dot={false} stroke="#94a3b8" strokeWidth={2} type="linear" />
-          <Line yAxisId="volume" dataKey="todayEstimated" dot={false} stroke="#38bdf8" strokeWidth={2} type="linear" />
+          <Area
+            yAxisId="diff"
+            dataKey="positiveDiff"
+            type="linear"
+            stroke="none"
+            fill="#ef4444"
+            fillOpacity={0.3}
+            isAnimationActive={false}
+          />
+          <Area
+            yAxisId="diff"
+            dataKey="negativeDiff"
+            type="linear"
+            stroke="none"
+            fill="#22c55e"
+            fillOpacity={0.3}
+            isAnimationActive={false}
+          />
+          <Line
+            yAxisId="volume"
+            dataKey="yesterdayEstimated"
+            dot={false}
+            stroke="#94a3b8"
+            strokeWidth={2}
+            type="linear"
+            isAnimationActive={false}
+          />
+          <Line
+            yAxisId="volume"
+            dataKey="todayEstimated"
+            dot={false}
+            stroke="#38bdf8"
+            strokeWidth={2}
+            type="linear"
+            isAnimationActive={false}
+          />
         </ComposedChart>
       </ResponsiveContainer>
     </ChartShell>
@@ -436,10 +515,34 @@ const foreignData = [{ value: 76, fill: "hsl(var(--chart-2))" }];
 export function ForeignParticipationChart(): JSX.Element {
   return (
     <ChartShell testId="foreign-chart" compact>
-      <ResponsiveContainer width="100%" height="100%" minHeight={120} minWidth={0}>
-        <RadialBarChart cx="50%" cy="55%" innerRadius="55%" outerRadius="95%" data={foreignData} startAngle={180} endAngle={0} barSize={14}>
-          <RadialBar background cornerRadius={8} dataKey="value" />
-          <text x="50%" y="58%" textAnchor="middle" className="fill-foreground text-xs font-semibold">
+      <ResponsiveContainer
+        width="100%"
+        height="100%"
+        minHeight={120}
+        minWidth={0}
+      >
+        <RadialBarChart
+          cx="50%"
+          cy="55%"
+          innerRadius="55%"
+          outerRadius="95%"
+          data={foreignData}
+          startAngle={180}
+          endAngle={0}
+          barSize={14}
+        >
+          <RadialBar
+            background
+            cornerRadius={8}
+            dataKey="value"
+            isAnimationActive={false}
+          />
+          <text
+            x="50%"
+            y="58%"
+            textAnchor="middle"
+            className="fill-foreground text-xs font-semibold"
+          >
             76%
           </text>
         </RadialBarChart>
@@ -502,14 +605,31 @@ function renderDealerLabel({
   );
 }
 
-export function DealerPositionChart(): JSX.Element {
+interface DealerPositionDatum {
+  name: string;
+  value: number;
+  fill: string;
+}
+
+export function DealerPositionChart({
+  data = dealerData,
+}: {
+  data?: DealerPositionDatum[];
+}): JSX.Element {
+  const chartData = data.length > 0 ? data : dealerData;
+
   return (
     <ChartShell testId="dealer-chart" compact>
-      <ResponsiveContainer width="100%" height="100%" minHeight={120} minWidth={0}>
+      <ResponsiveContainer
+        width="100%"
+        height="100%"
+        minHeight={120}
+        minWidth={0}
+      >
         <PieChart>
           <Tooltip contentStyle={tooltipStyle} />
           <Pie
-            data={dealerData}
+            data={chartData}
             dataKey="value"
             innerRadius={28}
             outerRadius={46}
@@ -517,8 +637,9 @@ export function DealerPositionChart(): JSX.Element {
             stroke="none"
             label={renderDealerLabel}
             labelLine={false}
+            isAnimationActive={false}
           >
-            {dealerData.map((entry) => (
+            {chartData.map((entry) => (
               <Cell key={entry.name} fill={entry.fill} />
             ))}
           </Pie>
@@ -539,13 +660,38 @@ const retailData = [
 export function RetailPulseChart(): JSX.Element {
   return (
     <ChartShell testId="retail-chart" compact>
-      <ResponsiveContainer width="100%" height="100%" minHeight={120} minWidth={0}>
-        <BarChart data={retailData} margin={{ top: 4, right: 0, bottom: 0, left: -18 }}>
-          <CartesianGrid vertical={false} stroke="hsl(var(--border-strong))" strokeDasharray="3 3" />
-          <XAxis axisLine={false} dataKey="day" tick={axisTick} tickLine={false} />
+      <ResponsiveContainer
+        width="100%"
+        height="100%"
+        minHeight={120}
+        minWidth={0}
+      >
+        <BarChart
+          data={retailData}
+          margin={{ top: 4, right: 0, bottom: 0, left: -18 }}
+        >
+          <CartesianGrid
+            vertical={false}
+            stroke="hsl(var(--border-strong))"
+            strokeDasharray="3 3"
+          />
+          <XAxis
+            axisLine={false}
+            dataKey="day"
+            tick={axisTick}
+            tickLine={false}
+          />
           <YAxis hide />
-          <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
-          <Bar dataKey="intensity" radius={[3, 3, 0, 0]} fill="hsl(var(--chart-4))" />
+          <Tooltip
+            contentStyle={tooltipStyle}
+            cursor={{ fill: "rgba(255,255,255,0.03)" }}
+          />
+          <Bar
+            dataKey="intensity"
+            radius={[3, 3, 0, 0]}
+            fill="hsl(var(--chart-4))"
+            isAnimationActive={false}
+          />
         </BarChart>
       </ResponsiveContainer>
     </ChartShell>
@@ -563,13 +709,37 @@ const sentimentData = [
 export function SentimentTrendChart(): JSX.Element {
   return (
     <ChartShell testId="sentiment-chart" compact>
-      <ResponsiveContainer width="100%" height="100%" minHeight={120} minWidth={0}>
-        <LineChart data={sentimentData} margin={{ top: 8, right: 0, bottom: 0, left: -18 }}>
-          <CartesianGrid vertical={false} stroke="hsl(var(--border-strong))" strokeDasharray="3 3" />
-          <XAxis axisLine={false} dataKey="step" tick={axisTick} tickLine={false} />
+      <ResponsiveContainer
+        width="100%"
+        height="100%"
+        minHeight={120}
+        minWidth={0}
+      >
+        <LineChart
+          data={sentimentData}
+          margin={{ top: 8, right: 0, bottom: 0, left: -18 }}
+        >
+          <CartesianGrid
+            vertical={false}
+            stroke="hsl(var(--border-strong))"
+            strokeDasharray="3 3"
+          />
+          <XAxis
+            axisLine={false}
+            dataKey="step"
+            tick={axisTick}
+            tickLine={false}
+          />
           <YAxis hide domain={[35, 70]} />
           <Tooltip contentStyle={tooltipStyle} />
-          <Line dataKey="score" dot={false} stroke="hsl(var(--info))" strokeWidth={2} type="monotone" />
+          <Line
+            dataKey="score"
+            dot={false}
+            stroke="hsl(var(--info))"
+            strokeWidth={2}
+            type="monotone"
+            isAnimationActive={false}
+          />
         </LineChart>
       </ResponsiveContainer>
     </ChartShell>

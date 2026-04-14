@@ -1,4 +1,5 @@
 import type { ApiErrorPayload, ApiRequestOptions } from "@/lib/api/types";
+import { shouldBlockInsecureTransport } from "@/lib/api/transport";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api";
 
@@ -29,6 +30,13 @@ async function parseError(response: Response): Promise<ApiError> {
 }
 
 async function request<TResponse>(path: string, init: RequestInit): Promise<TResponse> {
+  if (
+    typeof window !== "undefined" &&
+    shouldBlockInsecureTransport(API_BASE_URL, window.location.protocol, import.meta.env.PROD)
+  ) {
+    throw new ApiError("insecure_transport", 0, "API base URL must use HTTPS (except localhost for local development).");
+  }
+
   const response = await fetch(`${API_BASE_URL}${path}`, {
     credentials: "include",
     ...init,
@@ -36,6 +44,10 @@ async function request<TResponse>(path: string, init: RequestInit): Promise<TRes
 
   if (!response.ok) {
     throw await parseError(response);
+  }
+
+  if (response.status === 204) {
+    return {} as TResponse;
   }
 
   return (await response.json()) as TResponse;

@@ -2,6 +2,7 @@ import type { UserRole } from "@/lib/types/auth";
 
 interface AccessTokenPayload {
   sub?: unknown;
+  user_id?: unknown;
   role?: unknown;
   exp?: unknown;
 }

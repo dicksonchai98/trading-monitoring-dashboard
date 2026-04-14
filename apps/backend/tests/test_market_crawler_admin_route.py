@@ -76,14 +76,14 @@ def test_non_admin_cannot_create_crawler_job() -> None:
         "/auth/register",
         json={
             "username": "user4@example.com",
-            "password": "pass4",
+            "password": "Passw0rd4",
             "verification_token": verify.json()["verification_token"],
         },
     )
     assert register.status_code == 200
     token = client.post(
         "/auth/login",
-        json={"username": "user4@example.com", "password": "pass4"},
+        json={"username": "user4@example.com", "password": "Passw0rd4"},
     ).json()["access_token"]
 
     res = client.post(

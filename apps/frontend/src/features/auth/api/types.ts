@@ -1,9 +1,12 @@
 export interface LoginRequest {
-  username: string;
+  user_id: string;
   password: string;
 }
 
-export interface RegisterRequest extends LoginRequest {
+export interface RegisterRequest {
+  user_id: string;
+  email: string;
+  password: string;
   verification_token: string;
 }
 

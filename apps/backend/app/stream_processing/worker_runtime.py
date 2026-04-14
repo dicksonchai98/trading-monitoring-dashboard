@@ -128,6 +128,7 @@ class StreamProcessingWorkerRuntime:
     def _runner_background_tasks_failed(runner: Any) -> bool:
         for attr_name in (
             "_task",
+            "_db_sink_task",
             "_tick_task",
             "_bidask_task",
             "_tick_db_sink_task",

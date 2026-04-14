@@ -30,6 +30,13 @@ def _env_int(name: str, default: int) -> int:
     return int(raw)
 
 
+def _env_optional_int(name: str) -> int | None:
+    raw = os.getenv(name)
+    if raw is None or not raw.strip():
+        return None
+    return int(raw)
+
+
 def _env_list(name: str, default: list[str]) -> list[str]:
     raw = os.getenv(name)
     if raw is None or not raw.strip():
@@ -40,7 +47,7 @@ def _env_list(name: str, default: list[str]) -> list[str]:
 INGESTOR_ENABLED = _env_bool("INGESTOR_ENABLED", False)
 INGESTOR_ENV = os.getenv("INGESTOR_ENV", "dev")
 INGESTOR_CODE = os.getenv("INGESTOR_CODE", "MTX")
-INGESTOR_QUOTE_TYPES = _env_list("INGESTOR_QUOTE_TYPES", ["tick", "bidask"])
+INGESTOR_QUOTE_TYPES = _env_list("INGESTOR_QUOTE_TYPES", ["tick", "bidask", "quote"])
 INGESTOR_QUEUE_MAXSIZE = _env_int("INGESTOR_QUEUE_MAXSIZE", 1024)
 INGESTOR_STREAM_MAXLEN = _env_int("INGESTOR_STREAM_MAXLEN", 100000)
 INGESTOR_REDIS_RETRY_ATTEMPTS = _env_int("INGESTOR_REDIS_RETRY_ATTEMPTS", 3)
@@ -49,6 +56,10 @@ INGESTOR_RECONNECT_MAX_SECONDS = _env_int("INGESTOR_RECONNECT_MAX_SECONDS", 30)
 INGESTOR_SPOT_SYMBOLS_FILE = os.getenv("INGESTOR_SPOT_SYMBOLS_FILE", "infra/config/stock150.txt")
 INGESTOR_SPOT_SYMBOLS_EXPECTED_COUNT = _env_int("INGESTOR_SPOT_SYMBOLS_EXPECTED_COUNT", 150)
 INGESTOR_SPOT_REQUIRED = _env_bool("INGESTOR_SPOT_REQUIRED", False)
+INGESTOR_MARKET_ENABLED = _env_bool("INGESTOR_MARKET_ENABLED", False)
+INGESTOR_MARKET_CODE = os.getenv("INGESTOR_MARKET_CODE", "TSE001")
+INGESTOR_OTC_ENABLED = _env_bool("INGESTOR_OTC_ENABLED", False)
+INGESTOR_OTC_CODE = os.getenv("INGESTOR_OTC_CODE", "OTC001")
 SHIOAJI_API_KEY = os.getenv("SHIOAJI_API_KEY", "")
 SHIOAJI_SECRET_KEY = os.getenv("SHIOAJI_SECRET_KEY", "")
 SHIOAJI_SIMULATION = _env_bool("SHIOAJI_SIMULATION", True)
@@ -90,9 +101,34 @@ AGGREGATOR_DB_SINK_DEAD_LETTER_MAXLEN = _env_int("AGGREGATOR_DB_SINK_DEAD_LETTER
 AGGREGATOR_BLOCKING_WARN_MS = _env_int("AGGREGATOR_BLOCKING_WARN_MS", 200)
 AGGREGATOR_SERIES_FIELDS = _env_list(
     "AGGREGATOR_SERIES_FIELDS",
-    ["bid", "ask", "mid", "spread", "delta_1s"],
+    [
+        "bid",
+        "ask",
+        "mid",
+        "spread",
+        "bid_total_vol",
+        "ask_total_vol",
+        "imbalance",
+        "ratio",
+        "main_force_big_order",
+        "main_force_big_order_day_high",
+        "main_force_big_order_day_low",
+        "main_force_big_order_strength",
+        "delta_1s",
+        "delta_bid_total_vol_1s",
+        "delta_ask_total_vol_1s",
+    ],
 )
 AGGREGATOR_WORKER_ROLE = os.getenv("AGGREGATOR_WORKER_ROLE", "all")
+
+QUOTE_WORKER_ENABLED = _env_bool("QUOTE_WORKER_ENABLED", False)
+QUOTE_WORKER_TARGET_CODE = os.getenv("QUOTE_WORKER_TARGET_CODE", INGESTOR_CODE)
+QUOTE_WORKER_GROUP = os.getenv("QUOTE_WORKER_GROUP", "agg:quote")
+QUOTE_WORKER_CONSUMER_NAME = os.getenv("QUOTE_WORKER_CONSUMER_NAME", "quote-worker-1")
+QUOTE_WORKER_STREAM_MAXLEN = _env_int("QUOTE_WORKER_STREAM_MAXLEN", 100000)
+QUOTE_WORKER_DB_FLUSH_ENABLED = _env_bool("QUOTE_WORKER_DB_FLUSH_ENABLED", True)
+QUOTE_WORKER_REDIS_RETRY_ATTEMPTS = _env_int("QUOTE_WORKER_REDIS_RETRY_ATTEMPTS", 3)
+QUOTE_WORKER_REDIS_RETRY_BACKOFF_MS = _env_int("QUOTE_WORKER_REDIS_RETRY_BACKOFF_MS", 200)
 
 LATEST_STATE_ENABLED = _env_bool("LATEST_STATE_ENABLED", False)
 LATEST_STATE_ENV = os.getenv("LATEST_STATE_ENV", INGESTOR_ENV)
@@ -137,6 +173,38 @@ INDEX_CONTRIBUTION_DB_RETRY_BACKOFF_MS = _env_int("INDEX_CONTRIBUTION_DB_RETRY_B
 INDEX_CONTRIBUTION_ALLOW_LATE_SNAPSHOT_REWRITE = _env_bool(
     "INDEX_CONTRIBUTION_ALLOW_LATE_SNAPSHOT_REWRITE", False
 )
+MARKET_SUMMARY_ENABLED = _env_bool("MARKET_SUMMARY_ENABLED", False)
+MARKET_SUMMARY_ENV = os.getenv("MARKET_SUMMARY_ENV", INGESTOR_ENV)
+MARKET_CODE = os.getenv("MARKET_CODE", "TSE001")
+MARKET_GROUP = os.getenv("MARKET_GROUP", "agg:market")
+MARKET_CONSUMER_NAME = os.getenv("MARKET_CONSUMER_NAME", "agg-market-1")
+MARKET_READ_COUNT = _env_int("MARKET_READ_COUNT", 100)
+MARKET_BLOCK_MS = _env_int("MARKET_BLOCK_MS", 1000)
+MARKET_CLAIM_IDLE_MS = _env_int("MARKET_CLAIM_IDLE_MS", 30000)
+MARKET_CLAIM_COUNT = _env_int("MARKET_CLAIM_COUNT", 100)
+MARKET_STATE_TTL_SECONDS = _env_int("MARKET_STATE_TTL_SECONDS", 86400)
+MARKET_TRADING_START = os.getenv("MARKET_TRADING_START", "09:00")
+MARKET_TRADING_END = os.getenv("MARKET_TRADING_END", "13:30")
+MARKET_ADJUSTMENT_FACTOR = float(os.getenv("MARKET_ADJUSTMENT_FACTOR", "1.0"))
+MARKET_SPREAD_FUTURES_CODE = os.getenv("MARKET_SPREAD_FUTURES_CODE", AGGREGATOR_CODE)
+MARKET_SPREAD_FRESHNESS_SECONDS = float(os.getenv("MARKET_SPREAD_FRESHNESS_SECONDS", "5"))
+MARKET_DB_SINK_BATCH_SIZE = _env_int("MARKET_DB_SINK_BATCH_SIZE", 100)
+MARKET_DB_SINK_MAX_RETRIES = _env_int("MARKET_DB_SINK_MAX_RETRIES", 5)
+MARKET_DB_SINK_RETRY_BACKOFF_SECONDS = float(
+    os.getenv("MARKET_DB_SINK_RETRY_BACKOFF_SECONDS", "0.5")
+)
+MARKET_DB_SINK_DEAD_LETTER_MAXLEN = _env_int("MARKET_DB_SINK_DEAD_LETTER_MAXLEN", 10000)
+
+OTC_SUMMARY_ENABLED = _env_bool("OTC_SUMMARY_ENABLED", False)
+OTC_SUMMARY_ENV = os.getenv("OTC_SUMMARY_ENV", INGESTOR_ENV)
+OTC_SUMMARY_CODE = os.getenv("OTC_SUMMARY_CODE", "OTC001")
+OTC_SUMMARY_GROUP = os.getenv("OTC_SUMMARY_GROUP", "agg:otc")
+OTC_SUMMARY_CONSUMER_NAME = os.getenv("OTC_SUMMARY_CONSUMER_NAME", "agg-otc-1")
+OTC_SUMMARY_READ_COUNT = _env_int("OTC_SUMMARY_READ_COUNT", 100)
+OTC_SUMMARY_BLOCK_MS = _env_int("OTC_SUMMARY_BLOCK_MS", 1000)
+OTC_SUMMARY_CLAIM_IDLE_MS = _env_int("OTC_SUMMARY_CLAIM_IDLE_MS", 30000)
+OTC_SUMMARY_CLAIM_COUNT = _env_int("OTC_SUMMARY_CLAIM_COUNT", 100)
+OTC_SUMMARY_STATE_TTL_SECONDS = _env_int("OTC_SUMMARY_STATE_TTL_SECONDS", 86400)
 
 BACKFILL_MAX_CONCURRENCY = _env_int("BACKFILL_MAX_CONCURRENCY", 2)
 BACKFILL_RETRY_MAX_ATTEMPTS = _env_int("BACKFILL_RETRY_MAX_ATTEMPTS", 3)
@@ -154,10 +222,18 @@ SERVING_RATE_LIMIT_PER_MIN = _env_int("SERVING_RATE_LIMIT_PER_MIN", 120)
 SERVING_SSE_CONN_LIMIT = _env_int("SERVING_SSE_CONN_LIMIT", 3)
 SERVING_HEARTBEAT_SECONDS = _env_int("SERVING_HEARTBEAT_SECONDS", 15)
 SERVING_POLL_INTERVAL_MS = _env_int("SERVING_POLL_INTERVAL_MS", 1000)
+SERVING_SSE_INCLUDE_QUOTE = _env_bool("SERVING_SSE_INCLUDE_QUOTE", True)
 SERVING_CORS_ALLOW_ORIGINS = _env_list(
     "SERVING_CORS_ALLOW_ORIGINS",
     ["*"],
 )
+
+KBAR_ANALYTICS_RETRY_MAX_ATTEMPTS = _env_int("KBAR_ANALYTICS_RETRY_MAX_ATTEMPTS", 3)
+KBAR_ANALYTICS_RETRY_BACKOFF_SECONDS = _env_int("KBAR_ANALYTICS_RETRY_BACKOFF_SECONDS", 1)
+KBAR_ANALYTICS_CRON_ENABLED = _env_bool("KBAR_ANALYTICS_CRON_ENABLED", False)
+KBAR_ANALYTICS_CRON_INTERVAL_SECONDS = _env_int("KBAR_ANALYTICS_CRON_INTERVAL_SECONDS", 86400)
+KBAR_ANALYTICS_CRON_WINDOW_DAYS = _env_int("KBAR_ANALYTICS_CRON_WINDOW_DAYS", 30)
+KBAR_ANALYTICS_CRON_CODE = os.getenv("KBAR_ANALYTICS_CRON_CODE", "TXF")
 
 
 @dataclass(frozen=True)
@@ -165,6 +241,10 @@ class StripeSettings:
     secret_key: str
     webhook_secret: str
     price_id: str
+    plan_name: str
+    price_amount: int | None
+    price_currency: str
+    price_interval: str
     success_url: str
     cancel_url: str
     portal_return_url: str
@@ -175,6 +255,10 @@ def get_stripe_settings() -> StripeSettings:
         secret_key=os.getenv("STRIPE_SECRET_KEY", ""),
         webhook_secret=os.getenv("STRIPE_WEBHOOK_SECRET", ""),
         price_id=os.getenv("STRIPE_PRICE_ID", ""),
+        plan_name=os.getenv("STRIPE_PLAN_NAME", "Basic"),
+        price_amount=_env_optional_int("STRIPE_PRICE_AMOUNT"),
+        price_currency=os.getenv("STRIPE_PRICE_CURRENCY", "usd"),
+        price_interval=os.getenv("STRIPE_PRICE_INTERVAL", "month"),
         success_url=os.getenv("STRIPE_SUCCESS_URL", ""),
         cancel_url=os.getenv("STRIPE_CANCEL_URL", ""),
         portal_return_url=os.getenv(
@@ -199,3 +283,9 @@ def validate_stripe_settings() -> None:
     if missing:
         missing_env = ", ".join(missing)
         raise RuntimeError(f"missing required stripe configuration: {missing_env}")
+    if not settings.secret_key.startswith("sk_"):
+        raise RuntimeError("invalid STRIPE_SECRET_KEY: expected key starting with 'sk_'")
+    if not settings.webhook_secret.startswith("whsec_"):
+        raise RuntimeError(
+            "invalid STRIPE_WEBHOOK_SECRET: expected key starting with 'whsec_'"
+        )

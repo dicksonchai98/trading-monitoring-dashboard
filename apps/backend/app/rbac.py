@@ -15,6 +15,14 @@ PROTECTED_ROUTES = {
     ("GET", "/billing/status"),
     ("GET", "/realtime/weighted"),
     ("GET", "/analytics/history"),
+    ("GET", "/analytics/events"),
+    ("GET", "/analytics/metrics"),
+    ("GET", "/analytics/events/{event_id}/stats"),
+    ("GET", "/analytics/events/{event_id}/samples"),
+    ("GET", "/analytics/distributions/{metric_id}"),
+    ("POST", "/analytics/jobs/rebuild-daily-features"),
+    ("POST", "/analytics/jobs/recompute-event-stats"),
+    ("POST", "/analytics/jobs/recompute-distribution-stats"),
 }
 
 ADMIN_ROUTES = {
@@ -37,6 +45,12 @@ def path_template(method: str, path: str) -> tuple[str, str]:
         return method, "/api/admin/batch/backfill/jobs/{job_id}"
     if method == "GET" and path.startswith("/api/admin/batch/jobs/"):
         return method, "/api/admin/batch/jobs/{job_id}"
+    if method == "GET" and path.startswith("/analytics/events/") and path.endswith("/stats"):
+        return method, "/analytics/events/{event_id}/stats"
+    if method == "GET" and path.startswith("/analytics/events/") and path.endswith("/samples"):
+        return method, "/analytics/events/{event_id}/samples"
+    if method == "GET" and path.startswith("/analytics/distributions/"):
+        return method, "/analytics/distributions/{metric_id}"
     return method, path
 
 

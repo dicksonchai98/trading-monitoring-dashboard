@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { SubscriptionPage } from "@/features/subscription/pages/SubscriptionPage";
 import { useAuthStore } from "@/lib/store/auth-store";
 
@@ -15,7 +15,10 @@ function renderSubscriptionPage(): void {
   render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={["/subscription"]}>
-        <SubscriptionPage />
+        <Routes>
+          <Route path="/subscription" element={<SubscriptionPage />} />
+          <Route path="/login" element={<h1>Login Page</h1>} />
+        </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -35,6 +38,7 @@ describe("SubscriptionPage", () => {
 
   beforeEach(() => {
     vi.stubGlobal("fetch", fetchMock);
+    fetchMock.mockReset();
     useAuthStore.setState({
       token: "token",
       role: "member",
@@ -49,7 +53,15 @@ describe("SubscriptionPage", () => {
     vi.clearAllMocks();
   });
 
-  it("uses the shared page layout header and bento grid content layout", async () => {
+  it("shows skeleton while bootstrap/query is loading", () => {
+    fetchMock.mockImplementation(() => new Promise<Response>(() => {}));
+
+    renderSubscriptionPage();
+
+    expect(screen.getByTestId("page-skeleton")).toBeInTheDocument();
+  });
+
+  it("shows the standalone pricing page content", async () => {
     fetchMock
       .mockResolvedValueOnce(
         new Response(JSON.stringify(plansFixture()), {
@@ -66,14 +78,16 @@ describe("SubscriptionPage", () => {
 
     renderSubscriptionPage();
 
-    expect(screen.getByRole("heading", { name: "Subscription" })).toBeInTheDocument();
-    expect(screen.getByText("/subscription")).toBeInTheDocument();
-    expect(screen.getByTestId("page-layout")).toBeInTheDocument();
-    expect(screen.getByText("PLAN OPTIONS")).toBeInTheDocument();
-    expect(screen.getAllByTestId("bento-grid")).toHaveLength(1);
-    expect(await screen.findByText("Basic")).toBeInTheDocument();
-    expect(screen.getByText("Free")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Start Checkout" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Pricing" })).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Use for free with your whole team. Upgrade to enable unlimited issues, enhanced security controls, and additional features.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Pro Plan")).toBeInTheDocument();
+    expect(screen.getAllByText("Free").length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: "Get started" })).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: "Contact sales" })).not.toBeInTheDocument();
   });
 
   it("loads billing plans and status, then refreshes status after checkout", async () => {
@@ -111,9 +125,8 @@ describe("SubscriptionPage", () => {
 
     renderSubscriptionPage();
 
-    expect(await screen.findAllByText("Entitlement: none")).toHaveLength(2);
-
-    fireEvent.click(screen.getByRole("button", { name: "Start Checkout" }));
+    const actionButtons = await screen.findAllByRole("button", { name: "Get started" });
+    fireEvent.click(actionButtons[0]);
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
     expect(useAuthStore.getState().checkoutSessionId).toBe("session-123");
@@ -144,7 +157,7 @@ describe("SubscriptionPage", () => {
     );
   });
 
-  it("stretches the plan cards to fill the visible content area without relying on oversized fixed heights", async () => {
+  it("renders pricing cards in a simple shadcn layout", async () => {
     fetchMock
       .mockResolvedValueOnce(
         new Response(JSON.stringify(plansFixture()), {
@@ -161,20 +174,36 @@ describe("SubscriptionPage", () => {
 
     renderSubscriptionPage();
 
-    const checkoutButton = await screen.findByRole("button", { name: "Start Checkout" });
+    const checkoutButton = await screen.findAllByRole("button", { name: "Get started" });
+    expect(screen.getByRole("main")).toHaveClass("min-h-screen");
+    expect(checkoutButton[0]).toHaveClass("mt-auto", "w-fit");
+    expect(screen.getByTestId("pricing-page")).toBeInTheDocument();
+  });
 
-    const layoutBody = screen.getByTestId("page-layout-body");
-    const grids = screen.getAllByTestId("bento-grid");
+  it("redirects unauthenticated users to login when clicking get started", async () => {
+    useAuthStore.setState({
+      token: null,
+      role: null,
+      entitlement: "none",
+      resolved: true,
+      checkoutSessionId: null,
+    });
 
-    expect(screen.getByTestId("page-layout")).toHaveClass(
-      "flex",
-      "min-h-[calc(100dvh-(var(--shell-padding)*2))]",
-      "flex-col",
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify(plansFixture()), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
     );
-    expect(layoutBody).toHaveClass("flex", "flex-1", "flex-col");
-    expect(grids[0]).toHaveClass("h-full", "flex-1", "auto-rows-fr");
-    expect(checkoutButton.closest("section")).toHaveClass("h-full");
-    expect(checkoutButton).toHaveClass("mt-auto");
+
+    renderSubscriptionPage();
+
+    const button = await screen.findByRole("button", { name: "Get started" });
+    expect(button).toBeEnabled();
+    fireEvent.click(button);
+
+    expect(await screen.findByRole("heading", { name: "Login Page" })).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("disables paid checkout and labels current plan when user already has active subscription", async () => {
@@ -196,6 +225,5 @@ describe("SubscriptionPage", () => {
 
     const currentPlanButtons = await screen.findAllByRole("button", { name: "Current plan" });
     expect(currentPlanButtons[0]).toBeDisabled();
-    expect(screen.queryByRole("button", { name: "Start Checkout" })).not.toBeInTheDocument();
   });
 });

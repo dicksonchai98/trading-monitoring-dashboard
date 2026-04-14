@@ -1,4 +1,4 @@
-import type { CSSProperties, JSX } from "react";
+import { useEffect, useState, type CSSProperties, type JSX } from "react";
 import type { PieProps, PieSectorDataItem } from "recharts";
 import {
   Area,
@@ -6,21 +6,23 @@ import {
   Cell,
   Pie,
   PieChart,
-  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
-import metricsConfig from "../../../../test.json";
 import { BentoGridSection } from "@/components/ui/bento-grid";
 import { Card } from "@/components/ui/card";
+import { useKbarCurrent } from "@/features/realtime/hooks/use-kbar-current";
+import { useMarketSummaryLatest } from "@/features/realtime/hooks/use-market-summary-latest";
+import { useMetricLatest } from "@/features/realtime/hooks/use-metric-latest";
+import { useQuoteLatest } from "@/features/realtime/hooks/use-quote-latest";
+import { useSpotLatestList } from "@/features/realtime/hooks/use-spot-latest-list";
+import { useOtcIndexSeries } from "@/features/dashboard/hooks/use-otc-index-series";
 import { PanelCard } from "@/components/ui/panel-card";
-
-interface MetricPanelConfig {
-  key: string;
-  label: string;
-}
+import { StrengthGaugePanelCard } from "@/features/dashboard/components/StrengthGaugePanelCard";
+import { Typography } from "@/components/ui/typography";
+import { useI18n, useT } from "@/lib/i18n";
 
 interface GaugeSegment {
   name: string;
@@ -39,29 +41,37 @@ interface HalfGaugeGeometry {
 
 interface GapKlineDatum {
   symbol: string;
-  prevClose: number;
+  referencePrice: number;
   open: number;
   high: number;
   low: number;
   close: number;
-  current: number;
+  changePct: number;
+}
+
+type NeedleMetricKey =
+  | "mainForce"
+  | "mainChip"
+  | "longShortForce"
+  | "retailSmallOrder"
+  | "bigOrder";
+
+interface MetricPanelConfig {
+  key: "piechart with needle";
+  metricKey: NeedleMetricKey;
+  label: string;
+  strengthTestId: string;
+  gaugeTestId: string;
 }
 
 const KLINE_UP_COLOR = "#ef4444";
 const KLINE_DOWN_COLOR = "#22c55e";
+const GAP_K_SYMBOLS = ["2330", "2317", "2454", "2308", "2881", "6505"] as const;
 
 const NEEDLE_BASE_RADIUS_PX = 4;
 const gaugeValues = [74, 66, 58, 82, 63];
-const coreMetrics = [
-  { label: "振幅", value: "1.82%" },
-  { label: "預估量", value: "24.6K" },
-  { label: "價差", value: "12" },
-];
-const contributionMetrics = [
-  { label: "臺積電貢獻點數", value: "+84" },
-  { label: "權值前20貢獻點數", value: "+176" },
-  { label: "上市漲跌家數", value: "612 / 356" },
-];
+const GROUPED_INTEGER_FORMATTER = new Intl.NumberFormat("en-US");
+type CoreMetricType = "amplitude" | "projectedVolume" | "spread";
 function buildOtcIntradaySeries(): Array<{
   time: string;
   value: number;
@@ -109,21 +119,22 @@ function buildOtcIntradaySeries(): Array<{
 }
 
 const otcIndexSeries = buildOtcIntradaySeries();
-const gapKlineData: GapKlineDatum[] = [
-  { symbol: "臺積電", prevClose: 966, open: 978, high: 990, low: 962, close: 985, current: 988 },
-  { symbol: "臺達電", prevClose: 352, open: 347, high: 356, low: 342, close: 345, current: 344 },
-  { symbol: "鴻海", prevClose: 204, open: 209, high: 214, low: 201, close: 212, current: 211 },
-  { symbol: "聯發科", prevClose: 1260, open: 1238, high: 1276, low: 1228, close: 1268, current: 1272 },
-  { symbol: "櫃買指數", prevClose: 262.1, open: 263.4, high: 265.2, low: 261.3, close: 264.6, current: 264.2 },
-  { symbol: "日經指數", prevClose: 39280, open: 39540, high: 39810, low: 39180, close: 39720, current: 39660 },
-];
+const EMPTY_GAP_ROW: GapKlineDatum = {
+  symbol: "",
+  referencePrice: 0,
+  open: 0,
+  high: 0,
+  low: 0,
+  close: 0,
+  changePct: 0,
+};
 
 export function getHalfGaugeGeometry(): HalfGaugeGeometry {
   return {
     width: 144,
-    height: 60,
-    cx: 67,
-    cy: 40,
+    height: 108,
+    cx: 72,
+    cy: 82,
     innerRadius: 24,
     outerRadius: 40,
   };
@@ -140,8 +151,87 @@ export function getNeedleStyle(
   };
 }
 
-function getMetricConfigs(): MetricPanelConfig[] {
-  return metricsConfig as MetricPanelConfig[];
+function getMetricConfigs(t: ReturnType<typeof useT>): MetricPanelConfig[] {
+  return [
+    {
+      key: "piechart with needle",
+      metricKey: "mainForce",
+      label: t("dashboard.metrics.needle.mainForce"),
+      strengthTestId: "live-metrics-main-force-strength",
+      gaugeTestId: "live-metrics-main-force-gauge",
+    },
+    {
+      key: "piechart with needle",
+      metricKey: "mainChip",
+      label: t("dashboard.metrics.needle.mainChip"),
+      strengthTestId: "live-metrics-main-chip-strength",
+      gaugeTestId: "live-metrics-main-chip-gauge",
+    },
+    {
+      key: "piechart with needle",
+      metricKey: "longShortForce",
+      label: t("dashboard.metrics.needle.longShortForce"),
+      strengthTestId: "live-metrics-long-short-force-strength",
+      gaugeTestId: "live-metrics-long-short-force-gauge",
+    },
+    {
+      key: "piechart with needle",
+      metricKey: "retailSmallOrder",
+      label: t("dashboard.metrics.needle.retailSmallOrder"),
+      strengthTestId: "live-metrics-retail-small-order-strength",
+      gaugeTestId: "live-metrics-retail-small-order-gauge",
+    },
+    {
+      key: "piechart with needle",
+      metricKey: "bigOrder",
+      label: t("dashboard.metrics.needle.bigOrder"),
+      strengthTestId: "live-metrics-big-order-strength",
+      gaugeTestId: "live-metrics-big-order-gauge",
+    },
+  ];
+}
+
+function useStickyLatestNumber(
+  value: number | null | undefined,
+): number | null {
+  const [latest, setLatest] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (typeof value === "number" && Number.isFinite(value)) {
+      setLatest(value);
+    }
+  }, [value]);
+
+  return latest;
+}
+
+function formatFixed2(value: number): string {
+  return value.toFixed(2);
+}
+
+function formatGroupedInteger(value: number): string {
+  return GROUPED_INTEGER_FORMATTER.format(Math.trunc(value));
+}
+
+function formatYiUnit(value: number): string {
+  return `${(value / 100_000_000).toFixed(2)}\u5104`;
+}
+
+function formatPercentage(value: number): string {
+  return `${(value * 100).toFixed(1)}%`;
+}
+
+function formatCoreMetricValue(
+  metricType: CoreMetricType,
+  value: number | null,
+): string {
+  if (value === null) {
+    return "--";
+  }
+  if (metricType === "projectedVolume") {
+    return formatYiUnit(value);
+  }
+  return formatFixed2(value);
 }
 
 function Needle({
@@ -211,8 +301,14 @@ function HalfPie({
   );
 }
 
-export function MetricNeedleChart({ index }: { index: number }): JSX.Element {
-  const value = gaugeValues[index] ?? 50;
+export function MetricNeedleChart({
+  index,
+  liveValue,
+}: {
+  index: number;
+  liveValue?: number | null;
+}): JSX.Element {
+  const value = liveValue ?? gaugeValues[index] ?? 50;
   const geometry = getHalfGaugeGeometry();
   const chartData: GaugeSegment[] = [
     { name: "active", value, fill: "hsl(var(--primary))" },
@@ -242,7 +338,7 @@ export function MetricNeedleChart({ index }: { index: number }): JSX.Element {
         />
         <div className="flex w-full justify-center">
           <div
-            className="relative h-[60px] w-[144px] shrink-0"
+            className="relative h-[108px] w-[144px] shrink-0"
             data-testid="metric-half-gauge"
           >
             <PieChart width={geometry.width} height={geometry.height}>
@@ -260,7 +356,13 @@ export function MetricNeedleChart({ index }: { index: number }): JSX.Element {
           className="mt-1.5 text-center text-xs font-semibold leading-none text-foreground"
           data-testid="metric-needle-value"
         >
-          {value}
+          <Typography
+            as="p"
+            variant="caption"
+            className="font-mono font-semibold text-foreground"
+          >
+            {value}
+          </Typography>
         </div>
       </div>
     </div>
@@ -282,104 +384,300 @@ function MetricMiniPanel({
       data-testid={testId}
     >
       <div className="space-y-0.5 text-center">
-        <p className="truncate text-[10px] text-muted-foreground">{title}</p>
-        <p className="text-sm font-semibold tracking-tight text-foreground">{value}</p>
+        <Typography
+          as="p"
+          variant="caption"
+          className="truncate font-mono text-xs text-muted-foreground"
+        >
+          {title}
+        </Typography>
+        <Typography as="p" variant="metric" className="text-foreground">
+          {value}
+        </Typography>
       </div>
     </Card>
   );
 }
 
-function OtcIndexLinePanel(): JSX.Element {
+function OtcIndexLinePanel({ title }: { title: string }): JSX.Element {
+  const { locale, t } = useI18n();
+  const { series } = useOtcIndexSeries();
+  const chartData = series;
+  const xTicks =
+    chartData.length > 0
+      ? [
+          chartData[0]?.minuteTs,
+          chartData.find((point) => point.time === "10:00")?.minuteTs,
+          chartData.find((point) => point.time === "11:00")?.minuteTs,
+          chartData.find((point) => point.time === "12:00")?.minuteTs,
+          chartData.find((point) => point.time === "13:00")?.minuteTs,
+          chartData[chartData.length - 1]?.minuteTs,
+        ].filter((value): value is number => typeof value === "number")
+      : [];
+
   return (
     <PanelCard
-      title="OTC 櫃買指數"
+      title={title}
       span={1}
       units={1}
       className="h-full"
       contentClassName="pt-[var(--panel-gap)]"
       data-testid="live-metrics-otc-line-panel"
     >
-      <div className="h-full min-h-[120px] w-full" data-testid="panel-chart">
-        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-          <AreaChart
-            data={otcIndexSeries}
-            margin={{ top: 8, right: 8, bottom: 2, left: -20 }}
-          >
-            <XAxis
-              dataKey="time"
-              axisLine={false}
-              tickLine={false}
-              tick={{ fill: "hsl(var(--subtle-foreground))", fontSize: 10 }}
-              ticks={["09:00", "10:00", "11:00", "12:00", "13:00"]}
-            />
-            <YAxis
-              axisLine={false}
-              tickLine={false}
-              tick={{ fill: "hsl(var(--subtle-foreground))", fontSize: 10 }}
-              domain={["dataMin - 0.3", "dataMax + 0.3"]}
-              ticks={[0]}
-              width={26}
-            />
-            <ReferenceLine y={0} stroke="hsl(var(--border-strong))" strokeDasharray="3 3" />
-            <Area
-              dataKey="upChange"
-              dot={false}
-              fill="rgba(239, 68, 68, 0.18)"
-              isAnimationActive={false}
-              stroke="#ef4444"
-              strokeWidth={1.8}
-              type="linear"
-            />
-            <Area
-              dataKey="downChange"
-              dot={false}
-              fill="rgba(34, 197, 94, 0.18)"
-              isAnimationActive={false}
-              stroke="#22c55e"
-              strokeWidth={1.8}
-              type="linear"
-            />
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
+      {chartData.length === 0 ? (
+        <div className="flex h-full min-h-[120px] items-center justify-center text-xs text-muted-foreground">
+          {t("dashboard.metrics.otc.empty")}
+        </div>
+      ) : (
+        <div className="h-full min-h-[120px] w-full" data-testid="panel-chart">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+            <AreaChart
+              data={chartData}
+              margin={{ top: 8, right: 8, bottom: 2, left: -8 }}
+            >
+              <XAxis
+                dataKey="minuteTs"
+                domain={["dataMin", "dataMax"]}
+                scale="time"
+                type="number"
+                axisLine={false}
+                tickLine={false}
+                tick={false}
+                ticks={xTicks}
+              />
+              <YAxis
+                axisLine={false}
+                tickLine={false}
+                tick={false}
+                domain={["dataMin - 0.2", "dataMax + 0.2"]}
+                width={0}
+              />
+              <Tooltip
+                formatter={(value) => [Number(value).toFixed(2), t("dashboard.metrics.otc.title")]}
+                labelFormatter={(label) =>
+                  new Date(Number(label)).toLocaleString(locale === "zh-TW" ? "zh-TW" : "en-US", {
+                    hour12: false,
+                    month: "2-digit",
+                    day: "2-digit",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    timeZone: "Asia/Taipei",
+                  })
+                }
+                contentStyle={{
+                  backgroundColor: "rgba(15, 23, 42, 0.94)",
+                  border: "1px solid rgba(248, 250, 252, 0.16)",
+                  borderRadius: 8,
+                  padding: "8px 10px",
+                }}
+                labelStyle={{
+                  color: "#f8fafc",
+                  fontSize: 12,
+                  lineHeight: "16px",
+                  marginBottom: 4,
+                }}
+                itemStyle={{
+                  color: "#fecaca",
+                  fontSize: 12,
+                  lineHeight: "16px",
+                }}
+              />
+              <Area
+                dataKey="value"
+                dot={false}
+                fill="rgba(239, 68, 68, 0.18)"
+                isAnimationActive={false}
+                stroke="#ef4444"
+                strokeWidth={1.8}
+                type="linear"
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      )}
     </PanelCard>
   );
 }
 
 function GapKlinePanelChart(): JSX.Element {
+  const spotLatestList = useSpotLatestList();
+  const [sessionOpenBySymbol, setSessionOpenBySymbol] = useState<
+    Record<string, number>
+  >({});
+  const spotBySymbol = new Map(
+    (spotLatestList?.items ?? []).map((item) => [item.symbol, item]),
+  );
+
+  useEffect(() => {
+    const incoming = spotLatestList?.items ?? [];
+    if (incoming.length === 0) {
+      return;
+    }
+    setSessionOpenBySymbol((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      for (const item of incoming) {
+        if (
+          typeof item.last_price === "number" &&
+          Number.isFinite(item.last_price) &&
+          next[item.symbol] === undefined
+        ) {
+          next[item.symbol] = item.last_price;
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [spotLatestList]);
+
+  const gapKlineData: GapKlineDatum[] = GAP_K_SYMBOLS.map((symbol) => {
+    const latest = spotBySymbol.get(symbol);
+    const close = latest?.last_price;
+    const openFromSse = latest?.open;
+    const highFromSse = latest?.high;
+    const lowFromSse = latest?.low;
+    const closeFromSse = latest?.close;
+    const sessionHigh = latest?.session_high;
+    const sessionLow = latest?.session_low;
+    const sessionOpen = sessionOpenBySymbol[symbol];
+    const resolvedClose =
+      typeof closeFromSse === "number" && Number.isFinite(closeFromSse)
+        ? closeFromSse
+        : close;
+    if (typeof resolvedClose !== "number" || !Number.isFinite(resolvedClose)) {
+      return { ...EMPTY_GAP_ROW, symbol };
+    }
+
+    const open =
+      typeof openFromSse === "number" && Number.isFinite(openFromSse)
+        ? openFromSse
+        : typeof sessionOpen === "number" && Number.isFinite(sessionOpen)
+          ? sessionOpen
+          : resolvedClose;
+    const highBase =
+      typeof highFromSse === "number" && Number.isFinite(highFromSse)
+        ? highFromSse
+        : typeof sessionHigh === "number" && Number.isFinite(sessionHigh)
+          ? sessionHigh
+          : Math.max(open, resolvedClose);
+    const lowBase =
+      typeof lowFromSse === "number" && Number.isFinite(lowFromSse)
+        ? lowFromSse
+        : typeof sessionLow === "number" && Number.isFinite(sessionLow)
+          ? sessionLow
+          : Math.min(open, resolvedClose);
+
+    const high = Math.max(highBase, open, resolvedClose);
+    const low = Math.min(lowBase, open, resolvedClose);
+    const referencePrice =
+      typeof latest?.reference_price === "number" &&
+      Number.isFinite(latest.reference_price)
+        ? latest.reference_price
+        : open;
+    const changePct =
+      referencePrice === 0
+        ? 0
+        : ((resolvedClose - referencePrice) / referencePrice) * 100;
+
+    return {
+      symbol,
+      referencePrice,
+      open,
+      high,
+      low,
+      close: resolvedClose,
+      changePct,
+    };
+  });
+
   const width = 620;
   const height = 190;
   const margin = { top: 16, right: 10, bottom: 50, left: 44 };
   const plotWidth = width - margin.left - margin.right;
   const plotHeight = height - margin.top - margin.bottom;
-  const normalizedData = gapKlineData.map((item) => {
-    const toPct = (value: number): number =>
-      ((value - item.prevClose) / item.prevClose) * 100;
-
-    return {
-      ...item,
-      openPct: toPct(item.open),
-      highPct: toPct(item.high),
-      lowPct: toPct(item.low),
-      closePct: toPct(item.close),
-      currentPct: toPct(item.current),
-    };
-  });
-  const pctMin = Math.min(...normalizedData.map((item) => item.lowPct));
-  const pctMax = Math.max(...normalizedData.map((item) => item.highPct));
-  const paddedMin = pctMin - (pctMax - pctMin) * 0.08;
-  const paddedMax = pctMax + (pctMax - pctMin) * 0.08;
+  const validRows = gapKlineData.filter(
+    (item) =>
+      item.high > 0 &&
+      Number.isFinite(item.open) &&
+      Number.isFinite(item.high) &&
+      Number.isFinite(item.low) &&
+      Number.isFinite(item.close),
+  );
+  const validPctRows = validRows
+    .map((item) => {
+      if (item.open === 0) {
+        return null;
+      }
+      const basePrice =
+        item.referencePrice > 0 && Number.isFinite(item.referencePrice)
+          ? item.referencePrice
+          : item.open;
+      return {
+        openPct: ((item.open - basePrice) / basePrice) * 100,
+        highPct: ((item.high - basePrice) / basePrice) * 100,
+        lowPct: ((item.low - basePrice) / basePrice) * 100,
+        closePct: ((item.close - basePrice) / basePrice) * 100,
+      };
+    })
+    .filter(
+      (
+        item,
+      ): item is {
+        openPct: number;
+        highPct: number;
+        lowPct: number;
+        closePct: number;
+      } =>
+        item !== null &&
+        Number.isFinite(item.openPct) &&
+        Number.isFinite(item.highPct) &&
+        Number.isFinite(item.lowPct) &&
+        Number.isFinite(item.closePct),
+    );
+  const baseMin =
+    validPctRows.length > 0
+      ? Math.min(
+          ...validPctRows.flatMap((item) => [
+            item.lowPct,
+            item.openPct,
+            item.closePct,
+            0,
+          ]),
+        )
+      : -1;
+  const baseMax =
+    validPctRows.length > 0
+      ? Math.max(
+          ...validPctRows.flatMap((item) => [
+            item.highPct,
+            item.openPct,
+            item.closePct,
+            0,
+          ]),
+        )
+      : 1;
+  const range = Math.max(baseMax - baseMin, 0.8);
+  const paddedMin = baseMin - range * 0.12;
+  const paddedMax = baseMax + range * 0.12;
   const tickCount = 5;
-  const step = plotWidth / normalizedData.length;
+  const step = plotWidth / gapKlineData.length;
   const bodyWidth = Math.min(34, step * 0.56);
 
-  const yScale = (valuePct: number): number =>
-    margin.top + ((paddedMax - valuePct) / (paddedMax - paddedMin)) * plotHeight;
+  const yScale = (price: number): number =>
+    margin.top + ((paddedMax - price) / (paddedMax - paddedMin)) * plotHeight;
 
   return (
-    <div className="mt-[var(--panel-gap)] flex min-h-0 flex-1 flex-col" data-testid="live-metrics-gap-kline-chart">
+    <div
+      className="mt-[var(--panel-gap)] flex min-h-0 flex-1 flex-col"
+      data-testid="live-metrics-gap-kline-chart"
+    >
       <div data-testid="panel-chart" className="h-full w-full">
-        <svg className="h-full w-full" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Six symbols gap candlestick overview">
+        <svg
+          className="h-full w-full"
+          viewBox={`0 0 ${width} ${height}`}
+          role="img"
+          aria-label="Six symbols gap candlestick overview"
+        >
           <rect x={0} y={0} width={width} height={height} fill="transparent" />
           {Array.from({ length: tickCount }).map((_, index) => {
             const ratio = index / (tickCount - 1);
@@ -388,34 +686,80 @@ function GapKlinePanelChart(): JSX.Element {
 
             return (
               <g key={`grid-${index}`}>
-                <line x1={margin.left} x2={width - margin.right} y1={y} y2={y} stroke="hsl(var(--border-strong))" strokeDasharray="3 3" />
+                <line
+                  x1={margin.left}
+                  x2={width - margin.right}
+                  y1={y}
+                  y2={y}
+                  stroke="hsl(var(--border-strong))"
+                  strokeDasharray="3 3"
+                />
                 <text
                   x={margin.left - 8}
                   y={y + 4}
                   fill="hsl(var(--subtle-foreground))"
-                  fontSize={10}
                   textAnchor="end"
                 >
-                  {`${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%`}
+                  {`${pct.toFixed(1)}%`}
                 </text>
               </g>
             );
           })}
-          {normalizedData.map((item, index) => {
+          {gapKlineData.map((item, index) => {
+            if (item.high <= 0) {
+              const centerX = margin.left + step * index + step / 2;
+              return (
+                <g key={item.symbol}>
+                  <text
+                    x={centerX}
+                    y={height / 2}
+                    fill="hsl(var(--subtle-foreground))"
+                    textAnchor="middle"
+                  >
+                    --
+                  </text>
+                  <text
+                    x={centerX}
+                    y={height - 24}
+                    fill="hsl(var(--subtle-foreground))"
+                    textAnchor="middle"
+                  >
+                    {item.symbol}
+                  </text>
+                </g>
+              );
+            }
             const centerX = margin.left + step * index + step / 2;
-            const openY = yScale(item.openPct);
-            const closeY = yScale(item.closePct);
-            const highY = yScale(item.highPct);
-            const lowY = yScale(item.lowPct);
-            const isUp = item.close >= item.open;
+            if (item.open === 0) {
+              return null;
+            }
+            const basePrice =
+              item.referencePrice > 0 && Number.isFinite(item.referencePrice)
+                ? item.referencePrice
+                : item.open;
+            const openPct = ((item.open - basePrice) / basePrice) * 100;
+            const highPct = ((item.high - basePrice) / basePrice) * 100;
+            const lowPct = ((item.low - basePrice) / basePrice) * 100;
+            const closePct = ((item.close - basePrice) / basePrice) * 100;
+            const openY = yScale(openPct);
+            const closeY = yScale(closePct);
+            const highY = yScale(highPct);
+            const lowY = yScale(lowPct);
+            const isUp = closePct >= openPct;
             const bodyY = Math.min(openY, closeY);
             const bodyHeight = Math.max(2, Math.abs(closeY - openY));
             const fill = isUp ? KLINE_UP_COLOR : KLINE_DOWN_COLOR;
-            const gapPct = ((item.open - item.prevClose) / item.prevClose) * 100;
 
             return (
               <g key={item.symbol}>
-                <line x1={centerX} x2={centerX} y1={highY} y2={lowY} stroke={fill} strokeWidth={1.6} />
+                <line
+                  x1={centerX}
+                  x2={centerX}
+                  y1={highY}
+                  y2={lowY}
+                  stroke={fill}
+                  strokeWidth={1.6}
+                />
                 <rect
                   x={centerX - bodyWidth / 2}
                   y={bodyY}
@@ -426,21 +770,19 @@ function GapKlinePanelChart(): JSX.Element {
                 />
                 <text
                   x={centerX}
-                  y={height - 24}
+                  y={height - 28}
                   fill="hsl(var(--subtle-foreground))"
-                  fontSize={10}
                   textAnchor="middle"
                 >
                   {item.symbol}
                 </text>
                 <text
                   x={centerX}
-                  y={height - 10}
-                  fill={gapPct >= 0 ? KLINE_UP_COLOR : KLINE_DOWN_COLOR}
-                  fontSize={9}
+                  y={height - 8}
+                  fill={item.changePct >= 0 ? KLINE_UP_COLOR : KLINE_DOWN_COLOR}
                   textAnchor="middle"
                 >
-                  {`${gapPct >= 0 ? "+" : ""}${gapPct.toFixed(1)}%`}
+                  {`${item.changePct >= 0 ? "+" : ""}${item.changePct.toFixed(1)}%`}
                 </text>
               </g>
             );
@@ -452,29 +794,97 @@ function GapKlinePanelChart(): JSX.Element {
 }
 
 export function DashboardMetricPanels(): JSX.Element {
-  const needlePanels = getMetricConfigs().filter(
+  const t = useT();
+  const needlePanels = getMetricConfigs(t).filter(
     (panel) => panel.key === "piechart with needle",
   );
-  let gaugeIndex = 0;
+  const kbar = useKbarCurrent("TXFD6");
+  const metric = useMetricLatest("TXFD6");
+  const marketSummary = useMarketSummaryLatest("TXFD6");
+  const quote = useQuoteLatest("TXFD6");
+  const stickyDayAmplitude = useStickyLatestNumber(kbar?.day_amplitude);
+  const stickyEstimatedTurnover = useStickyLatestNumber(
+    marketSummary?.estimated_turnover,
+  );
+  const stickySpread = useStickyLatestNumber(marketSummary?.spread);
+  const stickyMainForceStrength = useStickyLatestNumber(
+    metric?.main_force_big_order_strength,
+  );
+  const stickyMainChipStrength = useStickyLatestNumber(
+    quote?.main_chip_strength,
+  );
+  const stickyLongShortForceStrength = useStickyLatestNumber(
+    quote?.long_short_force_strength,
+  );
+  const coreMetrics = [
+    {
+      label: t("dashboard.metrics.core.amplitude"),
+      value: formatCoreMetricValue(
+        "amplitude",
+        stickyDayAmplitude,
+      ),
+    },
+    {
+      label: t("dashboard.metrics.core.projectedVolume"),
+      value: formatCoreMetricValue(
+        "projectedVolume",
+        stickyEstimatedTurnover,
+      ),
+    },
+    {
+      label: t("dashboard.metrics.core.spread"),
+      value: formatCoreMetricValue("spread", stickySpread),
+    },
+  ];
+  const contributionMetrics = [
+    {
+      label: t("dashboard.metrics.needle.mainChip"),
+      value:
+        stickyMainChipStrength === null
+          ? "--"
+          : formatPercentage(stickyMainChipStrength),
+      testId: "live-metrics-contribution-main-chip",
+    },
+    {
+      label: t("dashboard.metrics.needle.retailSmallOrder"),
+      value: "--",
+      testId: "live-metrics-contribution-retail-small-order",
+    },
+    {
+      label: t("dashboard.metrics.needle.longShortForce"),
+      value:
+        stickyLongShortForceStrength === null
+          ? "--"
+          : formatPercentage(stickyLongShortForceStrength),
+      testId: "live-metrics-contribution-long-short-force",
+    },
+  ];
+  const liveMetricStrengthByKey: Record<NeedleMetricKey, number | null> = {
+    mainForce: stickyMainForceStrength,
+    mainChip: stickyMainChipStrength,
+    longShortForce: stickyLongShortForceStrength,
+    retailSmallOrder: null,
+    bigOrder: null,
+  };
 
   return (
     <BentoGridSection
-      title="LIVE METRICS"
+      title={t("dashboard.liveMetrics")}
       gridClassName="h-full auto-rows-fr lg:grid-cols-12"
     >
       {needlePanels.map((panel) => {
+        const strength = liveMetricStrengthByKey[panel.metricKey] ?? null;
         return (
-          <PanelCard
+          <StrengthGaugePanelCard
             key={panel.label}
             title={panel.label}
+            strength={strength}
             span={1}
             units={1}
-            className="h-full"
-            contentClassName="pt-[var(--panel-gap)]"
-            data-testid="dashboard-metric-panel"
-          >
-            <MetricNeedleChart index={gaugeIndex++} />
-          </PanelCard>
+            panelTestId="dashboard-metric-panel"
+            gaugeTestId={panel.gaugeTestId}
+            strengthTestId={panel.strengthTestId}
+          />
         );
       })}
       <div
@@ -499,14 +909,14 @@ export function DashboardMetricPanels(): JSX.Element {
             key={item.label}
             title={item.label}
             value={item.value}
-            testId="live-metrics-contribution-card"
+            testId={item.testId}
           />
         ))}
       </div>
-      <OtcIndexLinePanel />
+      <OtcIndexLinePanel title={t("dashboard.metrics.otc.title")} />
       <PanelCard
-        title="6 Symbols Gap K"
-        meta="Daily open/close + current"
+        title={t("dashboard.gapK.title")}
+        meta={t("dashboard.gapK.meta")}
         span={4}
         units={1}
         className="h-full"

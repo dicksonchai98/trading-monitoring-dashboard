@@ -14,11 +14,14 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 class CredentialRequest(BaseModel):
-    username: str
+    user_id: str
     password: str
 
 
-class RegisterRequest(CredentialRequest):
+class RegisterRequest(BaseModel):
+    user_id: str
+    email: str
+    password: str
     verification_token: str | None = None
 
 
@@ -86,25 +89,33 @@ def verify_email_otp(payload: VerifyOtpRequest) -> dict[str, str]:
 
 @router.post("/register")
 def register(payload: RegisterRequest, response: Response) -> dict[str, str]:
-    if not auth_service.is_valid_email_username(payload.username):
+    if not auth_service.is_valid_email(payload.email):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="invalid_email")
+    if not auth_service.is_valid_user_id(payload.user_id):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="invalid_user_id")
+    if not auth_service.is_valid_password(payload.password):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="invalid_password")
     if not payload.verification_token:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="verification_required",
         )
-    if auth_service.user_exists(payload.username):
+    if auth_service.email_exists(payload.email) or auth_service.user_id_exists(payload.user_id):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="user_exists",
         )
     try:
-        otp_service.validate_verification_token(payload.verification_token, email=payload.username)
+        otp_service.validate_verification_token(payload.verification_token, email=payload.email)
     except ValueError as err:
         reason = str(err)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=reason) from err
     try:
-        access_token, refresh_token = auth_service.register(payload.username, payload.password)
+        access_token, refresh_token = auth_service.register(
+            user_id=payload.user_id,
+            email=payload.email,
+            password=payload.password,
+        )
     except ValueError as err:
         if str(err) == "user_exists":
             raise HTTPException(
@@ -113,9 +124,9 @@ def register(payload: RegisterRequest, response: Response) -> dict[str, str]:
             ) from err
         raise
     try:
-        otp_service.consume_verification_token(payload.verification_token, email=payload.username)
+        otp_service.consume_verification_token(payload.verification_token, email=payload.email)
     except ValueError as err:
-        auth_service.delete_user(payload.username)
+        auth_service.delete_user(payload.user_id)
         reason = str(err)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=reason) from err
     _set_refresh_cookie(response, refresh_token)
@@ -125,7 +136,7 @@ def register(payload: RegisterRequest, response: Response) -> dict[str, str]:
 @router.post("/login")
 def login(payload: CredentialRequest, response: Response) -> dict[str, str]:
     try:
-        access_token, refresh_token = auth_service.login(payload.username, payload.password)
+        access_token, refresh_token = auth_service.login(payload.user_id, payload.password)
     except ValueError as err:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

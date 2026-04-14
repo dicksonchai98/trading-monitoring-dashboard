@@ -60,6 +60,40 @@ from app.config import (
     LATEST_STATE_GROUP,
     LATEST_STATE_READ_COUNT,
     LATEST_STATE_TTL_SECONDS,
+    MARKET_ADJUSTMENT_FACTOR,
+    MARKET_BLOCK_MS,
+    MARKET_CLAIM_COUNT,
+    MARKET_CLAIM_IDLE_MS,
+    MARKET_CODE,
+    MARKET_CONSUMER_NAME,
+    MARKET_DB_SINK_BATCH_SIZE,
+    MARKET_DB_SINK_DEAD_LETTER_MAXLEN,
+    MARKET_DB_SINK_MAX_RETRIES,
+    MARKET_DB_SINK_RETRY_BACKOFF_SECONDS,
+    MARKET_GROUP,
+    MARKET_READ_COUNT,
+    MARKET_SPREAD_FRESHNESS_SECONDS,
+    MARKET_SPREAD_FUTURES_CODE,
+    MARKET_STATE_TTL_SECONDS,
+    MARKET_SUMMARY_ENV,
+    MARKET_TRADING_END,
+    MARKET_TRADING_START,
+    OTC_SUMMARY_BLOCK_MS,
+    OTC_SUMMARY_CLAIM_COUNT,
+    OTC_SUMMARY_CLAIM_IDLE_MS,
+    OTC_SUMMARY_CODE,
+    OTC_SUMMARY_CONSUMER_NAME,
+    OTC_SUMMARY_ENV,
+    OTC_SUMMARY_GROUP,
+    OTC_SUMMARY_READ_COUNT,
+    OTC_SUMMARY_STATE_TTL_SECONDS,
+    QUOTE_WORKER_CONSUMER_NAME,
+    QUOTE_WORKER_DB_FLUSH_ENABLED,
+    QUOTE_WORKER_GROUP,
+    QUOTE_WORKER_REDIS_RETRY_ATTEMPTS,
+    QUOTE_WORKER_REDIS_RETRY_BACKOFF_MS,
+    QUOTE_WORKER_STREAM_MAXLEN,
+    QUOTE_WORKER_TARGET_CODE,
     REDIS_URL,
     get_stripe_settings,
 )
@@ -68,9 +102,12 @@ from app.index_contribution.daily_inputs import ConstituentMeta, DailyInputLoade
 from app.index_contribution.runner import IndexContributionRunner
 from app.latest_state.runner import LatestStateRunner
 from app.market_ingestion.runner import MarketIngestionRunner
+from app.market_summary.runner import MarketSummaryRunner
+from app.models.audit_event import AuditEventModel
 from app.models.batch_job import BatchJobModel
 from app.models.bidask_metric_1s import BidAskMetric1sModel
 from app.models.billing_event import BillingEventModel
+from app.models.billing_plan import BillingPlanModel
 from app.models.email_delivery_log import EmailDeliveryLogModel
 from app.models.email_outbox import EmailOutboxModel
 from app.models.index_contribution_ranking_1m import IndexContributionRanking1mModel
@@ -78,10 +115,14 @@ from app.models.index_contribution_snapshot_1m import IndexContributionSnapshot1
 from app.models.kbar_1m import Kbar1mModel
 from app.models.otp_challenge import OtpChallengeModel
 from app.models.otp_verification_token import OtpVerificationTokenModel
+from app.models.quote_feature_1m import QuoteFeature1mModel
 from app.models.refresh_denylist import RefreshTokenDenylistModel
 from app.models.sector_contribution_snapshot_1m import SectorContributionSnapshot1mModel
 from app.models.subscription import SubscriptionModel
 from app.models.user import UserModel
+from app.otc_summary.runner import OtcSummaryRunner
+from app.quote_processing.runner import QuoteWorkerRunner
+from app.repositories.audit_event_repository import AuditEventRepository
 from app.repositories.billing_event_repository import BillingEventRepository
 from app.repositories.email_delivery_log_repository import EmailDeliveryLogRepository
 from app.repositories.email_outbox_repository import EmailOutboxRepository
@@ -114,9 +155,10 @@ otp_challenge_repository = OtpChallengeRepository(session_factory=SessionLocal)
 otp_verification_token_repository = OtpVerificationTokenRepository(session_factory=SessionLocal)
 email_outbox_repository = EmailOutboxRepository(session_factory=SessionLocal)
 email_delivery_log_repository = EmailDeliveryLogRepository(session_factory=SessionLocal)
+audit_event_repository = AuditEventRepository(session_factory=SessionLocal)
 metrics = Metrics()
 denylist = RefreshDenylist(repo=refresh_denylist_repository)
-audit_log = AuditLog()
+audit_log = AuditLog(repository=audit_event_repository, metrics=metrics)
 auth_service = AuthService(user_repository=user_repository, denylist=denylist, metrics=metrics)
 otp_service = OtpService(
     user_repository=user_repository,
@@ -138,6 +180,8 @@ ingestor_runner: MarketIngestionRunner | None = None
 aggregator_runner: StreamProcessingRunner | None = None
 latest_state_runner: LatestStateRunner | None = None
 index_contribution_runner: IndexContributionRunner | None = None
+market_summary_runner: MarketSummaryRunner | None = None
+otc_summary_runner: OtcSummaryRunner | None = None
 serving_redis_client = None
 email_outbox_dispatcher: EmailOutboxDispatcher | None = None
 email_webhook_service = EmailWebhookService(
@@ -147,45 +191,6 @@ email_webhook_service = EmailWebhookService(
 notification_email_service = NotificationEmailService(
     outbox_repository=email_outbox_repository,
 )
-
-
-def _normalize_aggregator_role(role: str) -> str:
-    normalized = role.strip().lower()
-    if normalized not in {"all", "tick", "bidask"}:
-        raise RuntimeError("invalid AGGREGATOR_WORKER_ROLE, expected one of: all, tick, bidask")
-    return normalized
-
-
-def _build_aggregator_runner_for_role(role: str, redis_module: Any) -> StreamProcessingRunner:
-    normalized = _normalize_aggregator_role(role)
-    enable_tick = normalized in {"all", "tick"}
-    enable_bidask = normalized in {"all", "bidask"}
-    runner = StreamProcessingRunner(
-        redis_client=redis_module.from_url(REDIS_URL),
-        session_factory=SessionLocal,
-        metrics=metrics,
-        env=AGGREGATOR_ENV,
-        code=AGGREGATOR_CODE,
-        tick_group=AGGREGATOR_TICK_GROUP,
-        bidask_group=AGGREGATOR_BIDASK_GROUP,
-        tick_consumer=AGGREGATOR_TICK_CONSUMER,
-        bidask_consumer=AGGREGATOR_BIDASK_CONSUMER,
-        read_count=AGGREGATOR_READ_COUNT,
-        block_ms=AGGREGATOR_BLOCK_MS,
-        claim_idle_ms=AGGREGATOR_CLAIM_IDLE_MS,
-        claim_count=AGGREGATOR_CLAIM_COUNT,
-        ttl_seconds=AGGREGATOR_STATE_TTL_SECONDS,
-        series_fields=AGGREGATOR_SERIES_FIELDS,
-        db_sink_batch_size=AGGREGATOR_DB_SINK_BATCH_SIZE,
-        db_sink_retry_backoff_seconds=AGGREGATOR_DB_SINK_RETRY_BACKOFF_SECONDS,
-        db_sink_max_retries=AGGREGATOR_DB_SINK_MAX_RETRIES,
-        db_sink_dead_letter_maxlen=AGGREGATOR_DB_SINK_DEAD_LETTER_MAXLEN,
-        blocking_warn_ms=AGGREGATOR_BLOCKING_WARN_MS,
-        enable_tick_pipeline=enable_tick,
-        enable_bidask_pipeline=enable_bidask,
-    )
-    logger.info("aggregator runner created role=%s", normalized)
-    return runner
 
 
 def _normalize_aggregator_role(role: str) -> str:
@@ -375,6 +380,87 @@ def build_index_contribution_runner() -> IndexContributionRunner:
     )
     logger.info("index-contribution runner created")
     return index_contribution_runner
+def build_quote_worker_runner() -> QuoteWorkerRunner:
+    try:
+        import redis
+    except Exception as err:  # pragma: no cover - depends on runtime dependency
+        raise RuntimeError("quote-worker dependencies unavailable: install redis") from err
+
+    return QuoteWorkerRunner(
+        redis_client=redis.from_url(REDIS_URL),
+        session_factory=SessionLocal,
+        metrics=metrics,
+        env=AGGREGATOR_ENV,
+        code=QUOTE_WORKER_TARGET_CODE,
+        group=QUOTE_WORKER_GROUP,
+        consumer=QUOTE_WORKER_CONSUMER_NAME,
+        stream_maxlen=QUOTE_WORKER_STREAM_MAXLEN,
+        redis_retry_attempts=QUOTE_WORKER_REDIS_RETRY_ATTEMPTS,
+        redis_retry_backoff_ms=QUOTE_WORKER_REDIS_RETRY_BACKOFF_MS,
+        db_flush_enabled=QUOTE_WORKER_DB_FLUSH_ENABLED,
+    )
+
+
+def build_market_summary_runner() -> MarketSummaryRunner:
+    global market_summary_runner
+    if market_summary_runner is not None:
+        return market_summary_runner
+    try:
+        import redis
+    except Exception as err:  # pragma: no cover - depends on runtime dependency
+        raise RuntimeError("market-summary dependencies unavailable: install redis") from err
+
+    market_summary_runner = MarketSummaryRunner(
+        redis_client=redis.from_url(REDIS_URL),
+        session_factory=SessionLocal,
+        metrics=metrics,
+        env=MARKET_SUMMARY_ENV,
+        code=MARKET_CODE,
+        group=MARKET_GROUP,
+        consumer=MARKET_CONSUMER_NAME,
+        read_count=MARKET_READ_COUNT,
+        block_ms=MARKET_BLOCK_MS,
+        claim_idle_ms=MARKET_CLAIM_IDLE_MS,
+        claim_count=MARKET_CLAIM_COUNT,
+        ttl_seconds=MARKET_STATE_TTL_SECONDS,
+        trading_start=MARKET_TRADING_START,
+        trading_end=MARKET_TRADING_END,
+        adjustment_factor=MARKET_ADJUSTMENT_FACTOR,
+        futures_code=MARKET_SPREAD_FUTURES_CODE,
+        spread_freshness_seconds=MARKET_SPREAD_FRESHNESS_SECONDS,
+        db_sink_batch_size=MARKET_DB_SINK_BATCH_SIZE,
+        db_sink_retry_backoff_seconds=MARKET_DB_SINK_RETRY_BACKOFF_SECONDS,
+        db_sink_max_retries=MARKET_DB_SINK_MAX_RETRIES,
+        db_sink_dead_letter_maxlen=MARKET_DB_SINK_DEAD_LETTER_MAXLEN,
+    )
+    logger.info("market-summary runner created")
+    return market_summary_runner
+
+
+def build_otc_summary_runner() -> OtcSummaryRunner:
+    global otc_summary_runner
+    if otc_summary_runner is not None:
+        return otc_summary_runner
+    try:
+        import redis
+    except Exception as err:  # pragma: no cover - depends on runtime dependency
+        raise RuntimeError("otc-summary dependencies unavailable: install redis") from err
+
+    otc_summary_runner = OtcSummaryRunner(
+        redis_client=redis.from_url(REDIS_URL),
+        metrics=metrics,
+        env=OTC_SUMMARY_ENV,
+        code=OTC_SUMMARY_CODE,
+        group=OTC_SUMMARY_GROUP,
+        consumer=OTC_SUMMARY_CONSUMER_NAME,
+        read_count=OTC_SUMMARY_READ_COUNT,
+        block_ms=OTC_SUMMARY_BLOCK_MS,
+        claim_idle_ms=OTC_SUMMARY_CLAIM_IDLE_MS,
+        claim_count=OTC_SUMMARY_CLAIM_COUNT,
+        ttl_seconds=OTC_SUMMARY_STATE_TTL_SECONDS,
+    )
+    logger.info("otc-summary runner created")
+    return otc_summary_runner
 
 
 def get_serving_redis_client():
@@ -411,6 +497,7 @@ def reset_state_for_tests() -> None:
     otp_service.reset_rate_limits()
     email_outbox_dispatcher = None
     with SessionLocal() as session:
+        session.execute(delete(AuditEventModel))
         session.execute(delete(EmailDeliveryLogModel))
         session.execute(delete(EmailOutboxModel))
         session.execute(delete(OtpVerificationTokenModel))
@@ -421,7 +508,9 @@ def reset_state_for_tests() -> None:
         session.execute(delete(IndexContributionRanking1mModel))
         session.execute(delete(IndexContributionSnapshot1mModel))
         session.execute(delete(BillingEventModel))
+        session.execute(delete(BillingPlanModel))
         session.execute(delete(Kbar1mModel))
+        session.execute(delete(QuoteFeature1mModel))
         session.execute(delete(SubscriptionModel))
         session.execute(delete(RefreshTokenDenylistModel))
         session.execute(delete(UserModel))

@@ -15,6 +15,15 @@ class RedisBatchQueue:
     def enqueue(self, worker_type: str, job_id: int) -> None:
         self._client.lpush(self.queue_name(worker_type), str(job_id))
 
+    def contains(self, worker_type: str, job_id: int) -> bool:
+        position = self._client.lpos(self.queue_name(worker_type), str(job_id))
+        return position is not None
+
+    def enqueue_if_missing(self, worker_type: str, job_id: int) -> None:
+        if self.contains(worker_type, job_id):
+            return
+        self.enqueue(worker_type, job_id)
+
     def dequeue_blocking(self, worker_type: str, timeout_seconds: int = 0) -> int | None:
         result = self._client.brpop(self.queue_name(worker_type), timeout=timeout_seconds)
         if result is None:

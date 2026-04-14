@@ -14,6 +14,29 @@ from typing import Any
 from app.services.metrics import Metrics
 
 logger = logging.getLogger(__name__)
+TZ_OFFSET_SECONDS = 8 * 3600
+STRONG_MOVE_THRESHOLD_PCT = 0.8
+
+
+def _resolve_strength_state(
+    *,
+    is_new_high: bool,
+    is_new_low: bool,
+    open_price: float | None,
+    last_price: float | None,
+) -> tuple[str, int]:
+    if is_new_high:
+        return "new_high", 2
+    if is_new_low:
+        return "new_low", -2
+    if open_price is None or last_price is None or open_price == 0:
+        return "flat", 0
+    open_move_pct = ((last_price - open_price) / open_price) * 100
+    if open_move_pct >= STRONG_MOVE_THRESHOLD_PCT:
+        return "strong_up", 1
+    if open_move_pct <= -STRONG_MOVE_THRESHOLD_PCT:
+        return "strong_down", -1
+    return "flat", 0
 
 
 def _decode(value: Any) -> str:
@@ -29,6 +52,30 @@ def _parse_json(value: str) -> Any:
         return value
 
 
+def _coerce_float(value: Any) -> float | None:
+    try:
+        if value is None:
+            return None
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _extract_price_field(data: dict[str, Any], payload: dict[str, Any], field: str) -> float | None:
+    direct = _coerce_float(data.get(field))
+    if direct is not None:
+        return direct
+    nested = _coerce_float(payload.get(field))
+    if nested is not None:
+        return nested
+    raw_quote = payload.get("raw_quote")
+    if isinstance(raw_quote, dict):
+        raw = _coerce_float(raw_quote.get(field))
+        if raw is not None:
+            return raw
+    return None
+
+
 def parse_event_ts(event_ts: str) -> datetime | None:
     try:
         parsed = datetime.fromisoformat(event_ts.replace("Z", "+00:00"))
@@ -37,6 +84,11 @@ def parse_event_ts(event_ts: str) -> datetime | None:
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=timezone.utc)
     return parsed
+
+
+def trade_date_from_event_ts(event_ts: datetime) -> str:
+    epoch = event_ts.timestamp() + TZ_OFFSET_SECONDS
+    return datetime.utcfromtimestamp(epoch).strftime("%Y-%m-%d")
 
 
 class LatestStateRunner:
@@ -69,14 +121,13 @@ class LatestStateRunner:
         self._flush_interval_seconds = max(flush_interval_ms / 1000, 0.05)
         self._flush_batch_size = max(1, flush_batch_size)
         self._on_new_extreme = on_new_extreme
-        self._spot_streams: list[str] = []
-        self._last_stream_refresh = 0.0
-        self._stream_refresh_seconds = 5.0
+        self._spot_streams: list[str] = [f"{self._env}:stream:spot"]
         self._last_flush_at = 0.0
         self._stop = False
         self._task: asyncio.Task[None] | None = None
         self._latest_state: dict[str, dict[str, Any]] = {}
         self._last_ingest_seq: dict[str, int] = {}
+        self._reference_trade_date: dict[str, str] = {}
         self._dirty_symbols: set[str] = set()
 
     def stop(self) -> None:
@@ -156,36 +207,8 @@ class LatestStateRunner:
         return result
 
     def _refresh_streams(self, force: bool = False) -> None:
-        now = time.monotonic()
-        if not force and (now - self._last_stream_refresh) < self._stream_refresh_seconds:
-            return
-        self._last_stream_refresh = now
-        streams = self._discover_spot_streams()
-        if streams:
-            self._spot_streams = streams
+        _ = force
         self._ensure_consumer_groups()
-
-    def _discover_spot_streams(self) -> list[str]:
-        pattern = f"{self._env}:stream:spot:*"
-        scan_iter = getattr(self._redis, "scan_iter", None)
-        if not callable(scan_iter):
-            return []
-        candidates = [
-            key.decode("utf-8") if isinstance(key, bytes) else str(key)
-            for key in scan_iter(pattern)
-        ]
-        streams: list[str] = []
-        for key in candidates:
-            xlen = getattr(self._redis, "xlen", None)
-            if callable(xlen):
-                try:
-                    if int(xlen(key)) <= 0:
-                        continue
-                except Exception:
-                    logger.exception("failed to probe spot stream size key=%s", key)
-                    continue
-            streams.append(key)
-        return streams
 
     def _ensure_consumer_groups(self) -> None:
         for stream_key in self._spot_streams:
@@ -211,6 +234,7 @@ class LatestStateRunner:
             event_ts = parse_event_ts(event_ts_raw)
             if event_ts is None:
                 return True
+            trade_date = trade_date_from_event_ts(event_ts)
 
             ingest_seq_raw = data.get("ingest_seq", payload.get("ingest_seq", 0))
             try:
@@ -222,29 +246,106 @@ class LatestStateRunner:
             if ingest_seq > 0 and ingest_seq <= last_seq:
                 return True
 
-            price_raw = data.get("last_price", payload.get("last_price"))
-            try:
-                last_price = float(price_raw)
-            except (TypeError, ValueError):
+            last_price = _extract_price_field(data, payload, "last_price")
+            if last_price is None:
+                last_price = _extract_price_field(data, payload, "close")
+            if last_price is None:
                 return True
+            open_price = _extract_price_field(data, payload, "open")
+            close_price = _extract_price_field(data, payload, "close")
+            high_price = _extract_price_field(data, payload, "high")
+            low_price = _extract_price_field(data, payload, "low")
+            reference_price = _extract_price_field(data, payload, "reference_price")
+            price_chg = _extract_price_field(data, payload, "price_chg")
+            pct_chg = _extract_price_field(data, payload, "pct_chg")
+            if pct_chg is None:
+                pct_chg = _extract_price_field(data, payload, "pcct_chg")
+            if reference_price is None and price_chg is not None:
+                reference_price = close_price - price_chg
+
+            close_price = close_price if close_price is not None else last_price
+            open_price = open_price if open_price is not None else close_price
+            high_price = high_price if high_price is not None else max(open_price, close_price)
+            low_price = low_price if low_price is not None else min(open_price, close_price)
 
             current = self._latest_state.get(symbol)
             if current is None:
+                strength_state, strength_score = _resolve_strength_state(
+                    is_new_high=False,
+                    is_new_low=False,
+                    open_price=open_price,
+                    last_price=last_price,
+                )
                 current = {
                     "symbol": symbol,
                     "last_price": last_price,
-                    "session_high": last_price,
-                    "session_low": last_price,
+                    "open": open_price,
+                    "high": high_price,
+                    "low": low_price,
+                    "close": close_price,
+                    "session_high": high_price,
+                    "session_low": low_price,
                     "is_new_high": False,
                     "is_new_low": False,
+                    "strength_state": strength_state,
+                    "strength_score": strength_score,
                     "updated_at": event_ts.isoformat(),
                 }
+                if price_chg is not None:
+                    current["price_chg"] = price_chg
+                if pct_chg is not None:
+                    current["pct_chg"] = pct_chg
+                if reference_price is not None:
+                    gap_value = open_price - reference_price
+                    current["reference_price"] = reference_price
+                    current["gap_value"] = gap_value
+                    if reference_price == 0:
+                        current["gap_pct"] = 0.0
+                    else:
+                        current["gap_pct"] = (gap_value / reference_price) * 100
+                    current["is_gap_up"] = gap_value > 0
+                    current["is_gap_down"] = gap_value < 0
+                    self._reference_trade_date[symbol] = trade_date
             else:
-                current["is_new_high"] = last_price > float(current["session_high"])
-                current["is_new_low"] = last_price < float(current["session_low"])
+                prev_session_high = float(current.get("session_high", high_price))
+                prev_session_low = float(current.get("session_low", low_price))
+                current["is_new_high"] = high_price > prev_session_high
+                current["is_new_low"] = low_price < prev_session_low
                 current["last_price"] = last_price
-                current["session_high"] = max(float(current["session_high"]), last_price)
-                current["session_low"] = min(float(current["session_low"]), last_price)
+                current["open"] = float(current.get("open", open_price))
+                current["high"] = max(float(current.get("high", high_price)), high_price)
+                current["low"] = min(float(current.get("low", low_price)), low_price)
+                current["close"] = close_price
+                current["session_high"] = max(prev_session_high, high_price)
+                current["session_low"] = min(prev_session_low, low_price)
+                strength_state, strength_score = _resolve_strength_state(
+                    is_new_high=bool(current["is_new_high"]),
+                    is_new_low=bool(current["is_new_low"]),
+                    open_price=_coerce_float(current.get("open")),
+                    last_price=_coerce_float(current.get("last_price")),
+                )
+                current["strength_state"] = strength_state
+                current["strength_score"] = strength_score
+                if price_chg is not None:
+                    current["price_chg"] = price_chg
+                if pct_chg is not None:
+                    current["pct_chg"] = pct_chg
+                locked_trade_date = self._reference_trade_date.get(symbol)
+                should_update_reference = reference_price is not None and (
+                    _coerce_float(current.get("reference_price")) is None
+                    or locked_trade_date is None
+                    or locked_trade_date != trade_date
+                )
+                if should_update_reference and reference_price is not None:
+                    current["reference_price"] = reference_price
+                    self._reference_trade_date[symbol] = trade_date
+                ref = _coerce_float(current.get("reference_price"))
+                if ref is not None:
+                    gap_value = float(current.get("open", open_price)) - ref
+                    current["gap_value"] = gap_value
+                    current["gap_pct"] = 0.0 if ref == 0 else (gap_value / ref) * 100
+                    current["is_gap_up"] = gap_value > 0
+                    current["is_gap_down"] = gap_value < 0
                 current["updated_at"] = event_ts.isoformat()
 
             self._latest_state[symbol] = current
