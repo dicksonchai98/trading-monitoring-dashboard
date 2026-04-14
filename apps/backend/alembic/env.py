@@ -5,6 +5,7 @@ from logging.config import fileConfig
 from alembic import context
 from app.db.base import Base
 from app.db.settings import get_database_url
+from app.models import billing_event, refresh_denylist, subscription, user  # noqa: F401
 from sqlalchemy import engine_from_config, pool
 
 config = context.config
