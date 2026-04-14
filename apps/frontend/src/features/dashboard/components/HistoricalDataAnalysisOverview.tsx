@@ -40,7 +40,7 @@ export function HistoricalDataAnalysisOverview(): JSX.Element {
 
   const eventsQuery = useQuery({
     queryKey: ["historical-event-registry"],
-    queryFn: () => getAnalyticsEvents(token),
+    queryFn: ({ signal }) => getAnalyticsEvents(token, signal),
     retry: false,
   });
 
@@ -65,12 +65,12 @@ export function HistoricalDataAnalysisOverview(): JSX.Element {
 
   const statsQuery = useQuery({
     queryKey: ["historical-event-stats", eventId, code],
-    queryFn: () =>
+    queryFn: ({ signal }) =>
       getEventStats(token, {
         eventId: eventId.trim(),
         code,
         flatThreshold: 0,
-      }),
+      }, signal),
     enabled: !hasInvalidRequiredInput,
     retry: false,
   });

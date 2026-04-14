@@ -7,19 +7,20 @@ import type {
   CheckoutSessionStatusResponse,
 } from "@/features/subscription/api/types";
 
-export function getBillingPlans(): Promise<BillingPlansResponse> {
-  return getJson<BillingPlansResponse>("/billing/plans");
+export function getBillingPlans(signal?: AbortSignal): Promise<BillingPlansResponse> {
+  return getJson<BillingPlansResponse>("/billing/plans", { signal });
 }
 
-export function getBillingStatus(token: string): Promise<BillingStatusResponse> {
+export function getBillingStatus(token: string, signal?: AbortSignal): Promise<BillingStatusResponse> {
   return getJson<BillingStatusResponse>("/billing/status", {
     headers: {
       Authorization: `Bearer ${token}`,
     },
+    signal,
   });
 }
 
-export function startCheckout(token: string): Promise<BillingCheckoutResponse> {
+export function startCheckout(token: string, signal?: AbortSignal): Promise<BillingCheckoutResponse> {
   return postJson<BillingCheckoutResponse, Record<string, never>>(
     "/billing/checkout",
     {},
@@ -27,11 +28,12 @@ export function startCheckout(token: string): Promise<BillingCheckoutResponse> {
       headers: {
         Authorization: `Bearer ${token}`,
       },
+      signal,
     },
   );
 }
 
-export function createPortalSession(token: string): Promise<BillingPortalResponse> {
+export function createPortalSession(token: string, signal?: AbortSignal): Promise<BillingPortalResponse> {
   return postJson<BillingPortalResponse, Record<string, never>>(
     "/billing/portal-session",
     {},
@@ -39,6 +41,7 @@ export function createPortalSession(token: string): Promise<BillingPortalRespons
       headers: {
         Authorization: `Bearer ${token}`,
       },
+      signal,
     },
   );
 }
@@ -46,10 +49,12 @@ export function createPortalSession(token: string): Promise<BillingPortalRespons
 export function getCheckoutSessionStatus(
   token: string,
   sessionId: string,
+  signal?: AbortSignal,
 ): Promise<CheckoutSessionStatusResponse> {
   return getJson<CheckoutSessionStatusResponse>(`/billing/checkout-session/${encodeURIComponent(sessionId)}`, {
     headers: {
       Authorization: `Bearer ${token}`,
     },
+    signal,
   });
 }

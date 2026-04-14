@@ -45,11 +45,11 @@ export function SubscriptionPage(): JSX.Element {
 
   const plansQuery = useQuery({
     queryKey: ["billing", "plans"],
-    queryFn: getBillingPlans,
+    queryFn: ({ signal }) => getBillingPlans(signal),
   });
   const statusQuery = useQuery({
     queryKey: ["billing", "status", token],
-    queryFn: () => getBillingStatus(token ?? ""),
+    queryFn: ({ signal }) => getBillingStatus(token ?? "", signal),
     enabled: Boolean(token),
   });
 

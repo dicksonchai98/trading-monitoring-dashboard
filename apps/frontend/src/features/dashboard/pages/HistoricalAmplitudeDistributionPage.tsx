@@ -116,7 +116,7 @@ export function HistoricalAmplitudeDistributionPage(): JSX.Element {
 
   const metricsQuery = useQuery({
     queryKey: ["historical-amplitude-metrics"],
-    queryFn: () => getAnalyticsMetrics(token),
+    queryFn: ({ signal }) => getAnalyticsMetrics(token, signal),
   });
   const metrics = metricsQuery.data?.metrics ?? [];
 
@@ -133,12 +133,12 @@ export function HistoricalAmplitudeDistributionPage(): JSX.Element {
       code,
       version,
     ],
-    queryFn: () =>
+    queryFn: ({ signal }) =>
       getDistributionStats(token, {
         metricId,
         code,
         version,
-      }),
+      }, signal),
     enabled: Boolean(metricId),
   });
 

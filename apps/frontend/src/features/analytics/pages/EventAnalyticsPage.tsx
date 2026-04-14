@@ -37,11 +37,11 @@ export function EventAnalyticsPage(): JSX.Element {
 
   const eventsQuery = useQuery({
     queryKey: analyticsEventsRegistryQueryKey,
-    queryFn: () => getAnalyticsEvents(token),
+    queryFn: ({ signal }) => getAnalyticsEvents(token, signal),
   });
   useQuery({
     queryKey: analyticsMetricsRegistryQueryKey,
-    queryFn: () => getAnalyticsMetrics(token),
+    queryFn: ({ signal }) => getAnalyticsMetrics(token, signal),
   });
 
   const events = eventsQuery.data?.events ?? [];
@@ -60,7 +60,7 @@ export function EventAnalyticsPage(): JSX.Element {
       version,
       flatThreshold,
     }),
-    queryFn: () =>
+    queryFn: ({ signal }) =>
       getEventStats(token, {
         eventId,
         code,
@@ -68,7 +68,7 @@ export function EventAnalyticsPage(): JSX.Element {
         endDate,
         version,
         flatThreshold,
-      }),
+      }, signal),
     enabled: Boolean(eventId) && !hasInvalidDateRange,
   });
 
@@ -83,7 +83,7 @@ export function EventAnalyticsPage(): JSX.Element {
       sort,
       flatThreshold,
     }),
-    queryFn: () =>
+    queryFn: ({ signal }) =>
       getEventSamples(token, {
         eventId,
         code,
@@ -93,7 +93,7 @@ export function EventAnalyticsPage(): JSX.Element {
         pageSize,
         sort,
         flatThreshold,
-      }),
+      }, signal),
     enabled: Boolean(eventId) && !hasInvalidDateRange,
   });
 

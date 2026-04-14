@@ -4,4 +4,5 @@ export interface ApiErrorPayload {
 
 export interface ApiRequestOptions {
   headers?: HeadersInit;
+  signal?: AbortSignal;
 }

@@ -29,7 +29,7 @@ export function DistributionAnalyticsPage(): JSX.Element {
 
   const metricsQuery = useQuery({
     queryKey: analyticsMetricsRegistryQueryKey,
-    queryFn: () => getAnalyticsMetrics(token),
+    queryFn: ({ signal }) => getAnalyticsMetrics(token, signal),
   });
   const metrics = metricsQuery.data?.metrics ?? [];
   const selectedMetric = metrics.find((item) => item.id === metricId);
@@ -47,14 +47,14 @@ export function DistributionAnalyticsPage(): JSX.Element {
       endDate,
       version,
     }),
-    queryFn: () =>
+    queryFn: ({ signal }) =>
       getDistributionStats(token, {
         metricId,
         code,
         startDate,
         endDate,
         version,
-      }),
+      }, signal),
     enabled: Boolean(metricId) && !hasInvalidDateRange,
   });
 

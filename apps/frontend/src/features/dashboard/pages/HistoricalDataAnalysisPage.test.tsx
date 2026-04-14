@@ -56,5 +56,14 @@ describe("HistoricalDataAnalysisPage", () => {
     expect(screen.getByLabelText("code")).toBeInTheDocument();
     expect(await screen.findAllByTestId("historical-signal-panel")).toHaveLength(1);
     expect(await screen.findByTestId("dealer-chart")).toBeInTheDocument();
+    expect(vi.mocked(getAnalyticsEvents)).toHaveBeenCalledWith("token", expect.any(AbortSignal));
+    expect(vi.mocked(getEventStats)).toHaveBeenCalledWith(
+      "token",
+      expect.objectContaining({
+        code: "TXFR1",
+        flatThreshold: 0,
+      }),
+      expect.any(AbortSignal),
+    );
   });
 });
