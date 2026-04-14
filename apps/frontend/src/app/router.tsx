@@ -14,6 +14,7 @@ import { HistoricalDataAnalysisPage } from "@/features/dashboard/pages/Historica
 import { MarketThermometerPage } from "@/features/dashboard/pages/MarketThermometerPage";
 import { HistoricalDataLoaderPage } from "@/features/dashboard/pages/HistoricalDataLoaderPage";
 import { HistoricalAmplitudeDistributionPage } from "@/features/dashboard/pages/HistoricalAmplitudeDistributionPage";
+import { SectorHeatmapPage } from "@/features/dashboard/pages/SectorHeatmapPage";
 import { EventAnalyticsPage } from "@/features/analytics/pages/EventAnalyticsPage";
 import { DistributionAnalyticsPage } from "@/features/analytics/pages/DistributionAnalyticsPage";
 import { SubscriptionPage } from "@/features/subscription/pages/SubscriptionPage";
@@ -122,6 +123,14 @@ const router = createBrowserRouter([
         element: (
           <GuardedRoute requiredRole="visitor">
             <SubscriptionPage />
+          </GuardedRoute>
+        ),
+      },
+      {
+        path: "/coming-soon/sector-heatmap",
+        element: (
+          <GuardedRoute requiredRole="visitor">
+            <SectorHeatmapPage />
           </GuardedRoute>
         ),
       },

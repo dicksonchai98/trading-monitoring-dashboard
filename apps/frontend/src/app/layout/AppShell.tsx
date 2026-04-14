@@ -38,6 +38,8 @@ const BREADCRUMB_LABEL_KEYS: Record<string, TranslationKey> = {
   "market-thermometer": "shell.breadcrumb.marketThermometer",
   "historical-data-loader": "shell.breadcrumb.historicalDataLoader",
   "historical-amplitude-distribution": "shell.breadcrumb.amplitudeDistribution",
+  "coming-soon": "shell.breadcrumb.preview",
+  "sector-heatmap": "shell.breadcrumb.sectorHeatmap",
   subscription: "shell.breadcrumb.subscription",
   admin: "shell.breadcrumb.admin",
   audit: "shell.breadcrumb.auditLog",

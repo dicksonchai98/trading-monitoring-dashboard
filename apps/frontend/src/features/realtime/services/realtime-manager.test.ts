@@ -91,6 +91,8 @@ describe("realtime-manager", () => {
     const state = useRealtimeStore.getState();
     expect(state.indexContribRanking?.top[0]?.symbol).toBe("2330");
     expect(state.indexContribSector?.sectors.Semiconductor).toBe(4.3);
+  });
+
   it("writes metric_latest main_force_big_order into the TXFD6 store key", () => {
     applyServingSseEvent("kbar_current", {
       code: "TXFD6",

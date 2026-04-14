@@ -85,6 +85,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         items: [
           { title: t("nav.overview"), url: "/dashboard" },
           { title: t("nav.marketThermometer"), url: "/market-thermometer" },
+          { title: t("nav.sectorHeatmap"), url: "/coming-soon/sector-heatmap" },
         ],
       },
       {
