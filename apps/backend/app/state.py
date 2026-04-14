@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import json
 import logging
-from pathlib import Path
 from typing import Any
 
 from sqlalchemy import delete
@@ -28,24 +26,6 @@ from app.config import (
     AGGREGATOR_TICK_CONSUMER,
     AGGREGATOR_TICK_GROUP,
     AGGREGATOR_WORKER_ROLE,
-    INDEX_CONTRIBUTION_ALLOW_LATE_SNAPSHOT_REWRITE,
-    INDEX_CONTRIBUTION_BLOCK_MS,
-    INDEX_CONTRIBUTION_CLAIM_COUNT,
-    INDEX_CONTRIBUTION_CLAIM_IDLE_MS,
-    INDEX_CONTRIBUTION_CODE,
-    INDEX_CONTRIBUTION_CONSUMER,
-    INDEX_CONTRIBUTION_DB_MAX_RETRIES,
-    INDEX_CONTRIBUTION_DB_RETRY_BACKOFF_MS,
-    INDEX_CONTRIBUTION_ENV,
-    INDEX_CONTRIBUTION_GROUP,
-    INDEX_CONTRIBUTION_INDEX_PREV_CLOSE,
-    INDEX_CONTRIBUTION_READ_COUNT,
-    INDEX_CONTRIBUTION_REDIS_MAX_RETRIES,
-    INDEX_CONTRIBUTION_REDIS_RETRY_BACKOFF_MS,
-    INDEX_CONTRIBUTION_REDIS_TTL_SECONDS,
-    INDEX_CONTRIBUTION_SECTOR_MAPPING_FILE,
-    INDEX_CONTRIBUTION_STREAM_KEY,
-    INDEX_CONTRIBUTION_WEIGHTS_FILE,
     INGESTOR_QUEUE_MAXSIZE,
     INGESTOR_REDIS_RETRY_ATTEMPTS,
     INGESTOR_REDIS_RETRY_BACKOFF_MS,
@@ -64,8 +44,6 @@ from app.config import (
     get_stripe_settings,
 )
 from app.db.session import SessionLocal
-from app.index_contribution.daily_inputs import ConstituentMeta, DailyInputLoader
-from app.index_contribution.runner import IndexContributionRunner
 from app.latest_state.runner import LatestStateRunner
 from app.market_ingestion.runner import MarketIngestionRunner
 from app.models.batch_job import BatchJobModel
@@ -73,13 +51,10 @@ from app.models.bidask_metric_1s import BidAskMetric1sModel
 from app.models.billing_event import BillingEventModel
 from app.models.email_delivery_log import EmailDeliveryLogModel
 from app.models.email_outbox import EmailOutboxModel
-from app.models.index_contribution_ranking_1m import IndexContributionRanking1mModel
-from app.models.index_contribution_snapshot_1m import IndexContributionSnapshot1mModel
 from app.models.kbar_1m import Kbar1mModel
 from app.models.otp_challenge import OtpChallengeModel
 from app.models.otp_verification_token import OtpVerificationTokenModel
 from app.models.refresh_denylist import RefreshTokenDenylistModel
-from app.models.sector_contribution_snapshot_1m import SectorContributionSnapshot1mModel
 from app.models.subscription import SubscriptionModel
 from app.models.user import UserModel
 from app.repositories.billing_event_repository import BillingEventRepository
@@ -137,7 +112,6 @@ serving_rate_limiter = SimpleRateLimiter()
 ingestor_runner: MarketIngestionRunner | None = None
 aggregator_runner: StreamProcessingRunner | None = None
 latest_state_runner: LatestStateRunner | None = None
-index_contribution_runner: IndexContributionRunner | None = None
 serving_redis_client = None
 email_outbox_dispatcher: EmailOutboxDispatcher | None = None
 email_webhook_service = EmailWebhookService(
@@ -310,73 +284,6 @@ def build_latest_state_runner() -> LatestStateRunner:
     return latest_state_runner
 
 
-def build_index_contribution_runner() -> IndexContributionRunner:
-    global index_contribution_runner
-    if index_contribution_runner is not None:
-        return index_contribution_runner
-    try:
-        import redis
-    except Exception as err:  # pragma: no cover - depends on runtime dependency
-        raise RuntimeError("index-contribution dependencies unavailable: install redis") from err
-
-    def _weight_provider() -> list[ConstituentMeta]:
-        path = Path(INDEX_CONTRIBUTION_WEIGHTS_FILE)
-        if not path.exists():
-            raise RuntimeError(f"weight file not found: {path}")
-        payload = json.loads(path.read_text(encoding="utf-8"))
-        rows: list[ConstituentMeta] = []
-        for item in payload:
-            rows.append(
-                ConstituentMeta(
-                    symbol=str(item["symbol"]),
-                    symbol_name=str(item.get("symbol_name", item["symbol"])),
-                    weight=float(item["weight"]),
-                    weight_version=str(item.get("weight_version", "unknown")),
-                    weight_generated_at=str(item.get("weight_generated_at", "")),
-                    table_sector=item.get("sector"),
-                )
-            )
-        return rows
-
-    def _sector_mapping_provider() -> dict[str, str]:
-        path = Path(INDEX_CONTRIBUTION_SECTOR_MAPPING_FILE)
-        if not path.exists():
-            return {}
-        payload = json.loads(path.read_text(encoding="utf-8"))
-        return {str(k): str(v) for k, v in payload.items()}
-
-    daily_input_loader = DailyInputLoader(
-        weight_provider=_weight_provider,
-        sector_mapping_provider=_sector_mapping_provider,
-        index_prev_close_provider=lambda: INDEX_CONTRIBUTION_INDEX_PREV_CLOSE,
-    )
-
-    index_contribution_runner = IndexContributionRunner(
-        redis_client=redis.from_url(REDIS_URL),
-        metrics=metrics,
-        env=INDEX_CONTRIBUTION_ENV,
-        group=INDEX_CONTRIBUTION_GROUP,
-        consumer=INDEX_CONTRIBUTION_CONSUMER,
-        read_count=INDEX_CONTRIBUTION_READ_COUNT,
-        block_ms=INDEX_CONTRIBUTION_BLOCK_MS,
-        claim_idle_ms=INDEX_CONTRIBUTION_CLAIM_IDLE_MS,
-        claim_count=INDEX_CONTRIBUTION_CLAIM_COUNT,
-        stream_key=INDEX_CONTRIBUTION_STREAM_KEY,
-        index_code=INDEX_CONTRIBUTION_CODE,
-        index_prev_close=INDEX_CONTRIBUTION_INDEX_PREV_CLOSE,
-        redis_ttl_seconds=INDEX_CONTRIBUTION_REDIS_TTL_SECONDS,
-        redis_max_retries=INDEX_CONTRIBUTION_REDIS_MAX_RETRIES,
-        redis_retry_backoff_ms=INDEX_CONTRIBUTION_REDIS_RETRY_BACKOFF_MS,
-        db_max_retries=INDEX_CONTRIBUTION_DB_MAX_RETRIES,
-        db_retry_backoff_ms=INDEX_CONTRIBUTION_DB_RETRY_BACKOFF_MS,
-        allow_late_snapshot_rewrite=INDEX_CONTRIBUTION_ALLOW_LATE_SNAPSHOT_REWRITE,
-        session_factory=SessionLocal,
-        daily_input_loader=daily_input_loader,
-    )
-    logger.info("index-contribution runner created")
-    return index_contribution_runner
-
-
 def get_serving_redis_client():
     global serving_redis_client
     if serving_redis_client is not None:
@@ -417,9 +324,6 @@ def reset_state_for_tests() -> None:
         session.execute(delete(OtpChallengeModel))
         session.execute(delete(BatchJobModel))
         session.execute(delete(BidAskMetric1sModel))
-        session.execute(delete(SectorContributionSnapshot1mModel))
-        session.execute(delete(IndexContributionRanking1mModel))
-        session.execute(delete(IndexContributionSnapshot1mModel))
         session.execute(delete(BillingEventModel))
         session.execute(delete(Kbar1mModel))
         session.execute(delete(SubscriptionModel))
