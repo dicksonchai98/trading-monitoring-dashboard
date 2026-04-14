@@ -29,6 +29,7 @@ import { useParticipantAmplitude } from "@/features/dashboard/hooks/use-particip
 import { useProgramActivitySeries } from "@/features/dashboard/hooks/use-program-activity-series";
 import { useQuoteTimeline } from "@/features/dashboard/hooks/use-quote-timeline";
 import { useVolumeLadderSeries } from "@/features/dashboard/hooks/use-volume-ladder-series";
+import { toOrderFlowMarketData } from "@/features/dashboard/components/PanelCharts";
 import {
   type ParticipantSignalWithMaPoint,
   withAmplitudeMovingAverages,
@@ -177,6 +178,22 @@ export function RealtimeDashboardOverview(): JSX.Element {
     longShortForceByMinute,
   );
   const programActivitySeries = useProgramActivitySeries(tickSeries);
+  const orderFlowChartData = useMemo(
+    () => toOrderFlowMarketData(tickSeries),
+    [tickSeries],
+  );
+  const volumeLadderChartData = useMemo(
+    () => toOrderFlowMarketData(volumeLadderSeries),
+    [volumeLadderSeries],
+  );
+  const bidAskPressureChartData = useMemo(
+    () => toOrderFlowMarketData(bidAskPressureSeries),
+    [bidAskPressureSeries],
+  );
+  const programActivityChartData = useMemo(
+    () => toOrderFlowMarketData(programActivitySeries),
+    [programActivitySeries],
+  );
   const participantChartData = useMemo(
     () => withAmplitudeMovingAverages(participantSignalData),
     [participantSignalData],
@@ -203,22 +220,22 @@ export function RealtimeDashboardOverview(): JSX.Element {
 
       <BentoGridSection title={t("dashboard.realtime.marketOverview")}>
         <OrderFlowCard
-          series={tickSeries}
+          chartData={orderFlowChartData}
           loading={tickLoading}
           error={tickError}
         />
         <VolumeLadderCard
-          series={volumeLadderSeries}
+          chartData={volumeLadderChartData}
           loading={tickLoading || quoteLoading}
           error={tickError ?? quoteError}
         />
         <BidAskPressureCard
-          series={bidAskPressureSeries}
+          chartData={bidAskPressureChartData}
           loading={tickLoading || quoteLoading}
           error={tickError ?? quoteError}
         />
         <ProgramActivityCard
-          series={programActivitySeries}
+          chartData={programActivityChartData}
           loading={tickLoading}
           error={tickError}
         />

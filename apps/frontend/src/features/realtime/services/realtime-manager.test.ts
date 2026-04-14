@@ -81,16 +81,39 @@ describe("realtime-manager", () => {
     applyServingSseEvent("index_contrib_sector", {
       index_code: "TSE001",
       trade_date: "2026-04-10",
-      sectors: {
-        Semiconductor: 4.3,
-        Finance: -1.2,
-      },
+      sectors: [
+        {
+          name: "Semiconductor",
+          children: [
+            {
+              name: "2330",
+              size: 12,
+              contribution_points: 4.3,
+            },
+          ],
+        },
+        {
+          name: "Finance",
+          children: [
+            {
+              name: "2881",
+              size: 5,
+              contribution_points: -1.2,
+            },
+          ],
+        },
+      ],
       ts: 1775802833106,
     });
 
     const state = useRealtimeStore.getState();
     expect(state.indexContribRanking?.top[0]?.symbol).toBe("2330");
-    expect(state.indexContribSector?.sectors.Semiconductor).toBe(4.3);
+    expect(state.indexContribSector?.sectors[0]?.name).toBe("Semiconductor");
+    expect(
+      state.indexContribSector?.sectors[0]?.children[0]?.contribution_points,
+    ).toBe(4.3);
+  });
+
   it("writes metric_latest main_force_big_order into the TXFD6 store key", () => {
     applyServingSseEvent("kbar_current", {
       code: "TXFD6",

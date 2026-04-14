@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useState } from "react";
 import { DEFAULT_ORDER_FLOW_CODE } from "@/features/dashboard/api/market-overview";
 import type { MetricTodayPoint } from "@/features/dashboard/api/types";
 import { minuteKeyFromEpochMs } from "@/features/dashboard/lib/market-overview-mapper";
@@ -87,8 +87,11 @@ export function useMetricTimelineFromBaseline(
   code: string = DEFAULT_ORDER_FLOW_CODE,
 ): UseMetricTimelineResult {
   const metricLatest = useMetricLatest(code);
+  const [chipDeltaByMinuteTs, setChipDeltaByMinuteTs] = useState<
+    Record<number, number>
+  >({});
 
-  const chipDeltaByMinuteTs = useMemo(() => {
+  useEffect(() => {
     const latestMetricByMinute = new Map<number, MinuteMetricSample>();
 
     for (const metric of baseline.metricToday) {
@@ -103,23 +106,31 @@ export function useMetricTimelineFromBaseline(
       }
     }
 
-    if (baseline.baselineReady) {
-      const realtimeSample = resolveMetricLatestSample(metricLatest);
-      if (realtimeSample) {
-        const current = latestMetricByMinute.get(realtimeSample.minuteTs);
-        if (!current || realtimeSample.ts >= current.ts) {
-          latestMetricByMinute.set(realtimeSample.minuteTs, realtimeSample);
-        }
-      }
-    }
-
     const nextMap: Record<number, number> = {};
     for (const sample of latestMetricByMinute.values()) {
       nextMap[sample.minuteTs] = sample.value;
     }
+    setChipDeltaByMinuteTs(nextMap);
+  }, [baseline.metricToday]);
 
-    return nextMap;
-  }, [baseline.baselineReady, baseline.metricToday, metricLatest]);
+  useEffect(() => {
+    if (!baseline.baselineReady) {
+      return;
+    }
+    const realtimeSample = resolveMetricLatestSample(metricLatest);
+    if (!realtimeSample) {
+      return;
+    }
+    setChipDeltaByMinuteTs((current) => {
+      if (current[realtimeSample.minuteTs] === realtimeSample.value) {
+        return current;
+      }
+      return {
+        ...current,
+        [realtimeSample.minuteTs]: realtimeSample.value,
+      };
+    });
+  }, [baseline.baselineReady, metricLatest]);
 
   return {
     chipDeltaByMinuteTs,

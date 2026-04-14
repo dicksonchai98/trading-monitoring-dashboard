@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   DEFAULT_OTC_CODE,
   getOtcSummaryToday,
@@ -79,12 +79,12 @@ export function useOtcIndexSeries(): UseOtcIndexSeriesResult {
   const resolved = useAuthStore((state) => state.resolved);
   const role = useAuthStore((state) => state.role);
   const otcLatest = useOtcSummaryLatest(DEFAULT_OTC_CODE);
-  const [baseline, setBaseline] = useState<OtcIndexSeriesPoint[]>([]);
+  const [series, setSeries] = useState<OtcIndexSeriesPoint[]>([]);
 
   useEffect(() => {
     let cancelled = false;
     if (!resolved || !token || role === "visitor") {
-      setBaseline([]);
+      setSeries([]);
       return () => {
         cancelled = true;
       };
@@ -94,11 +94,11 @@ export function useOtcIndexSeries(): UseOtcIndexSeriesResult {
         if (cancelled) {
           return;
         }
-        setBaseline(toSeries(rows));
+        setSeries(toSeries(rows));
       })
       .catch(() => {
         if (!cancelled) {
-          setBaseline([]);
+          setSeries([]);
         }
       });
     return () => {
@@ -106,44 +106,63 @@ export function useOtcIndexSeries(): UseOtcIndexSeriesResult {
     };
   }, [resolved, role, token]);
 
-  const series = useMemo(() => {
+  useEffect(() => {
     if (
       !otcLatest ||
       typeof otcLatest.index_value !== "number" ||
       !Number.isFinite(otcLatest.index_value)
     ) {
-      return baseline;
+      return;
     }
     const minuteTs = resolveMinuteTs(otcLatest);
     if (minuteTs === null) {
-      return baseline;
+      return;
     }
-
-    const existing = baseline.findIndex((point) => point.minuteTs === minuteTs);
-    const merged =
-      existing >= 0
-        ? baseline.map((point, index) =>
-            index === existing ? { ...point, value: otcLatest.index_value as number } : point,
-          )
-        : [
-            ...baseline,
-            {
-              time: formatTime(minuteTs),
-              minuteTs,
-              value: otcLatest.index_value as number,
-              change: 0,
-              upChange: null,
-              downChange: null,
-            },
-          ];
-
-    return toSeries(
-      merged.map((row) => ({
-        minute_ts: row.minuteTs,
-        index_value: row.value,
-      })),
-    );
-  }, [baseline, otcLatest]);
+    const latestValue = otcLatest.index_value as number;
+    setSeries((current) => {
+      if (current.length === 0) {
+        return current;
+      }
+      const base = current[0]?.value;
+      if (typeof base !== "number" || !Number.isFinite(base)) {
+        return current;
+      }
+      const change = Number((latestValue - base).toFixed(2));
+      const nextPoint: OtcIndexSeriesPoint = {
+        time: formatTime(minuteTs),
+        minuteTs,
+        value: latestValue,
+        change,
+        upChange: change >= 0 ? change : null,
+        downChange: change < 0 ? change : null,
+      };
+      const existingIndex = current.findIndex(
+        (point) => point.minuteTs === minuteTs,
+      );
+      if (existingIndex >= 0) {
+        const existingPoint = current[existingIndex];
+        if (existingPoint && existingPoint.value === latestValue) {
+          return current;
+        }
+        const next = [...current];
+        next[existingIndex] = nextPoint;
+        return next;
+      }
+      const tail = current[current.length - 1];
+      if (tail && minuteTs > tail.minuteTs) {
+        return [...current, nextPoint];
+      }
+      const insertIndex = current.findIndex((point) => point.minuteTs > minuteTs);
+      if (insertIndex === -1) {
+        return [...current, nextPoint];
+      }
+      return [
+        ...current.slice(0, insertIndex),
+        nextPoint,
+        ...current.slice(insertIndex),
+      ];
+    });
+  }, [otcLatest]);
 
   return { series };
 }

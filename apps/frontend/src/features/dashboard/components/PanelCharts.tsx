@@ -60,7 +60,7 @@ interface MarketOverviewPoint {
   chipDelta: number;
 }
 
-interface MarketOverviewDatum extends MarketOverviewPoint {
+export interface MarketOverviewDatum extends MarketOverviewPoint {
   buyVolume: number;
   sellVolume: number;
 }
@@ -73,7 +73,7 @@ function withSignedBars(data: MarketOverviewPoint[]): MarketOverviewDatum[] {
   }));
 }
 
-function toOrderFlowMarketData(
+export function toOrderFlowMarketData(
   data: OrderFlowSeriesPoint[],
 ): MarketOverviewDatum[] {
   return withSignedBars(
@@ -198,11 +198,11 @@ function MarketOverviewHybridChart({
 export function OrderFlowChart({
   data,
 }: {
-  data: OrderFlowSeriesPoint[];
+  data: MarketOverviewDatum[];
 }): JSX.Element {
   return (
     <MarketOverviewHybridChart
-      data={toOrderFlowMarketData(data)}
+      data={data}
       priceLabel="TXFD6 Near Month"
       testId="order-flow-chart"
     />
@@ -212,11 +212,11 @@ export function OrderFlowChart({
 export function VolumeLadderChart({
   data,
 }: {
-  data: OrderFlowSeriesPoint[];
+  data: MarketOverviewDatum[];
 }): JSX.Element {
   return (
     <MarketOverviewHybridChart
-      data={toOrderFlowMarketData(data)}
+      data={data}
       priceLabel="TXFD6 Near Month"
       testId="volume-ladder-chart"
     />
@@ -226,11 +226,11 @@ export function VolumeLadderChart({
 export function BidAskPressureChart({
   data,
 }: {
-  data: OrderFlowSeriesPoint[];
+  data: MarketOverviewDatum[];
 }): JSX.Element {
   return (
     <MarketOverviewHybridChart
-      data={toOrderFlowMarketData(data)}
+      data={data}
       priceLabel="TXFD6 Near Month"
       testId="bid-ask-pressure-chart"
     />
@@ -240,11 +240,11 @@ export function BidAskPressureChart({
 export function ProgramActivityChart({
   data,
 }: {
-  data: OrderFlowSeriesPoint[];
+  data: MarketOverviewDatum[];
 }): JSX.Element {
   return (
     <MarketOverviewHybridChart
-      data={toOrderFlowMarketData(data)}
+      data={data}
       priceLabel="TXFD6 Near Month"
       testId="program-activity-chart"
     />

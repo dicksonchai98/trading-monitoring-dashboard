@@ -1,17 +1,17 @@
 import type { JSX } from "react";
 import { MarketOverviewChartCard } from "@/features/dashboard/components/MarketOverviewChartCard";
 import { BidAskPressureChart } from "@/features/dashboard/components/PanelCharts";
-import type { OrderFlowSeriesPoint } from "@/features/dashboard/lib/market-overview-mapper";
+import type { MarketOverviewDatum } from "@/features/dashboard/components/PanelCharts";
 import { useT } from "@/lib/i18n";
 
 interface BidAskPressureCardProps {
-  series: OrderFlowSeriesPoint[];
+  chartData: MarketOverviewDatum[];
   loading: boolean;
   error: string | null;
 }
 
 export function BidAskPressureCard({
-  series,
+  chartData,
   loading,
   error,
 }: BidAskPressureCardProps): JSX.Element {
@@ -24,12 +24,12 @@ export function BidAskPressureCard({
       meta={t("dashboard.realtime.bidAsk.meta")}
       loading={loading}
       error={error}
-      hasData={series.length > 0}
+      hasData={chartData.length > 0}
       loadingText={t("dashboard.realtime.bidAsk.loading")}
       errorText={t("dashboard.realtime.bidAsk.error")}
       emptyText={t("dashboard.realtime.bidAsk.empty")}
     >
-      <BidAskPressureChart data={series} />
+      <BidAskPressureChart data={chartData} />
     </MarketOverviewChartCard>
   );
 }

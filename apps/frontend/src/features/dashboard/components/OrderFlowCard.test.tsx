@@ -5,7 +5,7 @@ describe("OrderFlowCard", () => {
   it("shows loading state while the timeline is loading", () => {
     render(
       <OrderFlowCard
-        series={[]}
+        chartData={[]}
         loading
         error={null}
       />,
@@ -18,7 +18,7 @@ describe("OrderFlowCard", () => {
   it("shows error state when the timeline fails to load", () => {
     render(
       <OrderFlowCard
-        series={[]}
+        chartData={[]}
         loading={false}
         error="boom"
       />,
@@ -31,7 +31,7 @@ describe("OrderFlowCard", () => {
   it("shows empty state when timeline has no points", () => {
     render(
       <OrderFlowCard
-        series={[]}
+        chartData={[]}
         loading={false}
         error={null}
       />,
@@ -44,12 +44,13 @@ describe("OrderFlowCard", () => {
   it("renders the chart with the supplied series when loading is complete", () => {
     render(
       <OrderFlowCard
-        series={[
+        chartData={[
           {
-            minuteTs: Date.parse("2026-04-08T09:00:00+08:00"),
             time: "09:00",
             indexPrice: 22305,
             chipDelta: 100,
+            buyVolume: 100,
+            sellVolume: 0,
           },
         ]}
         loading={false}

@@ -1,17 +1,17 @@
 import type { JSX } from "react";
 import { MarketOverviewChartCard } from "@/features/dashboard/components/MarketOverviewChartCard";
 import { VolumeLadderChart } from "@/features/dashboard/components/PanelCharts";
-import type { OrderFlowSeriesPoint } from "@/features/dashboard/lib/market-overview-mapper";
+import type { MarketOverviewDatum } from "@/features/dashboard/components/PanelCharts";
 import { useT } from "@/lib/i18n";
 
 interface VolumeLadderCardProps {
-  series: OrderFlowSeriesPoint[];
+  chartData: MarketOverviewDatum[];
   loading: boolean;
   error: string | null;
 }
 
 export function VolumeLadderCard({
-  series,
+  chartData,
   loading,
   error,
 }: VolumeLadderCardProps): JSX.Element {
@@ -24,12 +24,12 @@ export function VolumeLadderCard({
       meta={t("dashboard.realtime.volumeLadder.meta")}
       loading={loading}
       error={error}
-      hasData={series.length > 0}
+      hasData={chartData.length > 0}
       loadingText={t("dashboard.realtime.volumeLadder.loading")}
       errorText={t("dashboard.realtime.volumeLadder.error")}
       emptyText={t("dashboard.realtime.volumeLadder.empty")}
     >
-      <VolumeLadderChart data={series} />
+      <VolumeLadderChart data={chartData} />
     </MarketOverviewChartCard>
   );
 }

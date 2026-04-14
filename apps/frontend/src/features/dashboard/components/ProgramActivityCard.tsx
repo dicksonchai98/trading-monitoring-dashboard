@@ -1,17 +1,17 @@
 import type { JSX } from "react";
 import { MarketOverviewChartCard } from "@/features/dashboard/components/MarketOverviewChartCard";
 import { ProgramActivityChart } from "@/features/dashboard/components/PanelCharts";
-import type { OrderFlowSeriesPoint } from "@/features/dashboard/lib/market-overview-mapper";
+import type { MarketOverviewDatum } from "@/features/dashboard/components/PanelCharts";
 import { useT } from "@/lib/i18n";
 
 interface ProgramActivityCardProps {
-  series: OrderFlowSeriesPoint[];
+  chartData: MarketOverviewDatum[];
   loading: boolean;
   error: string | null;
 }
 
 export function ProgramActivityCard({
-  series,
+  chartData,
   loading,
   error,
 }: ProgramActivityCardProps): JSX.Element {
@@ -24,12 +24,12 @@ export function ProgramActivityCard({
       meta={t("dashboard.realtime.programActivity.meta")}
       loading={loading}
       error={error}
-      hasData={series.length > 0}
+      hasData={chartData.length > 0}
       loadingText={t("dashboard.realtime.programActivity.loading")}
       errorText={t("dashboard.realtime.programActivity.error")}
       emptyText={t("dashboard.realtime.programActivity.empty")}
     >
-      <ProgramActivityChart data={series} />
+      <ProgramActivityChart data={chartData} />
     </MarketOverviewChartCard>
   );
 }

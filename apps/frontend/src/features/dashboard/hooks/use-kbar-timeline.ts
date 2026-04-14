@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useState } from "react";
 import { DEFAULT_ORDER_FLOW_CODE } from "@/features/dashboard/api/market-overview";
 import type { KbarTodayPoint } from "@/features/dashboard/api/types";
 import { minuteKeyFromEpochMs } from "@/features/dashboard/lib/market-overview-mapper";
@@ -23,22 +23,33 @@ export function useKbarTimelineFromBaseline(
   code: string = DEFAULT_ORDER_FLOW_CODE,
 ): UseKbarTimelineResult {
   const kbarCurrent = useKbarCurrent(code);
+  const [indexPriceByMinuteTs, setIndexPriceByMinuteTs] = useState<
+    Record<number, number>
+  >({});
 
-  const indexPriceByMinuteTs = useMemo(() => {
+  useEffect(() => {
     const nextMap: Record<number, number> = {};
-
     for (const row of baseline.kbarToday) {
-      const minuteTs = minuteKeyFromEpochMs(row.minute_ts);
-      nextMap[minuteTs] = row.close;
+      nextMap[minuteKeyFromEpochMs(row.minute_ts)] = row.close;
     }
+    setIndexPriceByMinuteTs(nextMap);
+  }, [baseline.kbarToday]);
 
-    if (baseline.baselineReady && kbarCurrent) {
-      const realtimeMinuteTs = minuteKeyFromEpochMs(kbarCurrent.minute_ts);
-      nextMap[realtimeMinuteTs] = kbarCurrent.close;
+  useEffect(() => {
+    if (!baseline.baselineReady || !kbarCurrent) {
+      return;
     }
-
-    return nextMap;
-  }, [baseline.baselineReady, baseline.kbarToday, kbarCurrent]);
+    const realtimeMinuteTs = minuteKeyFromEpochMs(kbarCurrent.minute_ts);
+    setIndexPriceByMinuteTs((current) => {
+      if (current[realtimeMinuteTs] === kbarCurrent.close) {
+        return current;
+      }
+      return {
+        ...current,
+        [realtimeMinuteTs]: kbarCurrent.close,
+      };
+    });
+  }, [baseline.baselineReady, kbarCurrent]);
 
   return {
     indexPriceByMinuteTs,

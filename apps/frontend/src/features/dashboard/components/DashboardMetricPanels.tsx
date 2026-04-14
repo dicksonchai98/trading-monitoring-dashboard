@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties, type JSX } from "react";
+import { memo, useEffect, useMemo, useState, type CSSProperties, type JSX } from "react";
 import type { PieProps, PieSectorDataItem } from "recharts";
 import {
   Area,
@@ -499,13 +499,21 @@ function OtcIndexLinePanel({ title }: { title: string }): JSX.Element {
   );
 }
 
-function GapKlinePanelChart(): JSX.Element {
+const GAP_CHART_WIDTH = 620;
+const GAP_CHART_HEIGHT = 190;
+const GAP_CHART_MARGIN = { top: 16, right: 10, bottom: 50, left: 44 };
+const GAP_CHART_TICK_COUNT = 5;
+
+const GapKlinePanelChart = memo(function GapKlinePanelChart(): JSX.Element {
   const spotLatestList = useSpotLatestList();
   const [sessionOpenBySymbol, setSessionOpenBySymbol] = useState<
     Record<string, number>
   >({});
-  const spotBySymbol = new Map(
-    (spotLatestList?.items ?? []).map((item) => [item.symbol, item]),
+
+  const spotItems = spotLatestList?.items ?? [];
+  const spotBySymbol = useMemo(
+    () => new Map(spotItems.map((item) => [item.symbol, item])),
+    [spotItems],
   );
 
   useEffect(() => {
@@ -530,141 +538,156 @@ function GapKlinePanelChart(): JSX.Element {
     });
   }, [spotLatestList]);
 
-  const gapKlineData: GapKlineDatum[] = GAP_K_SYMBOLS.map((symbol) => {
-    const latest = spotBySymbol.get(symbol);
-    const close = latest?.last_price;
-    const openFromSse = latest?.open;
-    const highFromSse = latest?.high;
-    const lowFromSse = latest?.low;
-    const closeFromSse = latest?.close;
-    const sessionHigh = latest?.session_high;
-    const sessionLow = latest?.session_low;
-    const sessionOpen = sessionOpenBySymbol[symbol];
-    const resolvedClose =
-      typeof closeFromSse === "number" && Number.isFinite(closeFromSse)
-        ? closeFromSse
-        : close;
-    if (typeof resolvedClose !== "number" || !Number.isFinite(resolvedClose)) {
-      return { ...EMPTY_GAP_ROW, symbol };
-    }
+  const gapKlineData = useMemo<GapKlineDatum[]>(
+    () =>
+      GAP_K_SYMBOLS.map((symbol) => {
+        const latest = spotBySymbol.get(symbol);
+        const close = latest?.last_price;
+        const openFromSse = latest?.open;
+        const highFromSse = latest?.high;
+        const lowFromSse = latest?.low;
+        const closeFromSse = latest?.close;
+        const sessionHigh = latest?.session_high;
+        const sessionLow = latest?.session_low;
+        const sessionOpen = sessionOpenBySymbol[symbol];
+        const resolvedClose =
+          typeof closeFromSse === "number" && Number.isFinite(closeFromSse)
+            ? closeFromSse
+            : close;
+        if (
+          typeof resolvedClose !== "number" ||
+          !Number.isFinite(resolvedClose)
+        ) {
+          return { ...EMPTY_GAP_ROW, symbol };
+        }
 
-    const open =
-      typeof openFromSse === "number" && Number.isFinite(openFromSse)
-        ? openFromSse
-        : typeof sessionOpen === "number" && Number.isFinite(sessionOpen)
-          ? sessionOpen
-          : resolvedClose;
-    const highBase =
-      typeof highFromSse === "number" && Number.isFinite(highFromSse)
-        ? highFromSse
-        : typeof sessionHigh === "number" && Number.isFinite(sessionHigh)
-          ? sessionHigh
-          : Math.max(open, resolvedClose);
-    const lowBase =
-      typeof lowFromSse === "number" && Number.isFinite(lowFromSse)
-        ? lowFromSse
-        : typeof sessionLow === "number" && Number.isFinite(sessionLow)
-          ? sessionLow
-          : Math.min(open, resolvedClose);
+        const open =
+          typeof openFromSse === "number" && Number.isFinite(openFromSse)
+            ? openFromSse
+            : typeof sessionOpen === "number" && Number.isFinite(sessionOpen)
+              ? sessionOpen
+              : resolvedClose;
+        const highBase =
+          typeof highFromSse === "number" && Number.isFinite(highFromSse)
+            ? highFromSse
+            : typeof sessionHigh === "number" && Number.isFinite(sessionHigh)
+              ? sessionHigh
+              : Math.max(open, resolvedClose);
+        const lowBase =
+          typeof lowFromSse === "number" && Number.isFinite(lowFromSse)
+            ? lowFromSse
+            : typeof sessionLow === "number" && Number.isFinite(sessionLow)
+              ? sessionLow
+              : Math.min(open, resolvedClose);
 
-    const high = Math.max(highBase, open, resolvedClose);
-    const low = Math.min(lowBase, open, resolvedClose);
-    const referencePrice =
-      typeof latest?.reference_price === "number" &&
-      Number.isFinite(latest.reference_price)
-        ? latest.reference_price
-        : open;
-    const changePct =
-      referencePrice === 0
-        ? 0
-        : ((resolvedClose - referencePrice) / referencePrice) * 100;
+        const high = Math.max(highBase, open, resolvedClose);
+        const low = Math.min(lowBase, open, resolvedClose);
+        const referencePrice =
+          typeof latest?.reference_price === "number" &&
+          Number.isFinite(latest.reference_price)
+            ? latest.reference_price
+            : open;
+        const changePct =
+          referencePrice === 0
+            ? 0
+            : ((resolvedClose - referencePrice) / referencePrice) * 100;
 
-    return {
-      symbol,
-      referencePrice,
-      open,
-      high,
-      low,
-      close: resolvedClose,
-      changePct,
-    };
-  });
-
-  const width = 620;
-  const height = 190;
-  const margin = { top: 16, right: 10, bottom: 50, left: 44 };
-  const plotWidth = width - margin.left - margin.right;
-  const plotHeight = height - margin.top - margin.bottom;
-  const validRows = gapKlineData.filter(
-    (item) =>
-      item.high > 0 &&
-      Number.isFinite(item.open) &&
-      Number.isFinite(item.high) &&
-      Number.isFinite(item.low) &&
-      Number.isFinite(item.close),
+        return {
+          symbol,
+          referencePrice,
+          open,
+          high,
+          low,
+          close: resolvedClose,
+          changePct,
+        };
+      }),
+    [sessionOpenBySymbol, spotBySymbol],
   );
-  const validPctRows = validRows
-    .map((item) => {
-      if (item.open === 0) {
-        return null;
-      }
-      const basePrice =
-        item.referencePrice > 0 && Number.isFinite(item.referencePrice)
-          ? item.referencePrice
-          : item.open;
-      return {
-        openPct: ((item.open - basePrice) / basePrice) * 100,
-        highPct: ((item.high - basePrice) / basePrice) * 100,
-        lowPct: ((item.low - basePrice) / basePrice) * 100,
-        closePct: ((item.close - basePrice) / basePrice) * 100,
-      };
-    })
-    .filter(
-      (
-        item,
-      ): item is {
-        openPct: number;
-        highPct: number;
-        lowPct: number;
-        closePct: number;
-      } =>
-        item !== null &&
-        Number.isFinite(item.openPct) &&
-        Number.isFinite(item.highPct) &&
-        Number.isFinite(item.lowPct) &&
-        Number.isFinite(item.closePct),
+
+  const {
+    bodyWidth,
+    paddedMax,
+    paddedMin,
+    plotHeight,
+    plotWidth,
+    step,
+  } = useMemo(() => {
+    const plotWidth = GAP_CHART_WIDTH - GAP_CHART_MARGIN.left - GAP_CHART_MARGIN.right;
+    const plotHeight = GAP_CHART_HEIGHT - GAP_CHART_MARGIN.top - GAP_CHART_MARGIN.bottom;
+    const validRows = gapKlineData.filter(
+      (item) =>
+        item.high > 0 &&
+        Number.isFinite(item.open) &&
+        Number.isFinite(item.high) &&
+        Number.isFinite(item.low) &&
+        Number.isFinite(item.close),
     );
-  const baseMin =
-    validPctRows.length > 0
-      ? Math.min(
-          ...validPctRows.flatMap((item) => [
-            item.lowPct,
-            item.openPct,
-            item.closePct,
-            0,
-          ]),
-        )
-      : -1;
-  const baseMax =
-    validPctRows.length > 0
-      ? Math.max(
-          ...validPctRows.flatMap((item) => [
-            item.highPct,
-            item.openPct,
-            item.closePct,
-            0,
-          ]),
-        )
-      : 1;
-  const range = Math.max(baseMax - baseMin, 0.8);
-  const paddedMin = baseMin - range * 0.12;
-  const paddedMax = baseMax + range * 0.12;
-  const tickCount = 5;
-  const step = plotWidth / gapKlineData.length;
-  const bodyWidth = Math.min(34, step * 0.56);
+    const validPctRows = validRows
+      .map((item) => {
+        if (item.open === 0) {
+          return null;
+        }
+        const basePrice =
+          item.referencePrice > 0 && Number.isFinite(item.referencePrice)
+            ? item.referencePrice
+            : item.open;
+        return {
+          openPct: ((item.open - basePrice) / basePrice) * 100,
+          highPct: ((item.high - basePrice) / basePrice) * 100,
+          lowPct: ((item.low - basePrice) / basePrice) * 100,
+          closePct: ((item.close - basePrice) / basePrice) * 100,
+        };
+      })
+      .filter(
+        (
+          item,
+        ): item is {
+          openPct: number;
+          highPct: number;
+          lowPct: number;
+          closePct: number;
+        } =>
+          item !== null &&
+          Number.isFinite(item.openPct) &&
+          Number.isFinite(item.highPct) &&
+          Number.isFinite(item.lowPct) &&
+          Number.isFinite(item.closePct),
+      );
+    const baseMin =
+      validPctRows.length > 0
+        ? Math.min(
+            ...validPctRows.flatMap((item) => [
+              item.lowPct,
+              item.openPct,
+              item.closePct,
+              0,
+            ]),
+          )
+        : -1;
+    const baseMax =
+      validPctRows.length > 0
+        ? Math.max(
+            ...validPctRows.flatMap((item) => [
+              item.highPct,
+              item.openPct,
+              item.closePct,
+              0,
+            ]),
+          )
+        : 1;
+    const range = Math.max(baseMax - baseMin, 0.8);
+    const paddedMin = baseMin - range * 0.12;
+    const paddedMax = baseMax + range * 0.12;
+    const step = plotWidth / gapKlineData.length;
+    const bodyWidth = Math.min(34, step * 0.56);
+
+    return { bodyWidth, paddedMax, paddedMin, plotHeight, plotWidth, step };
+  }, [gapKlineData]);
 
   const yScale = (price: number): number =>
-    margin.top + ((paddedMax - price) / (paddedMax - paddedMin)) * plotHeight;
+    GAP_CHART_MARGIN.top +
+    ((paddedMax - price) / (paddedMax - paddedMin)) * plotHeight;
 
   return (
     <div
@@ -674,28 +697,34 @@ function GapKlinePanelChart(): JSX.Element {
       <div data-testid="panel-chart" className="h-full w-full">
         <svg
           className="h-full w-full"
-          viewBox={`0 0 ${width} ${height}`}
+          viewBox={`0 0 ${GAP_CHART_WIDTH} ${GAP_CHART_HEIGHT}`}
           role="img"
           aria-label="Six symbols gap candlestick overview"
         >
-          <rect x={0} y={0} width={width} height={height} fill="transparent" />
-          {Array.from({ length: tickCount }).map((_, index) => {
-            const ratio = index / (tickCount - 1);
+          <rect
+            x={0}
+            y={0}
+            width={GAP_CHART_WIDTH}
+            height={GAP_CHART_HEIGHT}
+            fill="transparent"
+          />
+          {Array.from({ length: GAP_CHART_TICK_COUNT }).map((_, index) => {
+            const ratio = index / (GAP_CHART_TICK_COUNT - 1);
             const pct = paddedMax - (paddedMax - paddedMin) * ratio;
-            const y = margin.top + plotHeight * ratio;
+            const y = GAP_CHART_MARGIN.top + plotHeight * ratio;
 
             return (
               <g key={`grid-${index}`}>
                 <line
-                  x1={margin.left}
-                  x2={width - margin.right}
+                  x1={GAP_CHART_MARGIN.left}
+                  x2={GAP_CHART_WIDTH - GAP_CHART_MARGIN.right}
                   y1={y}
                   y2={y}
                   stroke="hsl(var(--border-strong))"
                   strokeDasharray="3 3"
                 />
                 <text
-                  x={margin.left - 8}
+                  x={GAP_CHART_MARGIN.left - 8}
                   y={y + 4}
                   fill="hsl(var(--subtle-foreground))"
                   textAnchor="end"
@@ -707,12 +736,12 @@ function GapKlinePanelChart(): JSX.Element {
           })}
           {gapKlineData.map((item, index) => {
             if (item.high <= 0) {
-              const centerX = margin.left + step * index + step / 2;
+              const centerX = GAP_CHART_MARGIN.left + step * index + step / 2;
               return (
                 <g key={item.symbol}>
                   <text
                     x={centerX}
-                    y={height / 2}
+                    y={GAP_CHART_HEIGHT / 2}
                     fill="hsl(var(--subtle-foreground))"
                     textAnchor="middle"
                   >
@@ -720,7 +749,7 @@ function GapKlinePanelChart(): JSX.Element {
                   </text>
                   <text
                     x={centerX}
-                    y={height - 24}
+                    y={GAP_CHART_HEIGHT - 24}
                     fill="hsl(var(--subtle-foreground))"
                     textAnchor="middle"
                   >
@@ -729,7 +758,7 @@ function GapKlinePanelChart(): JSX.Element {
                 </g>
               );
             }
-            const centerX = margin.left + step * index + step / 2;
+            const centerX = GAP_CHART_MARGIN.left + step * index + step / 2;
             if (item.open === 0) {
               return null;
             }
@@ -770,7 +799,7 @@ function GapKlinePanelChart(): JSX.Element {
                 />
                 <text
                   x={centerX}
-                  y={height - 28}
+                  y={GAP_CHART_HEIGHT - 28}
                   fill="hsl(var(--subtle-foreground))"
                   textAnchor="middle"
                 >
@@ -778,7 +807,7 @@ function GapKlinePanelChart(): JSX.Element {
                 </text>
                 <text
                   x={centerX}
-                  y={height - 8}
+                  y={GAP_CHART_HEIGHT - 8}
                   fill={item.changePct >= 0 ? KLINE_UP_COLOR : KLINE_DOWN_COLOR}
                   textAnchor="middle"
                 >
@@ -791,7 +820,7 @@ function GapKlinePanelChart(): JSX.Element {
       </div>
     </div>
   );
-}
+});
 
 export function DashboardMetricPanels(): JSX.Element {
   const t = useT();

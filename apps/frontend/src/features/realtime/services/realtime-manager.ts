@@ -21,6 +21,12 @@ const STREAM_PATH = "/v1/stream/sse";
 const DEFAULT_STREAM_CODE = "TXFD6";
 const SESSION_START_HHMM = "09:00:00";
 const SESSION_END_HHMM = "13:45:00";
+const TAIPEI_DATE_FORMATTER = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Taipei",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
 const ENABLE_SPOT_GAP_K_MOCK =
   String(import.meta.env.VITE_ENABLE_SPOT_GAP_K_MOCK ?? "").toLowerCase() ===
   "true";
@@ -99,6 +105,13 @@ interface SpotGapMockSymbolState {
 }
 
 const SPOT_STRENGTH_THRESHOLD_PCT = 0.8;
+let cachedSessionDatePart: string | null = null;
+let cachedSessionBounds:
+  | {
+      startMs: number;
+      endMs: number;
+    }
+  | null = null;
 
 type SpotStrengthState =
   | "new_high"
@@ -315,12 +328,7 @@ export function* createSpotLatestListMockGenerator(
 }
 
 function resolveTaipeiDatePart(tsMs: number): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Taipei",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date(tsMs));
+  return TAIPEI_DATE_FORMATTER.format(new Date(tsMs));
 }
 
 function resolveSessionBoundsForTs(tsMs: number): {
@@ -328,9 +336,18 @@ function resolveSessionBoundsForTs(tsMs: number): {
   endMs: number;
 } {
   const datePart = resolveTaipeiDatePart(tsMs);
-  return {
+  if (cachedSessionDatePart === datePart && cachedSessionBounds) {
+    return cachedSessionBounds;
+  }
+  const bounds = {
     startMs: Date.parse(`${datePart}T${SESSION_START_HHMM}+08:00`),
     endMs: Date.parse(`${datePart}T${SESSION_END_HHMM}+08:00`),
+  };
+  cachedSessionDatePart = datePart;
+  cachedSessionBounds = bounds;
+  return {
+    startMs: bounds.startMs,
+    endMs: bounds.endMs,
   };
 }
 
@@ -354,6 +371,12 @@ function shouldApplyDashboardSseEvent(
   if (eventName === "heartbeat") {
     return true;
   }
+  if (
+    eventName === "index_contrib_ranking" ||
+    eventName === "index_contrib_sector"
+  ) {
+    return true;
+  }
   if (typeof data !== "object" || data === null) {
     return false;
   }
@@ -367,6 +390,10 @@ function shouldApplyDashboardSseEvent(
     tsMs = toEpochMs(payload.minute_ts) ?? toEpochMs(payload.event_ts);
   } else if (eventName === "otc_summary_latest") {
     tsMs = toEpochMs(payload.minute_ts) ?? toEpochMs(payload.event_ts);
+  } else if (eventName === "index_contrib_ranking") {
+    tsMs = toEpochMs(payload.ts);
+  } else if (eventName === "index_contrib_sector") {
+    tsMs = toEpochMs(payload.ts);
   } else if (eventName === "spot_latest_list") {
     tsMs = toEpochMs(payload.ts);
   } else if (eventName === "quote_latest") {
@@ -494,7 +521,7 @@ function collectServingSseEvent(
     if (!parsed.success) {
       return;
     }
-    store.setHeartbeat(parsed.data.ts);
+    useRealtimeStore.getState().setHeartbeat(parsed.data.ts);
     return;
   }
 
@@ -503,7 +530,7 @@ function collectServingSseEvent(
     if (!parsed.success) {
       return;
     }
-    store.setIndexContribRanking(parsed.data);
+    useRealtimeStore.getState().setIndexContribRanking(parsed.data);
     return;
   }
 
@@ -512,7 +539,7 @@ function collectServingSseEvent(
     if (!parsed.success) {
       return;
     }
-    store.setIndexContribSector(parsed.data);
+    useRealtimeStore.getState().setIndexContribSector(parsed.data);
     batch.heartbeatTs = parsed.data.ts;
     return;
   }
