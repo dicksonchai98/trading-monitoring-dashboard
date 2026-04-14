@@ -18,3 +18,6 @@ dist/
 .DS_Store
 Thumbs.db
 .worktrees/
+
+# Exclude .pen files (editor scratch/pen files should never be committed)
+*.pen
