@@ -9,6 +9,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 
+from app.config import INDEX_CONTRIBUTION_CODE, SERVING_HEARTBEAT_SECONDS, SERVING_POLL_INTERVAL_MS
 from app.config import (
     OTC_SUMMARY_CODE,
     SERVING_HEARTBEAT_SECONDS,
@@ -26,6 +27,8 @@ from app.services.serving_store import (
     default_kbar_window,
     default_metric_window,
     fetch_current_kbar,
+    fetch_index_contrib_ranking_latest,
+    fetch_index_contrib_sector_latest,
     fetch_kbar_daily_amplitude,
     fetch_kbar_history,
     fetch_kbar_today_range,
@@ -502,6 +505,9 @@ async def stream_sse(
     async def event_stream():
         last_kbar: dict[str, Any] | None = None
         last_metric: dict[str, Any] | None = None
+        last_index_contrib_ranking: dict[str, Any] | None = None
+        last_index_contrib_sector: dict[str, Any] | None = None
+        last_heartbeat = 0.0
         last_quote: dict[str, Any] | None = None
         last_market_summary: dict[str, Any] | None = None
         last_otc_summary: dict[str, Any] | None = None
@@ -514,6 +520,12 @@ async def stream_sse(
                 try:
                     current_k = fetch_current_kbar(instrument)
                     metric_latest = fetch_metric_latest(instrument)
+                    index_contrib_ranking = fetch_index_contrib_ranking_latest(
+                        INDEX_CONTRIBUTION_CODE
+                    )
+                    index_contrib_sector = fetch_index_contrib_sector_latest(
+                        INDEX_CONTRIBUTION_CODE
+                    )
                     quote_latest_data = fetch_quote_latest(instrument)
                     market_summary_latest_data = fetch_market_summary_latest(instrument)
                     otc_summary_latest_data = fetch_otc_summary_latest(OTC_SUMMARY_CODE)
@@ -532,6 +544,28 @@ async def stream_sse(
                     last_metric = metric_latest
                     metrics.inc("serving_sse_push_total")
                     yield _sse_message("metric_latest", metric_latest)
+
+                if index_contrib_ranking and index_contrib_ranking != last_index_contrib_ranking:
+                    last_index_contrib_ranking = index_contrib_ranking
+                    metrics.inc("serving_sse_push_total")
+                    yield _sse_message(
+                        "index_contrib_ranking",
+                        {
+                            **index_contrib_ranking,
+                            "ts": int(now * 1000),
+                        },
+                    )
+
+                if index_contrib_sector and index_contrib_sector != last_index_contrib_sector:
+                    last_index_contrib_sector = index_contrib_sector
+                    metrics.inc("serving_sse_push_total")
+                    yield _sse_message(
+                        "index_contrib_sector",
+                        {
+                            **index_contrib_sector,
+                            "ts": int(now * 1000),
+                        },
+                    )
 
                 if (
                     SERVING_SSE_INCLUDE_QUOTE

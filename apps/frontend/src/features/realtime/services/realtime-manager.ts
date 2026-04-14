@@ -1,5 +1,7 @@
 import {
   HeartbeatSchema,
+  IndexContributionRankingSchema,
+  IndexContributionSectorSchema,
   KbarCurrentSchema,
   MarketSummaryLatestSchema,
   MetricLatestSchema,
@@ -492,6 +494,25 @@ function collectServingSseEvent(
     if (!parsed.success) {
       return;
     }
+    store.setHeartbeat(parsed.data.ts);
+    return;
+  }
+
+  if (eventName === "index_contrib_ranking") {
+    const parsed = IndexContributionRankingSchema.safeParse(data);
+    if (!parsed.success) {
+      return;
+    }
+    store.setIndexContribRanking(parsed.data);
+    return;
+  }
+
+  if (eventName === "index_contrib_sector") {
+    const parsed = IndexContributionSectorSchema.safeParse(data);
+    if (!parsed.success) {
+      return;
+    }
+    store.setIndexContribSector(parsed.data);
     batch.heartbeatTs = parsed.data.ts;
     return;
   }

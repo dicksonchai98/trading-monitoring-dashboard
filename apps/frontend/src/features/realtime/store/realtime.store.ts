@@ -1,5 +1,7 @@
 import { create } from "zustand";
 import type {
+  IndexContributionRankingPayload,
+  IndexContributionSectorPayload,
   KbarCurrentPayload,
   MarketSummaryLatestPayload,
   MetricLatestPayload,
@@ -14,6 +16,8 @@ interface RealtimeStore {
   errorReason: string | null;
   kbarCurrentByCode: Record<string, KbarCurrentPayload>;
   metricLatestByCode: Record<string, MetricLatestPayload>;
+  indexContribRanking: IndexContributionRankingPayload | null;
+  indexContribSector: IndexContributionSectorPayload | null;
   marketSummaryLatestByCode: Record<string, MarketSummaryLatestPayload>;
   otcSummaryLatestByCode: Record<string, OtcSummaryLatestPayload>;
   quoteLatestByCode: Record<string, QuoteLatestPayload>;
@@ -22,6 +26,8 @@ interface RealtimeStore {
   setConnectionStatus: (status: SseConnectionStatus, errorReason?: string | null) => void;
   upsertKbarCurrent: (payload: KbarCurrentPayload) => void;
   upsertMetricLatest: (code: string, payload: MetricLatestPayload) => void;
+  setIndexContribRanking: (payload: IndexContributionRankingPayload) => void;
+  setIndexContribSector: (payload: IndexContributionSectorPayload) => void;
   upsertMarketSummaryLatest: (code: string, payload: MarketSummaryLatestPayload) => void;
   upsertOtcSummaryLatest: (code: string, payload: OtcSummaryLatestPayload) => void;
   upsertQuoteLatest: (code: string, payload: QuoteLatestPayload) => void;
@@ -43,6 +49,8 @@ const initialState = {
   errorReason: null as string | null,
   kbarCurrentByCode: {} as Record<string, KbarCurrentPayload>,
   metricLatestByCode: {} as Record<string, MetricLatestPayload>,
+  indexContribRanking: null as IndexContributionRankingPayload | null,
+  indexContribSector: null as IndexContributionSectorPayload | null,
   marketSummaryLatestByCode: {} as Record<string, MarketSummaryLatestPayload>,
   otcSummaryLatestByCode: {} as Record<string, OtcSummaryLatestPayload>,
   quoteLatestByCode: {} as Record<string, QuoteLatestPayload>,
@@ -67,6 +75,8 @@ export const useRealtimeStore = create<RealtimeStore>((set) => ({
         [code]: payload,
       },
     })),
+  setIndexContribRanking: (payload) => set({ indexContribRanking: payload }),
+  setIndexContribSector: (payload) => set({ indexContribSector: payload }),
   upsertMarketSummaryLatest: (code, payload) =>
     set((state) => ({
       marketSummaryLatestByCode: {
