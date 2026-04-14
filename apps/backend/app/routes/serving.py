@@ -9,8 +9,8 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 
-from app.config import INDEX_CONTRIBUTION_CODE, SERVING_HEARTBEAT_SECONDS, SERVING_POLL_INTERVAL_MS
 from app.config import (
+    INDEX_CONTRIBUTION_CODE,
     OTC_SUMMARY_CODE,
     SERVING_HEARTBEAT_SECONDS,
     SERVING_POLL_INTERVAL_MS,

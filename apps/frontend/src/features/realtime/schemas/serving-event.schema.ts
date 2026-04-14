@@ -48,6 +48,8 @@ export const IndexContributionSectorSchema = z.object({
   trade_date: z.string().min(1),
   sectors: z.record(z.number()),
   ts: z.number(),
+});
+
 export const MarketSummaryLatestSchema = z.object({
   code: z.string().trim().min(1).optional(),
   market_code: z.string().trim().min(1).optional(),

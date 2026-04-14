@@ -411,6 +411,23 @@ def fetch_index_contrib_sector_latest(index_code: str) -> dict[str, Any] | None:
     redis_client = get_serving_redis_client()
     trade_date = trade_date_for(datetime.now(tz=TZ_TAIPEI))
     key = f"{SERVING_ENV}:state:index_contrib:{index_code}:{trade_date.isoformat()}:sector"
+    raw = redis_client.get(key)
+    if raw is None:
+        return None
+    payload = raw.decode("utf-8") if isinstance(raw, bytes) else str(raw)
+    try:
+        sectors = json.loads(payload)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(sectors, dict):
+        return None
+    return {
+        "index_code": index_code,
+        "trade_date": trade_date.isoformat(),
+        "sectors": sectors,
+    }
+
+
 def fetch_quote_latest(code: str) -> dict[str, Any] | None:
     redis_client = get_serving_redis_client()
     trade_date = trade_date_for(datetime.now(tz=TZ_TAIPEI))

@@ -27,7 +27,7 @@ export type ServingSseEventName =
   | "kbar_current"
   | "metric_latest"
   | "index_contrib_ranking"
-  | "index_contrib_sector";
+  | "index_contrib_sector"
   | "market_summary_latest"
   | "otc_summary_latest"
   | "quote_latest"
