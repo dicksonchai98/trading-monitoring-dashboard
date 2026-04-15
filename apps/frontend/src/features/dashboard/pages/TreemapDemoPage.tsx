@@ -2,6 +2,7 @@ import type { JSX } from "react";
 import { BentoGridSection } from "@/components/ui/bento-grid";
 import { PageLayout } from "@/components/ui/page-layout";
 import { useRealtimeStore } from "@/features/realtime/store/realtime.store";
+import { useI18n } from "@/lib/i18n";
 import { ResponsiveContainer, Treemap, type TreemapNode } from "recharts";
 
 const data = [
@@ -74,6 +75,17 @@ const MOCK_INDEX_CONTRIB_RANKING = {
   ],
 };
 const TREEMAP_PANEL_HEIGHT_CLASS = "h-[520px]";
+const STOCK_NAME_MAP: Record<string, { en: string; zh: string }> = {
+  "2330": { en: "TSMC", zh: "台積電" },
+  "2454": { en: "MediaTek", zh: "聯發科" },
+  "2317": { en: "Hon Hai", zh: "鴻海" },
+  "2881": { en: "Fubon Financial", zh: "富邦金" },
+  "2882": { en: "Cathay Financial", zh: "國泰金" },
+  "1301": { en: "Formosa Plastics", zh: "台塑" },
+  "2002": { en: "China Steel", zh: "中鋼" },
+  "2412": { en: "Chunghwa Telecom", zh: "中華電信" },
+  "2603": { en: "Evergreen Marine", zh: "長榮" },
+};
 
 function CustomizedContent(props: TreemapNode): JSX.Element {
   const { root, depth, x, y, width, height, index, name } = props;
@@ -154,6 +166,7 @@ function CustomizedContent(props: TreemapNode): JSX.Element {
 }
 
 export function TreemapDemoPage(): JSX.Element {
+  const { locale } = useI18n();
   const indexContribRanking = useRealtimeStore((state) => state.indexContribRanking);
   const indexContribSector = useRealtimeStore((state) => state.indexContribSector);
   
@@ -172,6 +185,19 @@ export function TreemapDemoPage(): JSX.Element {
   const formatContribution = (value: number): string => {
     const sign = value > 0 ? "+" : "";
     return `${sign}${value.toFixed(2)}`;
+  };
+
+  const getStockName = (symbol: string): string | null => {
+    const stockInfo = STOCK_NAME_MAP[symbol];
+    if (!stockInfo) {
+      return null;
+    }
+    return locale === "zh-TW" ? stockInfo.zh : stockInfo.en;
+  };
+
+  const formatStockLabel = (symbol: string): string => {
+    const stockName = getStockName(symbol);
+    return stockName ? `${symbol} ${stockName}` : symbol;
   };
 
   return (
@@ -223,7 +249,7 @@ export function TreemapDemoPage(): JSX.Element {
                       {item.rank_no}
                     </span>
                     <span className="font-medium text-foreground">
-                      {item.symbol}
+                      {formatStockLabel(item.symbol)}
                     </span>
                   </div>
                   <span className="font-medium text-rose-500">
@@ -249,7 +275,7 @@ export function TreemapDemoPage(): JSX.Element {
                       {item.rank_no}
                     </span>
                     <span className="font-medium text-foreground">
-                      {item.symbol}
+                      {formatStockLabel(item.symbol)}
                     </span>
                   </div>
                   <span className="font-medium text-emerald-500">
