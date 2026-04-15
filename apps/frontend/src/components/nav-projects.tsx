@@ -7,6 +7,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 import { Link } from "react-router-dom"
+import { useShellNavigation } from "@/app/navigation/ShellNavigationContext"
 import { useT } from "@/lib/i18n"
 
 export function NavProjects({
@@ -22,6 +23,7 @@ export function NavProjects({
 }) {
   const t = useT();
   const { isMobile, setOpenMobile } = useSidebar();
+  const { createLinkClickHandler } = useShellNavigation();
 
   function handleMobileNavClick(): void {
     if (isMobile) {
@@ -36,7 +38,10 @@ export function NavProjects({
         {projects.map((item) => (
           <SidebarMenuItem key={item.name}>
             <SidebarMenuButton asChild isActive={pathname === item.url}>
-              <Link to={item.url} onClick={handleMobileNavClick}>
+              <Link
+                to={item.url}
+                onClick={createLinkClickHandler(item.url, handleMobileNavClick)}
+              >
                 {item.icon}
                 <span>{item.name}</span>
               </Link>

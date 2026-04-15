@@ -18,9 +18,8 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { ChevronsUpDownIcon, PlusIcon } from "lucide-react";
+import { useShellNavigation } from "@/app/navigation/ShellNavigationContext";
 import { useT } from "@/lib/i18n";
-
-import { useNavigate } from "react-router-dom";
 
 export function TeamSwitcher({
   teams,
@@ -36,7 +35,7 @@ export function TeamSwitcher({
   const t = useT();
   const { isMobile } = useSidebar();
   const [activeTeam, setActiveTeam] = React.useState(teams[0]);
-  const navigate = useNavigate();
+  const { navigateWithTransition } = useShellNavigation();
 
   if (!activeTeam) {
     return null;
@@ -44,7 +43,7 @@ export function TeamSwitcher({
 
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault(); // 阻止默认刷新行为
-    navigate("/dashboard");
+    navigateWithTransition("/dashboard");
   };
 
   const teamButton = (

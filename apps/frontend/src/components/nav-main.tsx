@@ -16,6 +16,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 import { ChevronRightIcon } from "lucide-react"
+import { useShellNavigation } from "@/app/navigation/ShellNavigationContext"
 import { useT } from "@/lib/i18n"
 
 export function NavMain({
@@ -36,6 +37,7 @@ export function NavMain({
 }) {
   const t = useT();
   const { isMobile, setOpenMobile } = useSidebar();
+  const { createLinkClickHandler } = useShellNavigation();
 
   function handleMobileNavClick(): void {
     if (isMobile) {
@@ -67,7 +69,10 @@ export function NavMain({
                   {item.items?.map((subItem) => (
                     <SidebarMenuSubItem key={subItem.title}>
                       <SidebarMenuSubButton asChild isActive={pathname === subItem.url}>
-                        <Link to={subItem.url} onClick={handleMobileNavClick}>
+                        <Link
+                          to={subItem.url}
+                          onClick={createLinkClickHandler(subItem.url, handleMobileNavClick)}
+                        >
                           <span>{subItem.title}</span>
                         </Link>
                       </SidebarMenuSubButton>

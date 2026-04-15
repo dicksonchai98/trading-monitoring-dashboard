@@ -3,9 +3,11 @@ import { Fragment, useEffect, useState } from "react";
 import { Languages, Moon, Sun } from "lucide-react";
 import { Outlet, Link, useLocation } from "react-router-dom";
 import { AppSidebar } from "@/components/app-sidebar";
+import { PageSkeleton } from "@/components/ui/page-skeleton";
 import { SidebarInset, SidebarProvider, SidebarSeparator, SidebarTrigger } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
+import { ShellNavigationProvider, useShellNavigation } from "@/app/navigation/ShellNavigationContext";
 import { useI18n, type TranslationKey } from "@/lib/i18n";
 
 const COLOR_MODE_STORAGE_KEY = "ui.color.mode";
@@ -45,9 +47,10 @@ const BREADCRUMB_LABEL_KEYS: Record<string, TranslationKey> = {
   settings: "shell.breadcrumb.settings",
 };
 
-export function AppShell(): JSX.Element {
+function AppShellContent(): JSX.Element {
   const { locale, setLocale, t } = useI18n();
   const location = useLocation();
+  const { createLinkClickHandler, isRouteLoading } = useShellNavigation();
   const [colorMode, setColorMode] = useState<ColorMode>(readInitialColorMode);
   const segments = location.pathname.split("/").filter(Boolean);
 
@@ -103,7 +106,9 @@ export function AppShell(): JSX.Element {
               <BreadcrumbList>
                 <BreadcrumbItem>
                   <BreadcrumbLink asChild>
-                    <Link to="/dashboard">{t("app.brand")}</Link>
+                    <Link to="/dashboard" onClick={createLinkClickHandler("/dashboard")}>
+                      {t("app.brand")}
+                    </Link>
                   </BreadcrumbLink>
                 </BreadcrumbItem>
                 {segments.map((segment, index) => {
@@ -118,7 +123,9 @@ export function AppShell(): JSX.Element {
                           <BreadcrumbPage>{label}</BreadcrumbPage>
                         ) : (
                           <BreadcrumbLink asChild>
-                            <Link to={href}>{label}</Link>
+                            <Link to={href} onClick={createLinkClickHandler(href)}>
+                              {label}
+                            </Link>
                           </BreadcrumbLink>
                         )}
                       </BreadcrumbItem>
@@ -135,10 +142,18 @@ export function AppShell(): JSX.Element {
             {renderHeaderActions("h-8 w-8")}
           </header>
           <div className="min-h-screen min-w-0 bg-background p-[var(--shell-padding)]">
-            <Outlet />
+            {isRouteLoading ? <PageSkeleton className="px-0 py-0" /> : <Outlet />}
           </div>
         </SidebarInset>
       </SidebarProvider>
     </TooltipProvider>
+  );
+}
+
+export function AppShell(): JSX.Element {
+  return (
+    <ShellNavigationProvider>
+      <AppShellContent />
+    </ShellNavigationProvider>
   );
 }
