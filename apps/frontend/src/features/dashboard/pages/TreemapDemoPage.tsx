@@ -2,6 +2,7 @@ import type { JSX } from "react";
 import { BentoGridSection } from "@/components/ui/bento-grid";
 import { PageLayout } from "@/components/ui/page-layout";
 import { useRealtimeStore } from "@/features/realtime/store/realtime.store";
+import { useI18n } from "@/lib/i18n";
 import { ResponsiveContainer, Treemap, type TreemapNode } from "recharts";
 
 const data = [
@@ -73,16 +74,57 @@ const MOCK_INDEX_CONTRIB_RANKING = {
     { rank_no: 5, symbol: "2603", contribution_points: -0.73 },
   ],
 };
+
+const STOCK_NAME_MAP: Record<string, { en: string; zh: string }> = {
+  "1301": { en: "Formosa Plastics", zh: "台塑" },
+  "1303": { en: "Nan Ya Plastics", zh: "南亞" },
+  "2002": { en: "China Steel", zh: "中鋼" },
+  "2207": { en: "Hotai Motor", zh: "和泰車" },
+  "2303": { en: "UMC", zh: "聯電" },
+  "2317": { en: "Hon Hai", zh: "鴻海" },
+  "2330": { en: "TSMC", zh: "台積電" },
+  "2382": { en: "Quanta", zh: "廣達" },
+  "2412": { en: "Chunghwa Telecom", zh: "中華電" },
+  "2454": { en: "MediaTek", zh: "聯發科" },
+  "2603": { en: "Evergreen Marine", zh: "長榮" },
+  "2615": { en: "Wan Hai", zh: "萬海" },
+  "2881": { en: "Fubon Financial", zh: "富邦金" },
+  "2882": { en: "Cathay Financial", zh: "國泰金" },
+  "2884": { en: "E.Sun Financial", zh: "玉山金" },
+  "2891": { en: "CTBC Financial", zh: "中信金" },
+  "2892": { en: "First Financial", zh: "第一金" },
+  "3035": { en: "Alchip", zh: "智原" },
+  "3045": { en: "Taiwan Mobile", zh: "台灣大" },
+  "3711": { en: "ASE Technology", zh: "日月光投控" },
+};
+
 const TREEMAP_PANEL_HEIGHT_CLASS = "h-[520px]";
 
-function CustomizedContent(props: TreemapNode): JSX.Element {
-  const { root, depth, x, y, width, height, index, name } = props;
+function getStockName(symbol: string, locale: string): string | null {
+  const stockInfo = STOCK_NAME_MAP[symbol];
+  if (!stockInfo) {
+    return null;
+  }
+  return locale === "zh-TW" ? stockInfo.zh : stockInfo.en;
+}
+
+function formatStockLabel(symbol: string, locale: string): string {
+  const stockName = getStockName(symbol, locale);
+  return stockName ? `${symbol} ${stockName}` : symbol;
+}
+
+function CustomizedContent(
+  props: TreemapNode & { stockName?: string | null },
+): JSX.Element {
+  const { root, depth, x, y, width, height, index, name, stockName } = props;
 
   // contribution_points is directly on props, not in payload
   const contributionPoints = (props as any).contribution_points;
 
   const showSectorLabel = depth === 1 && width > 80 && height > 28;
   const showSymbolLabel = depth === 2 && width > 34 && height > 18;
+  const showStockNameLabel =
+    depth === 2 && Boolean(stockName) && width > 72 && height > 42;
   const showContributionLabel =
     depth === 2 && showSymbolLabel && typeof contributionPoints === "number";
   const contributionColor =
@@ -127,7 +169,17 @@ function CustomizedContent(props: TreemapNode): JSX.Element {
       {showSymbolLabel ? (
         <text
           x={x + width / 2}
-          y={y + height / 2 + (showContributionLabel ? -8 : 4)}
+          y={
+            y +
+            height / 2 +
+            (showContributionLabel
+              ? showStockNameLabel
+                ? -14
+                : -8
+              : showStockNameLabel
+                ? -4
+                : 4)
+          }
           textAnchor="middle"
           fill="#f8fafc"
           fontSize={13}
@@ -136,10 +188,22 @@ function CustomizedContent(props: TreemapNode): JSX.Element {
           {name}
         </text>
       ) : null}
+      {showStockNameLabel ? (
+        <text
+          x={x + width / 2}
+          y={y + height / 2 + (showContributionLabel ? 0 : 12)}
+          textAnchor="middle"
+          fill="#f8fafc"
+          fontSize={10}
+          fontWeight={400}
+        >
+          {stockName}
+        </text>
+      ) : null}
       {showContributionLabel ? (
         <text
           x={x + width / 2}
-          y={y + height / 2 + 12}
+          y={y + height / 2 + (showStockNameLabel ? 16 : 12)}
           textAnchor="middle"
           fill={contributionColor}
           stroke="none"
@@ -154,6 +218,7 @@ function CustomizedContent(props: TreemapNode): JSX.Element {
 }
 
 export function TreemapDemoPage(): JSX.Element {
+  const { locale } = useI18n();
   const indexContribRanking = useRealtimeStore((state) => state.indexContribRanking);
   const indexContribSector = useRealtimeStore((state) => state.indexContribSector);
   
@@ -198,7 +263,16 @@ export function TreemapDemoPage(): JSX.Element {
                 aspectRatio={4 / 3}
                 stroke="#fff"
                 fill="#8884d8"
-                content={CustomizedContent}
+                content={(props) => (
+                  <CustomizedContent
+                    {...props}
+                    stockName={
+                      typeof props.name === "string"
+                        ? getStockName(props.name, locale)
+                        : null
+                    }
+                  />
+                )}
                 isAnimationActive={false}
               />
             </ResponsiveContainer>
@@ -223,7 +297,7 @@ export function TreemapDemoPage(): JSX.Element {
                       {item.rank_no}
                     </span>
                     <span className="font-medium text-foreground">
-                      {item.symbol}
+                      {formatStockLabel(item.symbol, locale)}
                     </span>
                   </div>
                   <span className="font-medium text-rose-500">
@@ -249,7 +323,7 @@ export function TreemapDemoPage(): JSX.Element {
                       {item.rank_no}
                     </span>
                     <span className="font-medium text-foreground">
-                      {item.symbol}
+                      {formatStockLabel(item.symbol, locale)}
                     </span>
                   </div>
                   <span className="font-medium text-emerald-500">
