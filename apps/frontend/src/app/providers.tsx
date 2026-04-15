@@ -1,5 +1,6 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import type { JSX, PropsWithChildren } from "react";
+import { DashboardPrefetchBootstrap } from "@/app/DashboardPrefetchBootstrap";
 import { RealtimeBootstrap } from "@/app/RealtimeBootstrap";
 import { Toaster } from "@/components/ui/sonner";
 import { SessionBootstrap } from "@/app/SessionBootstrap";
@@ -11,6 +12,7 @@ export function AppProviders({ children }: PropsWithChildren): JSX.Element {
     <QueryClientProvider client={queryClient}>
       <I18nProvider>
         <SessionBootstrap>
+          <DashboardPrefetchBootstrap />
           <RealtimeBootstrap />
           {children}
           <Toaster />

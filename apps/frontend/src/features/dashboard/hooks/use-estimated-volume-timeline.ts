@@ -1,13 +1,14 @@
-import { useEffect, useRef, useState } from "react";
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   DEFAULT_ORDER_FLOW_CODE,
-  getEstimatedVolumeBaseline,
 } from "@/features/dashboard/api/market-overview";
 import {
   applyEstimatedVolumeRealtimePatch,
   buildEstimatedVolumeBaseline,
   type EstimatedVolumeSeriesPoint,
 } from "@/features/dashboard/lib/estimated-volume-mapper";
+import { dashboardEstimatedVolumeBaselineQueryOptions } from "@/features/dashboard/lib/dashboard-queries";
 import { useMarketSummaryLatest } from "@/features/realtime/hooks/use-market-summary-latest";
 import { useAuthStore } from "@/lib/store/auth-store";
 
@@ -68,115 +69,63 @@ export function useEstimatedVolumeTimeline(): UseEstimatedVolumeTimelineResult {
   const resolved = useAuthStore((state) => state.resolved);
   const role = useAuthStore((state) => state.role);
   const marketSummaryLatest = useMarketSummaryLatest(DEFAULT_ORDER_FLOW_CODE);
+  const isEnabled = resolved && Boolean(token) && role !== "visitor";
+  const baselineQuery = useQuery({
+    ...dashboardEstimatedVolumeBaselineQueryOptions(
+      token ?? "",
+      DEFAULT_ORDER_FLOW_CODE,
+    ),
+    enabled: isEnabled,
+  });
 
-  const [series, setSeries] = useState<EstimatedVolumeSeriesPoint[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-  const [baselineReady, setBaselineReady] = useState<boolean>(false);
-  const yesterdayByMinuteOfDayRef = useRef<Record<number, number>>({});
+  const baseline = useMemo(
+    () =>
+      buildEstimatedVolumeBaseline(
+        baselineQuery.data?.marketSummaryToday ?? [],
+        baselineQuery.data?.marketSummaryYesterday ?? [],
+      ),
+    [baselineQuery.data],
+  );
 
-  useEffect(() => {
-    let cancelled = false;
-    const controller = new AbortController();
-
-    setBaselineReady(false);
-    yesterdayByMinuteOfDayRef.current = {};
-
-    if (!resolved) {
-      setSeries([]);
-      setLoading(true);
-      setError(null);
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    if (!token || role === "visitor") {
-      setSeries([]);
-      setLoading(false);
-      setError(null);
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    setSeries([]);
-    setLoading(true);
-    setError(null);
-
-    void getEstimatedVolumeBaseline(token, DEFAULT_ORDER_FLOW_CODE, controller.signal)
-      .then(({ marketSummaryToday, marketSummaryYesterday }) => {
-        if (cancelled) {
-          return;
-        }
-
-        const baseline = buildEstimatedVolumeBaseline(
-          marketSummaryToday,
-          marketSummaryYesterday,
-        );
-        yesterdayByMinuteOfDayRef.current = baseline.yesterdayByMinuteOfDay;
-        setSeries(baseline.series);
-        setBaselineReady(true);
-        setLoading(false);
-      })
-      .catch((err: unknown) => {
-        if (cancelled) {
-          return;
-        }
-
-        setSeries([]);
-        setError(resolveErrorMessage(err));
-        setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-      controller.abort();
-    };
-  }, [resolved, role, token]);
-
-  useEffect(() => {
-    if (!baselineReady || !marketSummaryLatest) {
-      return;
+  const series = useMemo(() => {
+    if (!marketSummaryLatest) {
+      return baseline.series;
     }
     if (
       typeof marketSummaryLatest.estimated_turnover !== "number" ||
       !Number.isFinite(marketSummaryLatest.estimated_turnover)
     ) {
-      return;
+      return baseline.series;
     }
 
     const minuteTs = resolveRealtimeMinuteTs(marketSummaryLatest);
     if (minuteTs === null) {
-      return;
+      return baseline.series;
     }
     const { sessionStartMs, sessionEndMs } = resolveSessionBoundsMs(Date.now());
     if (minuteTs < sessionStartMs || minuteTs > sessionEndMs) {
-      return;
-    }
-    const estimatedTurnover = marketSummaryLatest.estimated_turnover;
-    if (typeof estimatedTurnover !== "number" || !Number.isFinite(estimatedTurnover)) {
-      return;
+      return baseline.series;
     }
 
-    setSeries((currentSeries) =>
-      applyEstimatedVolumeRealtimePatch(
-        currentSeries,
-        {
-          minuteTs,
-          todayEstimated: estimatedTurnover,
-          yesterdayEstimated: marketSummaryLatest.yesterday_estimated_turnover,
-          estimatedDiff: marketSummaryLatest.estimated_turnover_diff,
-        },
-        yesterdayByMinuteOfDayRef.current,
-      ),
+    return applyEstimatedVolumeRealtimePatch(
+      baseline.series,
+      {
+        minuteTs,
+        todayEstimated: marketSummaryLatest.estimated_turnover,
+        yesterdayEstimated: marketSummaryLatest.yesterday_estimated_turnover,
+        estimatedDiff: marketSummaryLatest.estimated_turnover_diff,
+      },
+      baseline.yesterdayByMinuteOfDay,
     );
-  }, [baselineReady, marketSummaryLatest]);
+  }, [baseline.series, baseline.yesterdayByMinuteOfDay, marketSummaryLatest]);
 
   return {
     series,
     latest: resolveLatestPoint(series),
-    loading,
-    error,
+    loading: !resolved ? true : baselineQuery.isLoading,
+    error:
+      isEnabled && baselineQuery.error
+        ? resolveErrorMessage(baselineQuery.error)
+        : null,
   };
 }

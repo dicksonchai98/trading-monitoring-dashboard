@@ -1,10 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   DEFAULT_ORDER_FLOW_CODE,
-  getDailyAmplitudeHistory,
-  getOrderFlowBaseline,
 } from "@/features/dashboard/api/market-overview";
 import type { DailyAmplitudePoint, KbarTodayPoint } from "@/features/dashboard/api/types";
+import {
+  dashboardDailyAmplitudeQueryOptions,
+  dashboardOrderFlowBaselineQueryOptions,
+} from "@/features/dashboard/lib/dashboard-queries";
 import { useKbarCurrent } from "@/features/realtime/hooks/use-kbar-current";
 import { useAuthStore } from "@/lib/store/auth-store";
 
@@ -175,82 +178,31 @@ export function useParticipantAmplitude(
   const resolved = useAuthStore((state) => state.resolved);
   const role = useAuthStore((state) => state.role);
   const kbarCurrent = useKbarCurrent(code);
+  const isEnabled = resolved && Boolean(token) && role !== "visitor";
+  const dailyAmplitudeQuery = useQuery({
+    ...dashboardDailyAmplitudeQueryOptions(token ?? "", code, 19),
+    enabled: isEnabled,
+  });
+  const baselineQuery = useQuery({
+    ...dashboardOrderFlowBaselineQueryOptions(token ?? "", code),
+    enabled: isEnabled,
+  });
 
-  const [closedSeries, setClosedSeries] = useState<ParticipantCandlePoint[]>([]);
-  const [todayRealtimeCandle, setTodayRealtimeCandle] = useState<ParticipantCandlePoint | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const closedSeries = useMemo(
+    () => toClosedSeries(dailyAmplitudeQuery.data ?? []),
+    [dailyAmplitudeQuery.data],
+  );
+  const todayRealtimeCandle = useMemo(() => {
+    const aggregatedTodayCandle = aggregateTodayKbar(
+      baselineQuery.data?.kbarToday ?? [],
+    );
 
-  useEffect(() => {
-    let cancelled = false;
-    const controller = new AbortController();
-    setClosedSeries([]);
-    setTodayRealtimeCandle(null);
-
-    if (!resolved) {
-      setLoading(true);
-      setError(null);
-      return () => {
-        cancelled = true;
-        controller.abort();
-      };
-    }
-
-    if (!token || role === "visitor") {
-      setLoading(false);
-      setError(null);
-      return () => {
-        cancelled = true;
-        controller.abort();
-      };
-    }
-
-    setLoading(true);
-    setError(null);
-
-    void Promise.allSettled([
-      getDailyAmplitudeHistory(token, code, 19, controller.signal),
-      getOrderFlowBaseline(token, code, controller.signal),
-    ])
-      .then((results) => {
-        if (cancelled) {
-          return;
-        }
-
-        const [dailyResult, baselineResult] = results;
-        if (dailyResult.status !== "fulfilled") {
-          throw dailyResult.reason;
-        }
-
-        setClosedSeries(toClosedSeries(dailyResult.value));
-        if (baselineResult.status === "fulfilled") {
-          setTodayRealtimeCandle(aggregateTodayKbar(baselineResult.value.kbarToday));
-        } else {
-          setTodayRealtimeCandle(null);
-        }
-        setLoading(false);
-      })
-      .catch((err: unknown) => {
-        if (cancelled) {
-          return;
-        }
-        setError(resolveErrorMessage(err));
-        setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-      controller.abort();
-    };
-  }, [code, resolved, role, token]);
-
-  useEffect(() => {
     if (!kbarCurrent) {
-      return;
+      return aggregatedTodayCandle;
     }
 
-    setTodayRealtimeCandle((current) => patchRealtimeTodayCandle(current, kbarCurrent));
-  }, [kbarCurrent]);
+    return patchRealtimeTodayCandle(aggregatedTodayCandle, kbarCurrent);
+  }, [baselineQuery.data?.kbarToday, kbarCurrent]);
 
   const summary = useMemo(() => computeSummary(closedSeries), [closedSeries]);
 
@@ -264,7 +216,11 @@ export function useParticipantAmplitude(
   return {
     summary,
     series,
-    loading,
-    error,
+    loading:
+      !resolved ? true : dailyAmplitudeQuery.isLoading || baselineQuery.isLoading,
+    error:
+      isEnabled && dailyAmplitudeQuery.error
+        ? resolveErrorMessage(dailyAmplitudeQuery.error)
+        : null,
   };
 }

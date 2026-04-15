@@ -1,6 +1,9 @@
+import type { ReactNode } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { DEFAULT_ORDER_FLOW_CODE, getOrderFlowBaseline } from "@/features/dashboard/api/market-overview";
 import { useMarketOverviewTimeline } from "@/features/dashboard/hooks/use-market-overview-timeline";
+import { buildDashboardOrderFlowBaselineQueryKey } from "@/features/dashboard/lib/query-keys";
 import { useRealtimeStore } from "@/features/realtime/store/realtime.store";
 import { useAuthStore } from "@/lib/store/auth-store";
 
@@ -13,6 +16,12 @@ describe("useMarketOverviewTimeline", () => {
   const minute0 = Date.parse("2026-04-08T09:00:00+08:00");
   const minute1 = Date.parse("2026-04-08T09:01:00+08:00");
   const getOrderFlowBaselineMock = vi.mocked(getOrderFlowBaseline);
+
+  function createWrapper(queryClient: QueryClient) {
+    return function Wrapper({ children }: { children: ReactNode }) {
+      return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+    };
+  }
 
   beforeEach(() => {
     act(() => {
@@ -43,6 +52,9 @@ describe("useMarketOverviewTimeline", () => {
   });
 
   it("builds baseline series from today's TXFD6 kbar and bidask responses", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
     getOrderFlowBaselineMock.mockResolvedValueOnce({
       kbarToday: [
         {
@@ -72,7 +84,9 @@ describe("useMarketOverviewTimeline", () => {
       ],
     });
 
-    const { result } = renderHook(() => useMarketOverviewTimeline());
+    const { result } = renderHook(() => useMarketOverviewTimeline(), {
+      wrapper: createWrapper(queryClient),
+    });
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
@@ -82,6 +96,36 @@ describe("useMarketOverviewTimeline", () => {
       expect.any(AbortSignal),
     );
     expect(DEFAULT_ORDER_FLOW_CODE).toBe("TXFD6");
+    expect(
+      queryClient.getQueryData(buildDashboardOrderFlowBaselineQueryKey("TXFD6")),
+    ).toEqual({
+      kbarToday: [
+        {
+          code: "TXFD6",
+          trade_date: "2026-04-08",
+          minute_ts: minute0,
+          open: 22300,
+          high: 22310,
+          low: 22290,
+          close: 22305,
+          volume: 12,
+        },
+        {
+          code: "TXFD6",
+          trade_date: "2026-04-08",
+          minute_ts: minute1,
+          open: 22305,
+          high: 22315,
+          low: 22300,
+          close: 22312,
+          volume: 15,
+        },
+      ],
+      metricToday: [
+        { main_force_big_order: 100, ts: minute0 + 1000 },
+        { main_force_big_order: 240, ts: minute1 + 2000 },
+      ],
+    });
     expect(result.current.error).toBeNull();
     expect(result.current.series).toEqual([
       {
@@ -100,6 +144,9 @@ describe("useMarketOverviewTimeline", () => {
   });
 
   it("patches the current minute without recomputing the whole series", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
     getOrderFlowBaselineMock.mockResolvedValueOnce({
       kbarToday: [
         {
@@ -129,7 +176,9 @@ describe("useMarketOverviewTimeline", () => {
       ],
     });
 
-    const { result } = renderHook(() => useMarketOverviewTimeline());
+    const { result } = renderHook(() => useMarketOverviewTimeline(), {
+      wrapper: createWrapper(queryClient),
+    });
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
@@ -169,6 +218,9 @@ describe("useMarketOverviewTimeline", () => {
   });
 
   it("retains metric chipDelta when metric arrives before the first kbar for a new minute", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
     getOrderFlowBaselineMock.mockResolvedValueOnce({
       kbarToday: [
         {
@@ -187,7 +239,9 @@ describe("useMarketOverviewTimeline", () => {
       ],
     });
 
-    const { result } = renderHook(() => useMarketOverviewTimeline());
+    const { result } = renderHook(() => useMarketOverviewTimeline(), {
+      wrapper: createWrapper(queryClient),
+    });
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
@@ -239,12 +293,17 @@ describe("useMarketOverviewTimeline", () => {
   });
 
   it("keeps realtime updates working when baseline is empty at session open", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
     getOrderFlowBaselineMock.mockResolvedValueOnce({
       kbarToday: [],
       metricToday: [],
     });
 
-    const { result } = renderHook(() => useMarketOverviewTimeline());
+    const { result } = renderHook(() => useMarketOverviewTimeline(), {
+      wrapper: createWrapper(queryClient),
+    });
 
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.error).toBeNull();
@@ -285,6 +344,9 @@ describe("useMarketOverviewTimeline", () => {
   });
 
   it("skips baseline fetch when the user is a visitor", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
     act(() => {
       useAuthStore.setState({
         token: null,
@@ -295,7 +357,9 @@ describe("useMarketOverviewTimeline", () => {
       });
     });
 
-    const { result } = renderHook(() => useMarketOverviewTimeline());
+    const { result } = renderHook(() => useMarketOverviewTimeline(), {
+      wrapper: createWrapper(queryClient),
+    });
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 

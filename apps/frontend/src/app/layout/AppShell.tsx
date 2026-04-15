@@ -8,7 +8,10 @@ import { SidebarInset, SidebarProvider, SidebarSeparator, SidebarTrigger } from 
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 import { ShellNavigationProvider, useShellNavigation } from "@/app/navigation/ShellNavigationContext";
+import { prefetchDashboardRouteData } from "@/features/dashboard/lib/dashboard-route-prefetch";
 import { useI18n, type TranslationKey } from "@/lib/i18n";
+import { queryClient } from "@/lib/query/client";
+import { useAuthStore } from "@/lib/store/auth-store";
 
 const COLOR_MODE_STORAGE_KEY = "ui.color.mode";
 
@@ -51,8 +54,19 @@ function AppShellContent(): JSX.Element {
   const { locale, setLocale, t } = useI18n();
   const location = useLocation();
   const { createLinkClickHandler, isRouteLoading } = useShellNavigation();
+  const token = useAuthStore((state) => state.token);
+  const role = useAuthStore((state) => state.role);
+  const resolved = useAuthStore((state) => state.resolved);
   const [colorMode, setColorMode] = useState<ColorMode>(readInitialColorMode);
   const segments = location.pathname.split("/").filter(Boolean);
+
+  function prefetchDashboard(): Promise<void> {
+    return prefetchDashboardRouteData(queryClient, {
+      resolved,
+      token,
+      role,
+    });
+  }
 
   useEffect(() => {
     applyColorModeToDocument(colorMode);
@@ -106,7 +120,14 @@ function AppShellContent(): JSX.Element {
               <BreadcrumbList>
                 <BreadcrumbItem>
                   <BreadcrumbLink asChild>
-                    <Link to="/dashboard" onClick={createLinkClickHandler("/dashboard")}>
+                    <Link
+                      to="/dashboard"
+                      onClick={createLinkClickHandler(
+                        "/dashboard",
+                        undefined,
+                        prefetchDashboard,
+                      )}
+                    >
                       {t("app.brand")}
                     </Link>
                   </BreadcrumbLink>

@@ -15,10 +15,15 @@ const SHELL_NAVIGATION_SKELETON_DELAY_MS = 260;
 
 interface ShellNavigationContextValue {
   isRouteLoading: boolean;
-  navigateWithTransition: (to: To, options?: NavigateOptions) => void;
+  navigateWithTransition: (
+    to: To,
+    options?: NavigateOptions,
+    beforeNavigate?: () => Promise<void> | void,
+  ) => void;
   createLinkClickHandler: (
     to: To,
     onNavigate?: () => void,
+    beforeNavigate?: () => Promise<void> | void,
   ) => (event: MouseEvent<HTMLAnchorElement>) => void;
 }
 
@@ -53,7 +58,11 @@ export function ShellNavigationProvider({ children }: PropsWithChildren): JSX.El
   const [targetPathname, setTargetPathname] = useState<string | null>(null);
 
   const navigateWithTransition = useCallback(
-    (to: To, options?: NavigateOptions): void => {
+    (
+      to: To,
+      options?: NavigateOptions,
+      beforeNavigate?: () => Promise<void> | void,
+    ): void => {
       const nextPathname = resolvePathname(to);
 
       if (nextPathname !== null && nextPathname === location.pathname) {
@@ -64,22 +73,32 @@ export function ShellNavigationProvider({ children }: PropsWithChildren): JSX.El
 
       setRouteLoading(true);
       setTargetPathname(nextPathname);
-      startTransition(() => {
-        navigate(to, options);
-      });
+
+      void Promise.resolve(beforeNavigate?.())
+        .catch(() => undefined)
+        .finally(() => {
+          startTransition(() => {
+            navigate(to, options);
+          });
+        });
     },
     [location.pathname, navigate, startTransition],
   );
 
   const createLinkClickHandler = useCallback(
-    (to: To, onNavigate?: () => void) => (event: MouseEvent<HTMLAnchorElement>): void => {
+    (
+      to: To,
+      onNavigate?: () => void,
+      beforeNavigate?: () => Promise<void> | void,
+    ) =>
+    (event: MouseEvent<HTMLAnchorElement>): void => {
       if (!shouldHandleClientNavigation(event)) {
         return;
       }
 
       event.preventDefault();
       onNavigate?.();
-      navigateWithTransition(to);
+      navigateWithTransition(to, undefined, beforeNavigate);
     },
     [navigateWithTransition],
   );

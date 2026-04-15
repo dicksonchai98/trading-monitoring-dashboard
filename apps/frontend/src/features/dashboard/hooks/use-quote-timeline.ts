@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
-import { DEFAULT_ORDER_FLOW_CODE, getQuoteToday } from "@/features/dashboard/api/market-overview";
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { DEFAULT_ORDER_FLOW_CODE } from "@/features/dashboard/api/market-overview";
+import { dashboardQuoteTodayQueryOptions } from "@/features/dashboard/lib/dashboard-queries";
 import { minuteKeyFromEpochMs } from "@/features/dashboard/lib/market-overview-mapper";
 import { useQuoteLatest } from "@/features/realtime/hooks/use-quote-latest";
 import { useAuthStore } from "@/lib/store/auth-store";
@@ -14,9 +16,21 @@ interface UseQuoteTimelineResult extends QuoteMinuteMaps {
   error: string | null;
 }
 
-function resolvePointTs(point: { ts?: number; event_ts?: string }): number | null {
+function resolvePointTs(point: {
+  ts?: number | string;
+  event_ts?: number | string;
+}): number | null {
   if (typeof point.ts === "number" && Number.isFinite(point.ts)) {
     return point.ts;
+  }
+  if (typeof point.ts === "string") {
+    const parsed = Date.parse(point.ts);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+  if (typeof point.event_ts === "number" && Number.isFinite(point.event_ts)) {
+    return point.event_ts;
   }
   if (typeof point.event_ts === "string") {
     const parsed = Date.parse(point.event_ts);
@@ -41,81 +55,35 @@ export function useQuoteTimeline(
   const resolved = useAuthStore((state) => state.resolved);
   const role = useAuthStore((state) => state.role);
   const quoteLatest = useQuoteLatest(code);
-
-  const [baseMaps, setBaseMaps] = useState<QuoteMinuteMaps>({
-    mainChipByMinute: {},
-    longShortForceByMinute: {},
+  const isEnabled = resolved && Boolean(token) && role !== "visitor";
+  const baselineQuery = useQuery({
+    ...dashboardQuoteTodayQueryOptions(token ?? "", code),
+    enabled: isEnabled,
   });
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    const controller = new AbortController();
+  const baseMaps = useMemo(() => {
+    const mainChipByMinute: Record<number, number> = {};
+    const longShortForceByMinute: Record<number, number> = {};
 
-    if (!resolved) {
-      setLoading(true);
-      setError(null);
-      setBaseMaps({ mainChipByMinute: {}, longShortForceByMinute: {} });
-      return () => {
-        cancelled = true;
-      };
+    for (const row of baselineQuery.data ?? []) {
+      const ts = resolvePointTs(row);
+      if (ts === null) {
+        continue;
+      }
+      const minuteTs = minuteKeyFromEpochMs(ts);
+      if (typeof row.main_chip === "number" && Number.isFinite(row.main_chip)) {
+        mainChipByMinute[minuteTs] = row.main_chip;
+      }
+      if (
+        typeof row.long_short_force === "number" &&
+        Number.isFinite(row.long_short_force)
+      ) {
+        longShortForceByMinute[minuteTs] = row.long_short_force;
+      }
     }
 
-    if (!token || role === "visitor") {
-      setLoading(false);
-      setError(null);
-      setBaseMaps({ mainChipByMinute: {}, longShortForceByMinute: {} });
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    setLoading(true);
-    setError(null);
-
-    void getQuoteToday(token, code, controller.signal)
-      .then((rows) => {
-        if (cancelled) {
-          return;
-        }
-        const mainChipByMinute: Record<number, number> = {};
-        const longShortForceByMinute: Record<number, number> = {};
-
-        for (const row of rows) {
-          const ts = resolvePointTs(row);
-          if (ts === null) {
-            continue;
-          }
-          const minuteTs = minuteKeyFromEpochMs(ts);
-          if (typeof row.main_chip === "number" && Number.isFinite(row.main_chip)) {
-            mainChipByMinute[minuteTs] = row.main_chip;
-          }
-          if (
-            typeof row.long_short_force === "number" &&
-            Number.isFinite(row.long_short_force)
-          ) {
-            longShortForceByMinute[minuteTs] = row.long_short_force;
-          }
-        }
-
-        setBaseMaps({ mainChipByMinute, longShortForceByMinute });
-        setLoading(false);
-      })
-      .catch((err: unknown) => {
-        if (cancelled) {
-          return;
-        }
-        setBaseMaps({ mainChipByMinute: {}, longShortForceByMinute: {} });
-        setError(resolveErrorMessage(err));
-        setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-      controller.abort();
-    };
-  }, [code, resolved, role, token]);
+    return { mainChipByMinute, longShortForceByMinute };
+  }, [baselineQuery.data]);
 
   const mergedMaps = useMemo(() => {
     const mainChipByMinute = { ...baseMaps.mainChipByMinute };
@@ -143,8 +111,11 @@ export function useQuoteTimeline(
 
   return {
     ...mergedMaps,
-    loading,
-    error,
+    loading: !resolved ? true : baselineQuery.isLoading,
+    error:
+      isEnabled && baselineQuery.error
+        ? resolveErrorMessage(baselineQuery.error)
+        : null,
   };
 }
 

@@ -1,8 +1,14 @@
 import type { JSX } from "react";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, useLocation, useNavigate } from "react-router-dom";
 import { AppShell } from "@/app/layout/AppShell";
+import { prefetchDashboardRouteData } from "@/features/dashboard/lib/dashboard-route-prefetch";
 import { I18nProvider } from "@/lib/i18n";
+import { useAuthStore } from "@/lib/store/auth-store";
+
+vi.mock("@/features/dashboard/lib/dashboard-route-prefetch", () => ({
+  prefetchDashboardRouteData: vi.fn(),
+}));
 
 vi.mock("react-router-dom", async () => {
   const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom");
@@ -40,10 +46,18 @@ describe("AppShell", () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
+    vi.clearAllMocks();
     window.localStorage.clear();
     document.documentElement.removeAttribute("data-color-mode");
     document.documentElement.removeAttribute("lang");
     document.documentElement.classList.remove("dark");
+    useAuthStore.setState({
+      token: "token",
+      role: "member",
+      entitlement: "active",
+      resolved: true,
+      checkoutSessionId: null,
+    });
     Object.defineProperty(window, "matchMedia", {
       writable: true,
       value: vi.fn().mockImplementation((query: string) => ({
@@ -63,6 +77,13 @@ describe("AppShell", () => {
     Object.defineProperty(window, "innerWidth", { configurable: true, writable: true, value: 1024 });
     act(() => {
       window.dispatchEvent(new Event("resize"));
+    });
+    useAuthStore.setState({
+      token: null,
+      role: "visitor",
+      entitlement: "none",
+      resolved: false,
+      checkoutSessionId: null,
     });
     vi.runOnlyPendingTimers();
     vi.useRealTimers();
@@ -148,6 +169,27 @@ describe("AppShell", () => {
     expect(document.documentElement.getAttribute("lang")).toBe("zh-TW");
     expect(window.localStorage.getItem("ui.language.preset")).toBe("zh-TW");
     expect(screen.getAllByRole("button", { name: "Switch to English" }).length).toBeGreaterThan(0);
+  });
+
+  it("prefetches dashboard data on hover, focus, and click", async () => {
+    const prefetchMock = vi.mocked(prefetchDashboardRouteData);
+    prefetchMock.mockResolvedValue(undefined);
+
+    renderShell();
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+
+    const dashboardLink = screen.getByRole("link", { name: "Overview" });
+
+    await act(async () => {
+      fireEvent.mouseEnter(dashboardLink);
+      fireEvent.focus(dashboardLink);
+      fireEvent.click(dashboardLink);
+      await Promise.resolve();
+    });
+
+    expect(prefetchMock).toHaveBeenCalled();
   });
 });
 
