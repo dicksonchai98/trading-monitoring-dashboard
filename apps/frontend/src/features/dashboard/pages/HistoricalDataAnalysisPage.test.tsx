@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { getAnalyticsEvents, getEventStats } from "@/features/analytics/api/analytics";
 import { HistoricalDataAnalysisPage } from "@/features/dashboard/pages/HistoricalDataAnalysisPage";
@@ -9,6 +9,14 @@ vi.mock("@/features/analytics/api/analytics", () => ({
   getAnalyticsEvents: vi.fn(),
   getEventStats: vi.fn(),
 }));
+
+function createDeferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
+}
 
 describe("HistoricalDataAnalysisPage", () => {
   it("renders a single selected-event panel chart", async () => {
@@ -62,5 +70,45 @@ describe("HistoricalDataAnalysisPage", () => {
       expect.any(Object),
       expect.any(AbortSignal),
     );
+  });
+
+  it("shows event loading until the registry resolves, then adds all", async () => {
+    useAuthStore.setState({
+      token: "token",
+      role: "admin",
+      entitlement: "active",
+      resolved: true,
+      checkoutSessionId: null,
+    });
+
+    const eventsDeferred = createDeferred<{
+      events: Array<{ id: string; label: string }>;
+    }>();
+    vi.mocked(getAnalyticsEvents).mockReturnValue(eventsDeferred.promise);
+    vi.mocked(getEventStats).mockResolvedValue({ items: [] });
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/historical-data-analysis"]}>
+          <HistoricalDataAnalysisPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    expect(screen.getByTestId("historical-event-id-trigger")).toBeDisabled();
+    expect(
+      screen.getByTestId("historical-event-id-trigger-loading"),
+    ).toBeInTheDocument();
+
+    eventsDeferred.resolve({
+      events: [{ id: "day_up_gt_100", label: "Day up > 100" }],
+    });
+
+    expect(await screen.findByText("All events")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("historical-event-id-trigger"),
+      ).not.toBeDisabled();
+    });
   });
 });

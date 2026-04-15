@@ -385,7 +385,7 @@ export function TreemapDemoPage(): JSX.Element {
               <Treemap
                 data={treemapData}
                 dataKey="size"
-                aspectRatio={4 / 4}
+                aspectRatio={3 / 4}
                 stroke="#fff"
                 fill="#8884d8"
                 content={(props) => (

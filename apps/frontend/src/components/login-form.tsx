@@ -63,9 +63,7 @@ export function LoginForm({
             {t("auth.login.subtitle")}
           </Typography>
         </div>
-        {errorMessage ? (
-          <ApiStatusAlert message={errorMessage} />
-        ) : null}
+        {errorMessage ? <ApiStatusAlert message={errorMessage} /> : null}
         <Field data-invalid={Boolean(userIdError)}>
           <FieldLabel htmlFor="user-id">{t("auth.label.userId")}</FieldLabel>
           <Input
@@ -76,7 +74,10 @@ export function LoginForm({
             aria-invalid={Boolean(userIdError)}
             disabled={isPending}
           />
-          <FieldError errors={userIdErrors} className="text-xs leading-3 text-red-600" />
+          <FieldError
+            errors={userIdErrors}
+            className="text-xs leading-3 text-red-600"
+          />
         </Field>
         <Field data-invalid={Boolean(passwordError)}>
           <FieldLabel htmlFor="password">{t("auth.label.password")}</FieldLabel>
@@ -92,12 +93,20 @@ export function LoginForm({
             />
             <button
               type="button"
-              aria-label={showPassword ? t("auth.action.hidePassword") : t("auth.action.showPassword")}
+              aria-label={
+                showPassword
+                  ? t("auth.action.hidePassword")
+                  : t("auth.action.showPassword")
+              }
               className="absolute right-3 top-1/2 inline-flex -translate-y-1/2 items-center justify-center text-zinc-500 transition-colors hover:text-zinc-900"
               onClick={() => setShowPassword((value) => !value)}
               disabled={isPending}
             >
-              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              {showPassword ? (
+                <EyeOff className="h-4 w-4" />
+              ) : (
+                <Eye className="h-4 w-4" />
+              )}
             </button>
           </div>
           <FieldError

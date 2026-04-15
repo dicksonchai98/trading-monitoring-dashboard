@@ -52,14 +52,7 @@ export function HistoricalDataAnalysisOverview(): JSX.Element {
   });
 
   const eventOptions = eventsQuery.data?.events ?? [];
-  const eventSelectOptions = [
-    { value: "all", label: toEventLabel("all", t, "all") },
-    ...eventOptions.map((item) => ({
-      value: item.id,
-      label: toEventLabel(item.id, t, item.label ?? item.id),
-    })),
-  ];
-
+  const isEventsLoading = eventsQuery.isLoading;
   useEffect(() => {
     if (eventId === "all" || eventOptions.length === 0) {
       return;
@@ -73,11 +66,15 @@ export function HistoricalDataAnalysisOverview(): JSX.Element {
   const statsQuery = useQuery({
     queryKey: ["historical-event-stats", eventId, code],
     queryFn: ({ signal }) =>
-      getEventStats(token, {
-        eventId: eventId.trim(),
-        code,
-        flatThreshold: 0,
-      }, signal),
+      getEventStats(
+        token,
+        {
+          eventId: eventId.trim(),
+          code,
+          flatThreshold: 0,
+        },
+        signal,
+      ),
     enabled: !hasInvalidRequiredInput,
     retry: false,
   });
@@ -103,8 +100,11 @@ export function HistoricalDataAnalysisOverview(): JSX.Element {
       <HistoricalDataAnalysisFilters
         eventId={eventId}
         code={code}
-        eventOptions={eventSelectOptions}
-        isEventsLoading={eventsQuery.isLoading}
+        eventOptions={eventOptions.map((item) => ({
+          value: item.id,
+          label: toEventLabel(item.id, t, item.label ?? item.id),
+        }))}
+        isEventsLoading={isEventsLoading}
         onEventIdChange={setEventId}
         onCodeChange={setCode}
       />

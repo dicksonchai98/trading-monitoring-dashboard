@@ -1,4 +1,5 @@
 import type { ComponentProps, JSX, ReactNode } from "react";
+import { LoaderCircleIcon } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -26,6 +27,7 @@ type SelectFilterField = BaseFilterField & {
   type: "select";
   value: string;
   placeholder?: string;
+  loading?: boolean;
   options: FilterSelectOption[];
   onValueChange: (value: string) => void;
   triggerTestId?: string;
@@ -66,19 +68,27 @@ function FilterSelectField({
   value,
   ariaLabel,
   placeholder,
+  loading = false,
   options,
   onValueChange,
   triggerTestId,
 }: SelectFilterField): JSX.Element {
   return (
-    <Select value={value} onValueChange={onValueChange}>
+    <Select value={value} onValueChange={onValueChange} disabled={loading}>
       <SelectTrigger
         id={id}
         aria-label={ariaLabel}
         data-testid={triggerTestId}
         className="h-9 w-full rounded-sm border border-border bg-card px-3 text-sm text-foreground"
       >
-        <SelectValue placeholder={placeholder} />
+        {loading ? (
+          <LoaderCircleIcon
+            className="size-4 animate-spin text-muted-foreground"
+            data-testid={triggerTestId ? `${triggerTestId}-loading` : undefined}
+          />
+        ) : (
+          <SelectValue placeholder={placeholder} />
+        )}
       </SelectTrigger>
       <SelectContent className="rounded-sm border-border bg-card">
         <SelectGroup>
@@ -157,7 +167,12 @@ export function FilterLayer({
       })}
 
       {actions ? (
-        <div className={cn("flex items-center justify-start gap-2", actionsClassName)}>
+        <div
+          className={cn(
+            "flex items-center justify-start gap-2",
+            actionsClassName,
+          )}
+        >
           {actions}
         </div>
       ) : null}

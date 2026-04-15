@@ -104,9 +104,10 @@ function toHistogramRows(
   }
 
   return bins.map((bin, index) => {
-    const { start, end } = parseBinRange(bin);
+    const label = String(bin);
+    const { start, end } = parseBinRange(label);
     return {
-      label: bin,
+      label,
       count: counts[index] ?? 0,
       start,
       end,
@@ -126,23 +127,29 @@ export function HistoricalAmplitudeDistributionPage(): JSX.Element {
     queryFn: ({ signal }) => getAnalyticsMetrics(token, signal),
   });
   const metrics = metricsQuery.data?.metrics ?? [];
+  const firstMetricId = metrics[0]?.id ?? "";
 
   useEffect(() => {
-    if (!metricId && metrics.length > 0) {
-      setMetricId(metrics[0].id);
+    if (!metricId && firstMetricId) {
+      setMetricId(firstMetricId);
     }
-  }, [metricId, metrics]);
+  }, [firstMetricId, metricId]);
 
   const distributionQuery = useQuery({
     queryKey: ["historical-amplitude-distribution", metricId, code, version],
     queryFn: ({ signal }) =>
-      getDistributionStats(token, {
-        metricId,
-        code,
-        version,
-      }, signal),
+      getDistributionStats(
+        token,
+        {
+          metricId,
+          code,
+          version,
+        },
+        signal,
+      ),
     enabled: Boolean(metricId),
   });
+  const isMetricsLoading = metricsQuery.isLoading || metricsQuery.isFetching;
 
   const apiStatus = useMemo(() => {
     const err = distributionQuery.error ?? metricsQuery.error;
@@ -181,6 +188,7 @@ export function HistoricalAmplitudeDistributionPage(): JSX.Element {
         { value: "TXF", label: "TXF" },
       ],
       onValueChange: setCode,
+      triggerTestId: "amplitude-code-trigger",
     },
     {
       id: "amplitude-metric",
@@ -201,7 +209,9 @@ export function HistoricalAmplitudeDistributionPage(): JSX.Element {
                 disabled: true,
               },
             ],
+      loading: isMetricsLoading,
       onValueChange: setMetricId,
+      triggerTestId: "amplitude-metric-trigger",
     },
   ];
 

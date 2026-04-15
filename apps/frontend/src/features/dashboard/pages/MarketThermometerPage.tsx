@@ -167,6 +167,7 @@ function resolvePanelToneByStrength(
 export function MarketThermometerPage(): JSX.Element {
   const t = useT();
   const spotLatestList = useSpotLatestList();
+  const hasSpotLatestList = spotLatestList !== null;
 
   const marketStrengthPct =
     typeof spotLatestList?.market_strength_pct === "number" &&
@@ -294,12 +295,19 @@ export function MarketThermometerPage(): JSX.Element {
             className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-10"
             data-testid="market-heat-grid"
           >
-            {panels.length === 0 ? (
+            {!hasSpotLatestList ? (
               <div
                 className="col-span-full rounded-md border border-border bg-card p-3 text-xs text-muted-foreground sm:p-4 sm:text-sm"
                 data-testid="market-heat-empty"
               >
                 {t("dashboard.thermometer.waiting")}
+              </div>
+            ) : panels.length === 0 ? (
+              <div
+                className="col-span-full rounded-md border border-border bg-card p-3 text-xs text-muted-foreground sm:p-4 sm:text-sm"
+                data-testid="market-heat-empty"
+              >
+                {t("dashboard.thermometer.noSymbols")}
               </div>
             ) : (
               panels.map((panel) => {

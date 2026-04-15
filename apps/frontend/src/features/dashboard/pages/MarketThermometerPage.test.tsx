@@ -153,6 +153,23 @@ describe("MarketThermometerPage", () => {
     );
 
     expect(screen.getByTestId("market-heat-empty")).toBeInTheDocument();
+    expect(screen.getByTestId("market-heat-empty")).toHaveTextContent(
+      "No symbols",
+    );
+  });
+
+  it("renders waiting state only before any spot latest list arrives", () => {
+    useRealtimeStore.setState({
+      spotLatestList: null,
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/market-thermometer"]}>
+        <MarketThermometerPage />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByTestId("market-heat-empty")).toBeInTheDocument();
     expect(
       screen.getByText("Waiting for spot latest data..."),
     ).toBeInTheDocument();

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import {
   getAnalyticsMetrics,
@@ -14,6 +14,19 @@ vi.mock("@/features/analytics/api/analytics", () => ({
 }));
 
 describe("HistoricalAmplitudeDistributionPage", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
+
+  function createQueryClient(): QueryClient {
+    return new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    });
+  }
+
   it("renders histogram page and controls", async () => {
     useAuthStore.setState({
       token: "token",
@@ -42,12 +55,7 @@ describe("HistoricalAmplitudeDistributionPage", () => {
       },
     });
 
-    const queryClient = new QueryClient({
-      defaultOptions: {
-        queries: { retry: false },
-        mutations: { retry: false },
-      },
-    });
+    const queryClient = createQueryClient();
 
     render(
       <QueryClientProvider client={queryClient}>
@@ -104,12 +112,7 @@ describe("HistoricalAmplitudeDistributionPage", () => {
       },
     });
 
-    const queryClient = new QueryClient({
-      defaultOptions: {
-        queries: { retry: false },
-        mutations: { retry: false },
-      },
-    });
+    const queryClient = createQueryClient();
 
     render(
       <QueryClientProvider client={queryClient}>
@@ -122,5 +125,78 @@ describe("HistoricalAmplitudeDistributionPage", () => {
     expect(
       await screen.findByTestId("amplitude-histogram-chart"),
     ).toBeInTheDocument();
+  });
+
+  it("shows metric select loading while metrics are still fetching", () => {
+    useAuthStore.setState({
+      token: "token",
+      role: "admin",
+      entitlement: "active",
+      resolved: true,
+      checkoutSessionId: null,
+    });
+
+    vi.mocked(getAnalyticsMetrics).mockReturnValue(new Promise(() => {}));
+    vi.mocked(getDistributionStats).mockResolvedValue({
+      metric_id: "amplitude",
+      sample_count: 0,
+      mean: 0,
+      median: 0,
+      min: 0,
+      max: 0,
+      p75: 0,
+      p90: 0,
+      p95: 0,
+      histogram_json: { bins: [], counts: [] },
+    });
+
+    render(
+      <QueryClientProvider client={createQueryClient()}>
+        <MemoryRouter initialEntries={["/historical-amplitude-distribution"]}>
+          <HistoricalAmplitudeDistributionPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    expect(screen.getByTestId("amplitude-metric-trigger")).toBeDisabled();
+    expect(
+      screen.getByTestId("amplitude-metric-trigger-loading"),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps selects interactive while distribution data is fetching", async () => {
+    useAuthStore.setState({
+      token: "token",
+      role: "admin",
+      entitlement: "active",
+      resolved: true,
+      checkoutSessionId: null,
+    });
+
+    vi.mocked(getAnalyticsMetrics).mockResolvedValue({
+      metrics: [{ id: "amplitude", label: "Amplitude" }],
+    });
+    vi.mocked(getDistributionStats).mockReturnValue(new Promise(() => {}));
+
+    render(
+      <QueryClientProvider client={createQueryClient()}>
+        <MemoryRouter initialEntries={["/historical-amplitude-distribution"]}>
+          <HistoricalAmplitudeDistributionPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => {
+      expect(getDistributionStats).toHaveBeenCalled();
+    });
+
+    expect(screen.getByTestId("amplitude-code-trigger")).not.toBeDisabled();
+    expect(screen.getByTestId("amplitude-metric-trigger")).not.toBeDisabled();
+    expect(
+      screen.queryByTestId("amplitude-code-trigger-loading"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("amplitude-metric-trigger-loading"),
+    ).not.toBeInTheDocument();
   });
 });
