@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { I18nProvider } from "@/lib/i18n";
+import { I18nProvider, LANGUAGE_STORAGE_KEY } from "@/lib/i18n";
 import { TreemapDemoPage } from "@/features/dashboard/pages/TreemapDemoPage";
 import { useRealtimeStore } from "@/features/realtime/store/realtime.store";
 
@@ -14,7 +14,7 @@ function renderPage(): void {
 
 describe("TreemapDemoPage", () => {
   beforeEach(() => {
-    window.localStorage.setItem("ui.language.preset", "en");
+    window.localStorage.setItem(LANGUAGE_STORAGE_KEY, "en");
     useRealtimeStore.getState().resetRealtime();
   });
 
