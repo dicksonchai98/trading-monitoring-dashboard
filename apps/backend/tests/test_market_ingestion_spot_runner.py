@@ -166,7 +166,7 @@ def test_spot_required_mode_fails_on_invalid_registry(tmp_path) -> None:
     runner = _build_runner(
         _SelectiveRedis(), str(symbols_file), expected_count=1, spot_required=True
     )
-    with pytest.raises(RuntimeError, match="spot symbol registry validation failed"):
+    with pytest.raises(RuntimeError, match="no valid symbols after sanitization"):
         asyncio.run(runner.start())
 
 
@@ -178,6 +178,36 @@ def test_spot_optional_mode_disables_spot_on_invalid_registry(tmp_path) -> None:
     )
     asyncio.run(runner.start())
     assert runner._spot_enabled is False
+    asyncio.run(runner.stop())
+
+
+def test_spot_required_mode_skips_invalid_registry_rows_when_valid_symbols_remain(
+    tmp_path,
+) -> None:
+    symbols_file = tmp_path / "symbols.txt"
+    symbols_file.write_text("2330\nABCD\n2330\n", encoding="utf-8")
+    runner = _build_runner(
+        _SelectiveRedis(), str(symbols_file), expected_count=3, spot_required=True
+    )
+
+    asyncio.run(runner.start())
+    assert runner._spot_enabled is True
+    assert runner._spot_symbols == ["2330"]
+    asyncio.run(runner.stop())
+
+
+def test_spot_required_mode_skips_unresolved_contracts_when_valid_symbols_remain(
+    tmp_path,
+) -> None:
+    symbols_file = tmp_path / "symbols.txt"
+    symbols_file.write_text("2330\n2317\n", encoding="utf-8")
+    runner = _build_runner(
+        _SelectiveRedis(), str(symbols_file), expected_count=2, spot_required=True
+    )
+
+    asyncio.run(runner.start())
+    assert runner._spot_enabled is True
+    assert runner._spot_symbols == ["2330"]
     asyncio.run(runner.stop())
 
 

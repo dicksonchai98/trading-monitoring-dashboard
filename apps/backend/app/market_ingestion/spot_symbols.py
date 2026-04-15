@@ -4,8 +4,15 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from typing import NamedTuple
 
 _SYMBOL_PATTERN = re.compile(r"^\d{4}$")
+
+
+class SpotSymbolValidationResult(NamedTuple):
+    valid_symbols: list[str]
+    duplicate_symbols: list[str]
+    invalid_symbols: list[str]
 
 
 def parse_spot_symbols(content: str) -> list[str]:
@@ -23,20 +30,39 @@ def load_spot_symbols_from_file(path: str | Path) -> list[str]:
     return parse_spot_symbols(content)
 
 
+def classify_spot_symbols(symbols: list[str]) -> SpotSymbolValidationResult:
+    valid_symbols: list[str] = []
+    duplicate_symbols: list[str] = []
+    invalid_symbols: list[str] = []
+    seen: set[str] = set()
+
+    for symbol in symbols:
+        if _SYMBOL_PATTERN.fullmatch(symbol) is None:
+            invalid_symbols.append(symbol)
+            continue
+        if symbol in seen:
+            duplicate_symbols.append(symbol)
+            continue
+        seen.add(symbol)
+        valid_symbols.append(symbol)
+
+    return SpotSymbolValidationResult(
+        valid_symbols=valid_symbols,
+        duplicate_symbols=sorted(set(duplicate_symbols)),
+        invalid_symbols=invalid_symbols,
+    )
+
+
 def validate_spot_symbols(symbols: list[str], expected_count: int) -> None:
     if not symbols:
         raise ValueError("spot symbol list is empty")
-    duplicates: set[str] = set()
-    seen: set[str] = set()
-    for symbol in symbols:
-        if symbol in seen:
-            duplicates.add(symbol)
-        seen.add(symbol)
-    if duplicates:
-        raise ValueError(f"spot symbol list contains duplicates: {sorted(duplicates)}")
-    invalid = [symbol for symbol in symbols if _SYMBOL_PATTERN.fullmatch(symbol) is None]
-    if invalid:
-        raise ValueError(f"spot symbol list contains invalid format: {invalid[:10]}")
+    classified = classify_spot_symbols(symbols)
+    if classified.duplicate_symbols:
+        raise ValueError("spot symbol list contains duplicates: " f"{classified.duplicate_symbols}")
+    if classified.invalid_symbols:
+        raise ValueError(
+            "spot symbol list contains invalid format: " f"{classified.invalid_symbols[:10]}"
+        )
     if expected_count <= 0:
         raise ValueError("INGESTOR_SPOT_SYMBOLS_EXPECTED_COUNT must be > 0")
     if len(symbols) != expected_count:

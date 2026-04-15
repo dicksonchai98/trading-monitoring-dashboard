@@ -7,7 +7,6 @@ from app import main
 
 def test_startup_does_not_boot_aggregator(monkeypatch) -> None:
     monkeypatch.setattr(main, "validate_stripe_settings", lambda: None)
-    monkeypatch.setattr(main, "INGESTOR_ENABLED", False)
 
     called = {"aggregator": 0}
 
@@ -19,3 +18,18 @@ def test_startup_does_not_boot_aggregator(monkeypatch) -> None:
 
     asyncio.run(main.validate_billing_configuration())
     assert called["aggregator"] == 0
+
+
+def test_startup_does_not_boot_ingestor(monkeypatch) -> None:
+    monkeypatch.setattr(main, "validate_stripe_settings", lambda: None)
+
+    called = {"ingestor": 0}
+
+    def _forbidden_call():
+        called["ingestor"] += 1
+        raise AssertionError("ingestor must not start in API process")
+
+    monkeypatch.setattr(main.state, "build_ingestor_runner", _forbidden_call)
+
+    asyncio.run(main.validate_billing_configuration())
+    assert called["ingestor"] == 0

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 from app.market_ingestion.spot_symbols import (
+    classify_spot_symbols,
     load_and_validate_spot_symbols,
     parse_spot_symbols,
     validate_spot_symbols,
@@ -26,6 +27,13 @@ def test_validate_spot_symbols_rejects_duplicates() -> None:
 def test_validate_spot_symbols_rejects_invalid_format() -> None:
     with pytest.raises(ValueError, match="invalid format"):
         validate_spot_symbols(["2330", "ABC"], expected_count=2)
+
+
+def test_classify_spot_symbols_filters_invalid_and_duplicate_entries() -> None:
+    result = classify_spot_symbols(["2330", "ABC", "2317", "2330", "12"])
+    assert result.valid_symbols == ["2330", "2317"]
+    assert result.duplicate_symbols == ["2330"]
+    assert result.invalid_symbols == ["ABC", "12"]
 
 
 def test_load_and_validate_spot_symbols_success(tmp_path) -> None:
