@@ -111,6 +111,9 @@ describe("AppShell", () => {
 
     expect(screen.getByText("Monitoring")).toBeInTheDocument();
     expect(screen.getByText("Realtime")).toBeInTheDocument();
+    expect(screen.getByText("Coming Soon")).toBeInTheDocument();
+    expect(screen.getByText("Options Positioning")).toBeInTheDocument();
+    expect(screen.getByText("Options Add/Close")).toBeInTheDocument();
   });
 
   it("keeps route content visible during client-side navigation", () => {

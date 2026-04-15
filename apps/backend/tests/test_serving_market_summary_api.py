@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import uuid
 from types import SimpleNamespace
 
 import pytest
@@ -11,8 +12,8 @@ from fastapi.testclient import TestClient
 
 
 def _auth_headers(client: TestClient) -> dict[str, str]:
-    email = "market-summary@example.com"
-    login_secret = "pass" + "1"
+    email = f"market-summary-{uuid.uuid4().hex[:8]}@example.com"
+    login_secret = "Pass-1234"  # noqa: S105 - test credential only
     send_res = client.post("/auth/email/send-otp", json={"email": email})
     assert send_res.status_code == 202
     verify_res = client.post("/auth/email/verify-otp", json={"email": email, "otp_code": "123456"})
@@ -20,13 +21,14 @@ def _auth_headers(client: TestClient) -> dict[str, str]:
     register_res = client.post(
         "/auth/register",
         json={
-            "username": email,
+            "user_id": email,
+            "email": email,
             "password": login_secret,
             "verification_token": verify_res.json()["verification_token"],
         },
     )
     assert register_res.status_code == 200
-    login_res = client.post("/auth/login", json={"username": email, "password": login_secret})
+    login_res = client.post("/auth/login", json={"user_id": email, "password": login_secret})
     assert login_res.status_code == 200
     return {"Authorization": f"Bearer {login_res.json()['access_token']}"}
 
@@ -179,6 +181,54 @@ def test_spot_latest_route_returns_404_when_missing(monkeypatch) -> None:
     response = client.get("/v1/spot/latest", headers=headers, params={"symbol": "2330"})
     assert response.status_code == 404
     assert response.json()["detail"] == "spot_not_found"
+
+
+def test_spot_market_distribution_latest_route_returns_payload(monkeypatch) -> None:
+    client = TestClient(app)
+    headers = _auth_headers(client)
+    monkeypatch.setattr(
+        "app.routes.serving.fetch_spot_market_distribution_latest",
+        lambda: {
+            "ts": 1775713500000,
+            "up_count": 5,
+            "down_count": 3,
+            "flat_count": 2,
+            "total_count": 10,
+            "trend_index": 0.2,
+            "bucket_width_pct": 1,
+            "distribution_buckets": [
+                {"label": "-1%~0%", "lower_pct": -1, "upper_pct": 0, "count": 3},
+                {"label": "0%~1%", "lower_pct": 0, "upper_pct": 1, "count": 2},
+                {"label": "1%~2%", "lower_pct": 1, "upper_pct": 2, "count": 5},
+            ],
+        },
+    )
+
+    response = client.get("/v1/spot/market-distribution/latest", headers=headers)
+    assert response.status_code == 200
+    assert response.json()["total_count"] == 10
+
+
+def test_spot_market_distribution_today_route_returns_list(monkeypatch) -> None:
+    client = TestClient(app)
+    headers = _auth_headers(client)
+    monkeypatch.setattr(
+        "app.routes.serving.fetch_spot_market_distribution_today_range",
+        lambda _time_range: [
+            {
+                "ts": 1775713200000,
+                "up_count": 4,
+                "down_count": 3,
+                "flat_count": 3,
+                "total_count": 10,
+                "trend_index": 0.1,
+            }
+        ],
+    )
+
+    response = client.get("/v1/spot/market-distribution/today", headers=headers)
+    assert response.status_code == 200
+    assert isinstance(response.json(), list)
 
 
 class _FakeSSERequest:

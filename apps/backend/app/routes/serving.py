@@ -46,6 +46,8 @@ from app.services.serving_store import (
     fetch_quote_today_range,
     fetch_spot_latest,
     fetch_spot_latest_list,
+    fetch_spot_market_distribution_latest,
+    fetch_spot_market_distribution_today_range,
     resolve_default_code,
     resolve_time_range,
 )
@@ -490,6 +492,51 @@ def spot_latest(
     return data
 
 
+@router.get("/spot/market-distribution/latest")
+def spot_market_distribution_latest(
+    __: None = Depends(require_authenticated),
+    ___: None = Depends(enforce_serving_rate_limit),
+    ____: None = Depends(record_serving_latency),
+) -> dict[str, Any]:
+    metrics.inc("serving_rest_requests_total")
+    try:
+        data = fetch_spot_market_distribution_latest()
+    except Exception as err:
+        metrics.inc("serving_redis_errors_total")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="redis_unavailable"
+        ) from err
+    if data is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="spot_market_distribution_not_found",
+        )
+    return data
+
+
+@router.get("/spot/market-distribution/today")
+def spot_market_distribution_today(
+    from_ms: int | None = None,
+    to_ms: int | None = None,
+    from_: str | None = None,
+    to: str | None = None,
+    __: None = Depends(require_authenticated),
+    ___: None = Depends(enforce_serving_rate_limit),
+    ____: None = Depends(record_serving_latency),
+) -> list[dict[str, Any]]:
+    metrics.inc("serving_rest_requests_total")
+    time_range = None
+    if (from_ms is not None and to_ms is not None) or (from_ and to):
+        time_range = resolve_time_range(from_ms, to_ms, from_, to, default_metric_window())
+    try:
+        return fetch_spot_market_distribution_today_range(time_range)
+    except Exception as err:
+        metrics.inc("serving_redis_errors_total")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="redis_unavailable"
+        ) from err
+
+
 @router.get("/stream/sse")
 async def stream_sse(
     request: Request,
@@ -540,6 +587,16 @@ async def stream_sse(
                     logger.exception("serving SSE spot latest list fetch failed")
                     metrics.inc("serving_redis_errors_total")
                     spot_latest_list_data = None
+                try:
+                    spot_market_distribution_latest_data = fetch_spot_market_distribution_latest()
+                    spot_market_distribution_series_data = (
+                        fetch_spot_market_distribution_today_range()
+                    )
+                except Exception:
+                    logger.exception("serving SSE spot market distribution fetch failed")
+                    metrics.inc("serving_redis_errors_total")
+                    spot_market_distribution_latest_data = None
+                    spot_market_distribution_series_data = None
                 now = asyncio.get_running_loop().time()
 
                 if current_k and current_k != last_kbar:
@@ -596,6 +653,20 @@ async def stream_sse(
                 if spot_latest_list_data:
                     metrics.inc("serving_sse_push_total")
                     yield _sse_message("spot_latest_list", spot_latest_list_data)
+
+                if spot_market_distribution_latest_data:
+                    metrics.inc("serving_sse_push_total")
+                    yield _sse_message(
+                        "spot_market_distribution_latest",
+                        spot_market_distribution_latest_data,
+                    )
+
+                if spot_market_distribution_series_data:
+                    metrics.inc("serving_sse_push_total")
+                    yield _sse_message(
+                        "spot_market_distribution_series",
+                        {"items": spot_market_distribution_series_data},
+                    )
 
                 now = asyncio.get_running_loop().time()
                 if now - last_heartbeat >= SERVING_HEARTBEAT_SECONDS:

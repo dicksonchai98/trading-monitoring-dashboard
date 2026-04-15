@@ -18,6 +18,7 @@ import { TreemapDemoPage } from "@/features/dashboard/pages/TreemapDemoPage";
 import { EventAnalyticsPage } from "@/features/analytics/pages/EventAnalyticsPage";
 import { DistributionAnalyticsPage } from "@/features/analytics/pages/DistributionAnalyticsPage";
 import { SubscriptionPage } from "@/features/subscription/pages/SubscriptionPage";
+import { ComingSoonPage } from "@/features/common/pages/ComingSoonPage";
 import {
   CheckoutCancelPage,
   CheckoutSuccessPage,
@@ -58,6 +59,14 @@ const router = createBrowserRouter([
         <SubscriptionPage />
       </GuardedRoute>
     ),
+  },
+  {
+    path: "/options-positioning",
+    element: <ComingSoonPage />,
+  },
+  {
+    path: "/options-add-close",
+    element: <ComingSoonPage />,
   },
   {
     element: <AppShell />,

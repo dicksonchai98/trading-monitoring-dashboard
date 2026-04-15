@@ -10,6 +10,7 @@ class FakeRedis:
     def __init__(self, fail_set: bool = False) -> None:
         self.streams: dict[str, list[tuple[str, dict[str, str]]]] = {}
         self.strings: dict[str, str] = {}
+        self.sorted_sets: dict[str, dict[str, float]] = {}
         self.expirations: dict[str, int] = {}
         self.acks: list[tuple[str, str, str]] = []
         self._stream_id = 0
@@ -62,6 +63,19 @@ class FakeRedis:
             raise RuntimeError("set failed")
         self.strings[key] = value
 
+    def zadd(self, key, mapping):
+        self.sorted_sets.setdefault(key, {}).update(mapping)
+
+    def zrangebyscore(self, key, start_score, end_score, withscores=False):
+        items = self.sorted_sets.get(key, {})
+        result = [
+            (member, score) for member, score in items.items() if start_score <= score <= end_score
+        ]
+        result.sort(key=lambda item: item[1])
+        if withscores:
+            return result
+        return [member for member, _score in result]
+
     def expire(self, key, ttl):
         self.expirations[key] = ttl
 
@@ -83,12 +97,18 @@ class _FakePipeline:
         self._ops.append(("expire", key, ttl))
         return self
 
+    def zadd(self, key, mapping):
+        self._ops.append(("zadd", key, mapping))
+        return self
+
     def execute(self):
         for op, key, value in self._ops:
             if op == "set":
                 self._redis.set(key, value)
             elif op == "expire":
                 self._redis.expire(key, int(value))
+            elif op == "zadd":
+                self._redis.zadd(key, value)
 
 
 def _spot_fields(symbol: str, last_price: float, ingest_seq: int) -> dict[str, str]:
@@ -143,6 +163,76 @@ def test_latest_state_runner_updates_and_flushes_state() -> None:
     assert state["strength_state"] == "flat"
     assert state["strength_score"] == 0
     assert metrics.counters["latest_state_events_processed_total"] == 1
+
+
+def test_latest_state_runner_writes_spot_distribution_snapshot() -> None:
+    redis = FakeRedis()
+    metrics = Metrics()
+    runner = LatestStateRunner(
+        redis_client=redis,
+        metrics=metrics,
+        env="dev",
+        group="latest-state:spot",
+        consumer="latest-state-1",
+        read_count=100,
+        block_ms=0,
+        claim_idle_ms=1000,
+        claim_count=100,
+        flush_interval_ms=1,
+    )
+    stream_key = "dev:stream:spot"
+    redis.xadd(
+        stream_key,
+        {
+            **_spot_fields("2330", 101.2, 1),
+            "pct_chg": "1.2",
+            "price_chg": "1.2",
+            "reference_price": "100.0",
+            "open": "100.0",
+            "close": "101.2",
+            "high": "101.2",
+            "low": "100.0",
+        },
+    )
+    redis.xadd(
+        stream_key,
+        {
+            **_spot_fields("2317", 99.6, 2),
+            "pct_chg": "-0.4",
+            "price_chg": "-0.4",
+            "reference_price": "100.0",
+            "open": "100.0",
+            "close": "99.6",
+            "high": "100.0",
+            "low": "99.6",
+        },
+    )
+    redis.xadd(
+        stream_key,
+        {
+            **_spot_fields("2881", 100.0, 3),
+            "pct_chg": "0",
+            "price_chg": "0",
+            "reference_price": "100.0",
+            "open": "100.0",
+            "close": "100.0",
+            "high": "100.0",
+            "low": "100.0",
+        },
+    )
+
+    assert runner.consume_once() == 3
+    latest_key = "dev:state:SPOT_MARKET:spot_distribution:latest"
+    series_key = "dev:state:SPOT_MARKET:spot_distribution:zset"
+    latest_payload = redis.strings[latest_key]
+    assert latest_key in redis.strings
+    assert series_key in redis.sorted_sets
+    assert redis.expirations[latest_key] == 3600
+    assert redis.expirations[series_key] == 3600
+    assert '"up_count": 1' in latest_payload
+    assert '"down_count": 1' in latest_payload
+    assert '"flat_count": 1' in latest_payload
+    assert '"total_count": 3' in latest_payload
 
 
 def test_latest_state_runner_ignores_replayed_ingest_seq() -> None:

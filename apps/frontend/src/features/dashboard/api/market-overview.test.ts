@@ -3,6 +3,7 @@ import {
   getEstimatedVolumeBaseline,
   getOtcSummaryToday,
   getOrderFlowBaseline,
+  getSpotMarketDistributionBaseline,
 } from "@/features/dashboard/api/market-overview";
 
 describe("getOrderFlowBaseline", () => {
@@ -237,6 +238,100 @@ describe("getOrderFlowBaseline", () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining("/v1/kbar/1m/daily-amplitude?code=TXFD6&n=19"),
+      expect.objectContaining({
+        credentials: "include",
+        method: "GET",
+        headers: {
+          Authorization: "Bearer token",
+        },
+      }),
+    );
+  });
+
+  it("requests spot market distribution latest and today baselines with bearer token headers", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            ts: 1775713500000,
+            up_count: 5,
+            down_count: 3,
+            flat_count: 2,
+            total_count: 10,
+            trend_index: 0.2,
+            bucket_width_pct: 1,
+            distribution_buckets: [
+              { label: "-1%~0%", lower_pct: -1, upper_pct: 0, count: 3 },
+              { label: "0%~1%", lower_pct: 0, upper_pct: 1, count: 2 },
+              { label: "1%~2%", lower_pct: 1, upper_pct: 2, count: 5 },
+            ],
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify([
+            {
+              ts: 1775713200000,
+              up_count: 4,
+              down_count: 3,
+              flat_count: 3,
+              total_count: 10,
+              trend_index: 0.1,
+            },
+          ]),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
+      );
+
+    await expect(getSpotMarketDistributionBaseline("token")).resolves.toEqual({
+      latest: {
+        ts: 1775713500000,
+        up_count: 5,
+        down_count: 3,
+        flat_count: 2,
+        total_count: 10,
+        trend_index: 0.2,
+        bucket_width_pct: 1,
+        distribution_buckets: [
+          { label: "-1%~0%", lower_pct: -1, upper_pct: 0, count: 3 },
+          { label: "0%~1%", lower_pct: 0, upper_pct: 1, count: 2 },
+          { label: "1%~2%", lower_pct: 1, upper_pct: 2, count: 5 },
+        ],
+      },
+      today: [
+        {
+          ts: 1775713200000,
+          up_count: 4,
+          down_count: 3,
+          flat_count: 3,
+          total_count: 10,
+          trend_index: 0.1,
+        },
+      ],
+    });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      expect.stringContaining("/v1/spot/market-distribution/latest"),
+      expect.objectContaining({
+        credentials: "include",
+        method: "GET",
+        headers: {
+          Authorization: "Bearer token",
+        },
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining("/v1/spot/market-distribution/today"),
       expect.objectContaining({
         credentials: "include",
         method: "GET",

@@ -3,6 +3,7 @@ import {
   buildDashboardEstimatedVolumeBaselineQueryKey,
   buildDashboardOrderFlowBaselineQueryKey,
   buildDashboardQuoteTodayQueryKey,
+  buildDashboardSpotMarketDistributionBaselineQueryKey,
 } from "@/features/dashboard/lib/query-keys";
 
 describe("dashboard query keys", () => {
@@ -25,6 +26,12 @@ describe("dashboard query keys", () => {
     expect(buildDashboardDailyAmplitudeQueryKey("TXFD6", 19)).toEqual([
       "dashboard-daily-amplitude-history",
       { code: "TXFD6", historyLength: 19 },
+    ]);
+  });
+
+  it("builds a stable spot market distribution baseline key", () => {
+    expect(buildDashboardSpotMarketDistributionBaselineQueryKey()).toEqual([
+      "dashboard-spot-market-distribution-baseline",
     ]);
   });
 });

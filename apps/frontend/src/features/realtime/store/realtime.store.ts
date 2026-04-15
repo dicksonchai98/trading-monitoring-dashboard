@@ -7,6 +7,8 @@ import type {
   MetricLatestPayload,
   OtcSummaryLatestPayload,
   QuoteLatestPayload,
+  SpotMarketDistributionLatestPayload,
+  SpotMarketDistributionSeriesPayload,
   SseConnectionStatus,
   SpotLatestListPayload,
 } from "@/features/realtime/types/realtime.types";
@@ -22,6 +24,8 @@ interface RealtimeStore {
   otcSummaryLatestByCode: Record<string, OtcSummaryLatestPayload>;
   quoteLatestByCode: Record<string, QuoteLatestPayload>;
   spotLatestList: SpotLatestListPayload | null;
+  spotMarketDistributionLatest: SpotMarketDistributionLatestPayload | null;
+  spotMarketDistributionSeries: SpotMarketDistributionSeriesPayload | null;
   lastHeartbeatTs: number | null;
   setConnectionStatus: (status: SseConnectionStatus, errorReason?: string | null) => void;
   upsertKbarCurrent: (payload: KbarCurrentPayload) => void;
@@ -38,6 +42,8 @@ interface RealtimeStore {
     otcSummaryLatest?: { code: string; payload: OtcSummaryLatestPayload };
     quoteLatest?: { code: string; payload: QuoteLatestPayload };
     spotLatestList?: SpotLatestListPayload;
+    spotMarketDistributionLatest?: SpotMarketDistributionLatestPayload;
+    spotMarketDistributionSeries?: SpotMarketDistributionSeriesPayload;
     heartbeatTs?: number;
   }) => void;
   setHeartbeat: (ts: number) => void;
@@ -55,6 +61,8 @@ const initialState = {
   otcSummaryLatestByCode: {} as Record<string, OtcSummaryLatestPayload>,
   quoteLatestByCode: {} as Record<string, QuoteLatestPayload>,
   spotLatestList: null as SpotLatestListPayload | null,
+  spotMarketDistributionLatest: null as SpotMarketDistributionLatestPayload | null,
+  spotMarketDistributionSeries: null as SpotMarketDistributionSeriesPayload | null,
   lastHeartbeatTs: null as number | null,
 };
 
@@ -145,6 +153,16 @@ export const useRealtimeStore = create<RealtimeStore>((set) => ({
 
       if (batch.spotLatestList) {
         nextState.spotLatestList = batch.spotLatestList;
+        changed = true;
+      }
+
+      if (batch.spotMarketDistributionLatest) {
+        nextState.spotMarketDistributionLatest = batch.spotMarketDistributionLatest;
+        changed = true;
+      }
+
+      if (batch.spotMarketDistributionSeries) {
+        nextState.spotMarketDistributionSeries = batch.spotMarketDistributionSeries;
         changed = true;
       }
 

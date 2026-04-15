@@ -14,13 +14,13 @@ import { Badge } from "@/components/ui/badge";
 import { BentoGridSection } from "@/components/ui/bento-grid";
 import { PageLayout } from "@/components/ui/page-layout";
 import { PanelCard } from "@/components/ui/panel-card";
+import { SpotMarketDistributionCard } from "@/features/dashboard/components/SpotMarketDistributionCard";
 import { BidAskPressureCard } from "@/features/dashboard/components/BidAskPressureCard";
 import { Typography } from "@/components/ui/typography";
 import { DashboardMetricPanels } from "@/features/dashboard/components/DashboardMetricPanels";
 import { EstimatedVolumeCard } from "@/features/dashboard/components/EstimatedVolumeCard";
 import { OrderFlowCard } from "@/features/dashboard/components/OrderFlowCard";
 import { useRealtimeConnection } from "@/features/realtime/hooks/use-realtime-connection";
-import { BreadthDistributionChart } from "@/features/dashboard/components/PanelCharts";
 import { ProgramActivityCard } from "@/features/dashboard/components/ProgramActivityCard";
 import { VolumeLadderCard } from "@/features/dashboard/components/VolumeLadderCard";
 import { useBidAskPressureSeries } from "@/features/dashboard/hooks/use-bid-ask-pressure-series";
@@ -239,13 +239,7 @@ export function RealtimeDashboardOverview(): JSX.Element {
           loading={tickLoading}
           error={tickError}
         />
-        <PanelCard
-          title={t("dashboard.realtime.breadth.title")}
-          span={4}
-          meta={t("dashboard.realtime.breadth.meta")}
-        >
-          <BreadthDistributionChart />
-        </PanelCard>
+        <SpotMarketDistributionCard />
         <EstimatedVolumeCard
           series={estimatedVolumeSeries}
           latest={estimatedVolumeLatest}

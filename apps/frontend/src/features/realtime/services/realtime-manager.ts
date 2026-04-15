@@ -7,11 +7,15 @@ import {
   MetricLatestSchema,
   OtcSummaryLatestSchema,
   QuoteLatestSchema,
+  SpotMarketDistributionLatestSchema,
+  SpotMarketDistributionSeriesSchema,
   SpotLatestListSchema,
 } from "@/features/realtime/schemas/serving-event.schema";
 import { useRealtimeStore } from "@/features/realtime/store/realtime.store";
 import type {
   ServingSseEventName,
+  SpotMarketDistributionLatestPayload,
+  SpotMarketDistributionSeriesPayload,
   SpotLatestListPayload,
 } from "@/features/realtime/types/realtime.types";
 import { shouldBlockInsecureTransport } from "@/lib/api/transport";
@@ -88,6 +92,8 @@ interface ServingSseBatch {
     >["quoteLatestByCode"][string];
   };
   spotLatestList?: SpotLatestListPayload;
+  spotMarketDistributionLatest?: SpotMarketDistributionLatestPayload;
+  spotMarketDistributionSeries?: SpotMarketDistributionSeriesPayload;
   heartbeatTs?: number;
 }
 
@@ -396,6 +402,12 @@ function shouldApplyDashboardSseEvent(
     tsMs = toEpochMs(payload.ts);
   } else if (eventName === "spot_latest_list") {
     tsMs = toEpochMs(payload.ts);
+  } else if (eventName === "spot_market_distribution_latest") {
+    tsMs = toEpochMs(payload.ts);
+  } else if (eventName === "spot_market_distribution_series") {
+    const items = Array.isArray(payload.items) ? payload.items : [];
+    const lastItem = items[items.length - 1];
+    tsMs = toEpochMs(lastItem?.ts);
   } else if (eventName === "quote_latest") {
     tsMs = toEpochMs(payload.event_ts) ?? toEpochMs(payload.ts);
   }
@@ -550,6 +562,24 @@ function collectServingSseEvent(
       return;
     }
     batch.spotLatestList = parsed.data;
+    return;
+  }
+
+  if (eventName === "spot_market_distribution_latest") {
+    const parsed = SpotMarketDistributionLatestSchema.safeParse(data);
+    if (!parsed.success) {
+      return;
+    }
+    batch.spotMarketDistributionLatest = parsed.data;
+    return;
+  }
+
+  if (eventName === "spot_market_distribution_series") {
+    const parsed = SpotMarketDistributionSeriesSchema.safeParse(data);
+    if (!parsed.success) {
+      return;
+    }
+    batch.spotMarketDistributionSeries = parsed.data;
     return;
   }
 

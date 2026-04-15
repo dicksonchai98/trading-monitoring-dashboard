@@ -44,6 +44,8 @@ const BREADCRUMB_LABEL_KEYS: Record<string, TranslationKey> = {
     "shell.breadcrumb.industryContributionHeatmap",
   "historical-data-loader": "shell.breadcrumb.historicalDataLoader",
   "historical-amplitude-distribution": "shell.breadcrumb.amplitudeDistribution",
+  "options-positioning": "shell.breadcrumb.optionsPositioning",
+  "options-add-close": "shell.breadcrumb.optionsAddClose",
   subscription: "shell.breadcrumb.subscription",
   admin: "shell.breadcrumb.admin",
   audit: "shell.breadcrumb.auditLog",

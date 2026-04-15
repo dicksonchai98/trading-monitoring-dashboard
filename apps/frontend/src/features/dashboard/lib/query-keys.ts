@@ -22,3 +22,7 @@ export function buildDashboardDailyAmplitudeQueryKey(
 ): readonly [string, { code: string; historyLength: number }] {
   return ["dashboard-daily-amplitude-history", { code, historyLength }] as const;
 }
+
+export function buildDashboardSpotMarketDistributionBaselineQueryKey(): readonly [string] {
+  return ["dashboard-spot-market-distribution-baseline"] as const;
+}

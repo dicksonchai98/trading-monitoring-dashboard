@@ -106,6 +106,15 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           },
         ],
       },
+      {
+        title: t("nav.comingSoon"),
+        url: "/options-positioning",
+        icon: <BarChart3Icon />,
+        items: [
+          { title: t("nav.optionsPositioning"), url: "/options-positioning" },
+          { title: t("nav.optionsAddClose"), url: "/options-add-close" },
+        ],
+      },
     ],
     [role, t],
   );
@@ -118,7 +127,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               url: "/admin/audit",
               icon: <ShieldCheckIcon />,
             },
-          ]
+        ]
         : [],
     [role, t],
   );
@@ -136,7 +145,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarContent>
         <NavMain items={navMain} pathname={location.pathname} />
         {utilities.length > 0 ? (
-          <NavProjects projects={utilities} pathname={location.pathname} />
+          <NavProjects
+            label={t("nav.utilities")}
+            projects={utilities}
+            pathname={location.pathname}
+          />
         ) : null}
       </SidebarContent>
       <SidebarFooter>

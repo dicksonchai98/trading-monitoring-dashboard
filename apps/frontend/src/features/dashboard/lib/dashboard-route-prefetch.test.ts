@@ -15,7 +15,7 @@ describe("prefetchDashboardRouteData", () => {
       code: "TXFD6",
     });
 
-    expect(prefetchQuery).toHaveBeenCalledTimes(4);
+    expect(prefetchQuery).toHaveBeenCalledTimes(5);
   });
 
   it("skips dashboard baseline prefetch for visitor sessions", async () => {

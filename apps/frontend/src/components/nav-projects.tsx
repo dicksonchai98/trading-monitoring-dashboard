@@ -8,12 +8,13 @@ import {
 } from "@/components/ui/sidebar"
 import { Link } from "react-router-dom"
 import { useShellNavigation } from "@/app/navigation/ShellNavigationContext"
-import { useT } from "@/lib/i18n"
 
 export function NavProjects({
+  label,
   projects,
   pathname,
 }: {
+  label: string
   projects: {
     name: string
     url: string
@@ -21,7 +22,6 @@ export function NavProjects({
   }[]
   pathname: string
 }) {
-  const t = useT();
   const { isMobile, setOpenMobile } = useSidebar();
   const { createLinkClickHandler } = useShellNavigation();
 
@@ -33,7 +33,7 @@ export function NavProjects({
 
   return (
     <SidebarGroup>
-      <SidebarGroupLabel>{t("nav.utilities")}</SidebarGroupLabel>
+      <SidebarGroupLabel>{label}</SidebarGroupLabel>
       <SidebarMenu>
         {projects.map((item) => (
           <SidebarMenuItem key={item.name}>

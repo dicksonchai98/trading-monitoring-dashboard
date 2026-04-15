@@ -14,6 +14,8 @@ export const messages = {
       "Industry Contribution Heatmap",
     "shell.breadcrumb.historicalDataLoader": "Historical Data Loader",
     "shell.breadcrumb.amplitudeDistribution": "Amplitude Distribution",
+    "shell.breadcrumb.optionsPositioning": "Options Positioning",
+    "shell.breadcrumb.optionsAddClose": "Options Add/Close",
     "shell.breadcrumb.subscription": "Subscription",
     "shell.breadcrumb.admin": "Admin",
     "shell.breadcrumb.auditLog": "Audit Log",
@@ -30,6 +32,9 @@ export const messages = {
     "nav.dataLoader": "Data Loader",
     "nav.amplitudeDistribution": "Amplitude Distribution",
     "nav.adminAudit": "Admin Audit",
+    "nav.comingSoon": "Coming Soon",
+    "nav.optionsPositioning": "Options Positioning",
+    "nav.optionsAddClose": "Options Add/Close",
     "nav.login": "Login",
 
     "team.mvp": "MVP",
@@ -182,25 +187,35 @@ export const messages = {
     "dashboard.realtime.volumeLadder.loading": "Loading volume ladder...",
     "dashboard.realtime.volumeLadder.error":
       "Unable to load volume ladder data.",
-    "dashboard.realtime.volumeLadder.empty":
-      "No volume ladder data available.",
+    "dashboard.realtime.volumeLadder.empty": "No volume ladder data available.",
     "dashboard.realtime.bidAsk.title": "Bid / Ask Pressure",
     "dashboard.realtime.bidAsk.meta": "Depth skew",
     "dashboard.realtime.bidAsk.loading": "Loading bid / ask pressure...",
     "dashboard.realtime.bidAsk.error":
       "Unable to load bid / ask pressure data.",
-    "dashboard.realtime.bidAsk.empty":
-      "No bid / ask pressure data available.",
+    "dashboard.realtime.bidAsk.empty": "No bid / ask pressure data available.",
     "dashboard.realtime.programActivity.title": "Program Activity",
     "dashboard.realtime.programActivity.meta": "Auto flow",
-    "dashboard.realtime.programActivity.loading":
-      "Loading program activity...",
+    "dashboard.realtime.programActivity.loading": "Loading program activity...",
     "dashboard.realtime.programActivity.error":
       "Unable to load program activity data.",
     "dashboard.realtime.programActivity.empty":
       "No program activity data available.",
     "dashboard.realtime.breadth.title": "Breadth Distribution",
-    "dashboard.realtime.breadth.meta": "Breadth distribution + swing",
+    "dashboard.realtime.breadth.meta": "Breadth distribution + trend reference",
+    "dashboard.realtime.breadth.note":
+      "Trend index reference from the latest intraday series.",
+    "dashboard.realtime.breadth.loading": "Loading market distribution...",
+    "dashboard.realtime.breadth.error": "Unable to load market distribution data.",
+    "dashboard.realtime.breadth.empty":
+      "No market distribution data available.",
+    "dashboard.realtime.breadth.count": "Bucket count",
+    "dashboard.realtime.breadth.trend": "Trend index",
+    "dashboard.realtime.breadth.summary": "Total symbols: {total}",
+    "dashboard.realtime.breadth.up": "Up: {count}",
+    "dashboard.realtime.breadth.down": "Down: {count}",
+    "dashboard.realtime.breadth.flat": "Flat: {count}",
+    "dashboard.realtime.breadth.trendCurrent": "Trend reference: {trend}",
     "dashboard.realtime.estimatedVolume.title": "Estimated Volume Delta",
     "dashboard.realtime.estimatedVolume.meta":
       "Yesterday vs today projected volume",
@@ -223,8 +238,7 @@ export const messages = {
     "dashboard.realtime.amplitudeSummary.yesterday": "Yesterday amplitude",
     "dashboard.realtime.amplitudeSummary.fiveDayHigh": "5-day max amplitude",
     "dashboard.realtime.amplitudeSummary.fiveDayLow": "5-day min amplitude",
-    "dashboard.realtime.amplitudeSummary.tenDayHigh":
-      "10-day max amplitude",
+    "dashboard.realtime.amplitudeSummary.tenDayHigh": "10-day max amplitude",
     "dashboard.realtime.participantSignals.title": "Participant Signals",
     "dashboard.realtime.participantSignals.meta":
       "Foreign / Dealer / Retail / Sentiment",
@@ -254,7 +268,8 @@ export const messages = {
     "dashboard.analysis.filter.eventPlaceholder": "Select event",
     "dashboard.analysis.filter.loadingEvents": "Loading events...",
     "dashboard.analysis.filter.noEvents": "No events available",
-    "dashboard.analysis.apiFailed": "Historical signal API failed (HTTP {status}).",
+    "dashboard.analysis.apiFailed":
+      "Historical signal API failed (HTTP {status}).",
     "dashboard.analysis.codeNote": "Code: {code}",
     "dashboard.analysis.empty": "No historical signal data in current range.",
     "dashboard.analysis.event.all": "All events",
@@ -272,8 +287,7 @@ export const messages = {
       "Close position greater than 0.8",
     "dashboard.analysis.event.close_position_lt_0_2":
       "Close position lower than 0.2",
-    "dashboard.analysis.event.gap_up_gt_100":
-      "Gap up greater than 100 points",
+    "dashboard.analysis.event.gap_up_gt_100": "Gap up greater than 100 points",
     "dashboard.analysis.event.gap_down_lt_minus_100":
       "Gap down lower than -100 points",
     "dashboard.analysis.signal.nightSurge.title": "Strong Night Session Rally",
@@ -391,7 +405,8 @@ export const messages = {
     "dashboard.loader.backfill.title": "Backfill Jobs",
     "dashboard.loader.backfill.note": "Trigger historical backfill jobs.",
     "dashboard.loader.backfill.load": "Load Backfill",
-    "dashboard.loader.backfill.success": "Created {count} backfill job(s) successfully.",
+    "dashboard.loader.backfill.success":
+      "Created {count} backfill job(s) successfully.",
     "dashboard.loader.crawler.title": "Crawler Jobs",
     "dashboard.loader.crawler.note":
       "Trigger crawler jobs using dataset code and date window.",
@@ -424,7 +439,8 @@ export const messages = {
       "Start date must be earlier than or equal to end date.",
     "dashboard.loader.error.retry": "Load failed. Please retry.",
     "dashboard.loader.error.withCode": "Load failed: {code}",
-    "dashboard.loader.error.sessionExpired": "Session expired. Please login again.",
+    "dashboard.loader.error.sessionExpired":
+      "Session expired. Please login again.",
     "dashboard.loader.error.backfillAdminRequired":
       "Admin role is required to trigger historical backfill jobs.",
     "dashboard.loader.error.crawlerAdminRequired":
@@ -437,7 +453,8 @@ export const messages = {
     "dashboard.loader.error.loginRequiredCrawler":
       "Please login before triggering crawler jobs.",
     "dashboard.loader.error.datasetRequired": "Please provide a dataset code.",
-    "dashboard.loader.error.triggerTypeRequired": "Please provide a trigger type.",
+    "dashboard.loader.error.triggerTypeRequired":
+      "Please provide a trigger type.",
     "dashboard.loader.item.price": "Price Candles",
     "dashboard.loader.item.volume": "Volume",
     "dashboard.loader.item.dealer": "Dealer Position",
@@ -509,8 +526,7 @@ export const messages = {
     "dashboard.thermometer.note.tech":
       "Backend sector strength for tech stocks.",
     "dashboard.thermometer.meter.title": "Market Meter",
-    "dashboard.thermometer.meter.note":
-      "Aggregate spot strength percentage.",
+    "dashboard.thermometer.meter.note": "Aggregate spot strength percentage.",
     "dashboard.thermometer.meter.formula": "Meter = market strength %",
     "dashboard.thermometer.symbolsCount": "{count} symbols",
     "dashboard.thermometer.noSymbols": "No symbols",
@@ -588,6 +604,10 @@ export const messages = {
     "common.forbidden.description":
       "You do not have permission or active entitlement for this page.",
     "common.forbidden.goSubscription": "Go to Subscription",
+    "common.comingSoon.title": "Coming Soon",
+    "common.comingSoon.description":
+      "This page is under active development. Please check back later.",
+    "common.comingSoon.goDashboard": "Go to Dashboard",
     "common.notFound.title": "404 Not Found",
     "common.notFound.description": "The page you requested does not exist.",
     "common.notFound.goDashboard": "Go to Dashboard",
@@ -682,6 +702,8 @@ export const messages = {
     "shell.breadcrumb.industryContributionHeatmap": "產業貢獻點數熱力圖",
     "shell.breadcrumb.historicalDataLoader": "歷史資料載入",
     "shell.breadcrumb.amplitudeDistribution": "振幅分布",
+    "shell.breadcrumb.optionsPositioning": "選擇權籌碼",
+    "shell.breadcrumb.optionsAddClose": "選擇權價平和",
     "shell.breadcrumb.subscription": "訂閱",
     "shell.breadcrumb.admin": "管理",
     "shell.breadcrumb.auditLog": "稽核日誌",
@@ -698,6 +720,9 @@ export const messages = {
     "nav.dataLoader": "資料載入",
     "nav.amplitudeDistribution": "振幅分布",
     "nav.adminAudit": "管理稽核",
+    "nav.comingSoon": "即將推出",
+    "nav.optionsPositioning": "選擇權籌碼",
+    "nav.optionsAddClose": "選擇權價平和",
     "nav.login": "登入",
 
     "team.mvp": "MVP",
@@ -855,12 +880,21 @@ export const messages = {
     "dashboard.realtime.programActivity.title": "程式交易活躍度",
     "dashboard.realtime.programActivity.meta": "自動化流向",
     "dashboard.realtime.programActivity.loading": "載入程式交易活躍度中...",
-    "dashboard.realtime.programActivity.error":
-      "無法載入程式交易活躍度資料。",
-    "dashboard.realtime.programActivity.empty":
-      "目前沒有程式交易活躍度資料。",
+    "dashboard.realtime.programActivity.error": "無法載入程式交易活躍度資料。",
+    "dashboard.realtime.programActivity.empty": "目前沒有程式交易活躍度資料。",
     "dashboard.realtime.breadth.title": "漲跌家數分布",
-    "dashboard.realtime.breadth.meta": "市場廣度與擺動",
+    "dashboard.realtime.breadth.meta": "市場廣度與趨勢參考",
+    "dashboard.realtime.breadth.note": "趨勢指標參考自最新日內序列。",
+    "dashboard.realtime.breadth.loading": "載入漲跌分布資料中...",
+    "dashboard.realtime.breadth.error": "無法載入漲跌分布資料。",
+    "dashboard.realtime.breadth.empty": "目前沒有漲跌分布資料。",
+    "dashboard.realtime.breadth.count": "桶數",
+    "dashboard.realtime.breadth.trend": "趨勢指標",
+    "dashboard.realtime.breadth.summary": "總家數：{total}",
+    "dashboard.realtime.breadth.up": "上漲：{count}",
+    "dashboard.realtime.breadth.down": "下跌：{count}",
+    "dashboard.realtime.breadth.flat": "平盤：{count}",
+    "dashboard.realtime.breadth.trendCurrent": "趨勢參考：{trend}",
     "dashboard.realtime.estimatedVolume.title": "預估量差",
     "dashboard.realtime.estimatedVolume.meta": "昨日 vs 今日預估成交量",
     "dashboard.realtime.estimatedVolume.loading": "載入預估量走勢中...",
@@ -1034,8 +1068,7 @@ export const messages = {
     "dashboard.loader.crawler.success": "爬蟲任務已成功觸發。",
     "dashboard.loader.unified.title": "整合任務清單",
     "dashboard.loader.unified.note": "合併回補與爬蟲任務。",
-    "dashboard.loader.unified.empty":
-      "目前尚無任務。請先觸發回補或爬蟲任務。",
+    "dashboard.loader.unified.empty": "目前尚無任務。請先觸發回補或爬蟲任務。",
     "dashboard.loader.unified.source": "來源",
     "dashboard.loader.unified.jobId": "任務 ID",
     "dashboard.loader.unified.worker": "Worker",
@@ -1205,6 +1238,9 @@ export const messages = {
     "common.forbidden.title": "403 禁止存取",
     "common.forbidden.description": "你沒有此頁面的權限或有效方案授權。",
     "common.forbidden.goSubscription": "前往訂閱頁",
+    "common.comingSoon.title": "開發中",
+    "common.comingSoon.description": "此頁面正在開發中，敬請期待。",
+    "common.comingSoon.goDashboard": "返回儀表板",
     "common.notFound.title": "404 找不到頁面",
     "common.notFound.description": "你請求的頁面不存在。",
     "common.notFound.goDashboard": "返回儀表板",
@@ -1215,8 +1251,7 @@ export const messages = {
       "你尚未登入，無法驗證付款狀態。",
     "subscription.checkout.status.noSessionId":
       "找不到結帳 Session ID，請回到訂閱頁重試。",
-    "subscription.checkout.status.verifying":
-      "正在向帳務服務驗證結帳狀態...",
+    "subscription.checkout.status.verifying": "正在向帳務服務驗證結帳狀態...",
     "subscription.checkout.status.verifyFailed":
       "驗證結帳狀態失敗，請重新整理或回到訂閱頁重試。",
     "subscription.checkout.status.successVerified":

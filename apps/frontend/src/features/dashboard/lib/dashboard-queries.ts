@@ -4,6 +4,7 @@ import {
   getDailyAmplitudeHistory,
   getEstimatedVolumeBaseline,
   getOrderFlowBaseline,
+  getSpotMarketDistributionBaseline,
   getQuoteToday,
 } from "@/features/dashboard/api/market-overview";
 import {
@@ -11,6 +12,7 @@ import {
   buildDashboardEstimatedVolumeBaselineQueryKey,
   buildDashboardOrderFlowBaselineQueryKey,
   buildDashboardQuoteTodayQueryKey,
+  buildDashboardSpotMarketDistributionBaselineQueryKey,
 } from "@/features/dashboard/lib/query-keys";
 
 export function dashboardOrderFlowBaselineQueryOptions(
@@ -52,5 +54,12 @@ export function dashboardDailyAmplitudeQueryOptions(
     queryKey: buildDashboardDailyAmplitudeQueryKey(code, historyLength),
     queryFn: ({ signal }) =>
       getDailyAmplitudeHistory(token, code, historyLength, signal),
+  });
+}
+
+export function dashboardSpotMarketDistributionBaselineQueryOptions(token: string) {
+  return queryOptions({
+    queryKey: buildDashboardSpotMarketDistributionBaselineQueryKey(),
+    queryFn: ({ signal }) => getSpotMarketDistributionBaseline(token, signal),
   });
 }

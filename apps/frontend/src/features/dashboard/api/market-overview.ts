@@ -7,6 +7,9 @@ import type {
   MetricTodayResponse,
   OtcSummaryResponse,
   OrderFlowBaselineResponse,
+  SpotMarketDistributionBaselineResponse,
+  SpotMarketDistributionLatestResponse,
+  SpotMarketDistributionTodayResponse,
   QuoteTodayResponse,
 } from "@/features/dashboard/api/types";
 
@@ -20,7 +23,10 @@ const OTC_SESSION_OPEN_MINUTE = 45;
 const OTC_SESSION_CLOSE_HOUR = 13;
 const OTC_SESSION_CLOSE_MINUTE = 44;
 
-async function resolveOrFallbackOnNotFound<T>(requestPromise: Promise<T>, fallback: T): Promise<T> {
+async function resolveOrFallbackOnNotFound<T, F>(
+  requestPromise: Promise<T>,
+  fallback: F,
+): Promise<T | F> {
   try {
     return await requestPromise;
   } catch (error: unknown) {
@@ -197,4 +203,41 @@ export async function getOtcSummaryToday(
     headers,
     signal,
   });
+}
+
+export async function getSpotMarketDistributionBaseline(
+  token: string,
+  signal?: AbortSignal,
+): Promise<SpotMarketDistributionBaselineResponse> {
+  const headers = {
+    Authorization: `Bearer ${token}`,
+  };
+
+  const [latest, today] = await Promise.all([
+    resolveOrFallbackOnNotFound(
+      getJson<SpotMarketDistributionLatestResponse>(
+        "/v1/spot/market-distribution/latest",
+        {
+          headers,
+          signal,
+        },
+      ),
+      null,
+    ),
+    resolveOrFallbackOnNotFound(
+      getJson<SpotMarketDistributionTodayResponse>(
+        "/v1/spot/market-distribution/today",
+        {
+          headers,
+          signal,
+        },
+      ),
+      [],
+    ),
+  ]);
+
+  return {
+    latest,
+    today,
+  };
 }

@@ -141,3 +141,34 @@ export const SpotLatestListSchema = z.object({
     }),
   ),
 });
+
+export const SpotMarketDistributionBucketSchema = z.object({
+  label: z.string().min(1),
+  lower_pct: z.number(),
+  upper_pct: z.number(),
+  count: z.number().int().nonnegative(),
+});
+
+export const SpotMarketDistributionLatestSchema = z.object({
+  ts: z.number(),
+  up_count: z.number().int().nonnegative(),
+  down_count: z.number().int().nonnegative(),
+  flat_count: z.number().int().nonnegative(),
+  total_count: z.number().int().nonnegative(),
+  trend_index: z.number().nullable().optional(),
+  bucket_width_pct: z.number().int().positive(),
+  distribution_buckets: z.array(SpotMarketDistributionBucketSchema),
+});
+
+export const SpotMarketDistributionSeriesItemSchema = z.object({
+  ts: z.number(),
+  up_count: z.number().int().nonnegative(),
+  down_count: z.number().int().nonnegative(),
+  flat_count: z.number().int().nonnegative(),
+  total_count: z.number().int().nonnegative(),
+  trend_index: z.number().nullable().optional(),
+});
+
+export const SpotMarketDistributionSeriesSchema = z.object({
+  items: z.array(SpotMarketDistributionSeriesItemSchema),
+});

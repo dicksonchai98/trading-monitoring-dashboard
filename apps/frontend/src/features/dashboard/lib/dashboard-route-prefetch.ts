@@ -4,6 +4,7 @@ import {
   dashboardDailyAmplitudeQueryOptions,
   dashboardEstimatedVolumeBaselineQueryOptions,
   dashboardOrderFlowBaselineQueryOptions,
+  dashboardSpotMarketDistributionBaselineQueryOptions,
   dashboardQuoteTodayQueryOptions,
 } from "@/features/dashboard/lib/dashboard-queries";
 import type { UserRole } from "@/lib/types/auth";
@@ -35,6 +36,9 @@ export async function prefetchDashboardRouteData(
     ),
     queryClient.prefetchQuery(
       dashboardDailyAmplitudeQueryOptions(input.token, code, 19),
+    ),
+    queryClient.prefetchQuery(
+      dashboardSpotMarketDistributionBaselineQueryOptions(input.token),
     ),
   ]);
 }

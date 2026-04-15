@@ -300,6 +300,41 @@ describe("realtime-manager", () => {
     expect(state.spotLatestList?.sector_strength?.weighted).toBe(65);
   });
 
+  it("writes spot market distribution events into realtime store", () => {
+    applyServingSseEvent("spot_market_distribution_latest", {
+      ts: inSessionSpotTs,
+      up_count: 7,
+      down_count: 3,
+      flat_count: 2,
+      total_count: 12,
+      trend_index: 0.3333333333,
+      bucket_width_pct: 1,
+      distribution_buckets: [
+        { label: "< -1%", lower_pct: -100, upper_pct: -1, count: 3 },
+        { label: "0%", lower_pct: -1, upper_pct: 1, count: 2 },
+        { label: "+1%", lower_pct: 1, upper_pct: 2, count: 4 },
+      ],
+    });
+    applyServingSseEvent("spot_market_distribution_series", {
+      items: [
+        {
+          ts: inSessionSpotTs,
+          up_count: 6,
+          down_count: 4,
+          flat_count: 2,
+          total_count: 12,
+          trend_index: 0.1666666667,
+        },
+      ],
+    });
+
+    const state = useRealtimeStore.getState();
+    expect(state.spotMarketDistributionLatest?.up_count).toBe(7);
+    expect(state.spotMarketDistributionLatest?.distribution_buckets).toHaveLength(3);
+    expect(state.spotMarketDistributionSeries?.items).toHaveLength(1);
+    expect(state.spotMarketDistributionSeries?.items[0]?.trend_index).toBe(0.1666666667);
+  });
+
   it("spot latest list mock generator emits six gap symbols every second", () => {
     const startTs = Date.parse("2026-04-09T10:00:00+08:00");
     const generator = createSpotLatestListMockGenerator(startTs);

@@ -35,6 +35,7 @@ from app.stream_processing.runner import build_state_key, trade_date_for
 TZ_TAIPEI = ZoneInfo("Asia/Taipei")
 DAY_SESSION_START = dt_time(8, 45)
 DAY_SESSION_END = dt_time(13, 45)
+SPOT_MARKET_CODE = "SPOT_MARKET"
 _DEFAULT_CODE_CACHE: dict[str, object] = {"code": None, "ts": 0.0}
 _DEFAULT_CODE_TTL_SECONDS = 10.0
 _SPOT_SYMBOLS_CACHE: dict[str, object] = {"symbols": None, "ts": 0.0}
@@ -564,6 +565,11 @@ def normalize_spot_latest(payload: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
+def normalize_spot_market_distribution(payload: dict[str, Any]) -> dict[str, Any]:
+    result = dict(payload)
+    return result
+
+
 def _load_spot_symbols() -> list[str]:
     now = datetime.now(tz=TZ_TAIPEI).timestamp()
     cached_symbols = _SPOT_SYMBOLS_CACHE.get("symbols")
@@ -600,6 +606,61 @@ def fetch_spot_latest(symbol: str) -> dict[str, Any] | None:
     except json.JSONDecodeError:
         return None
     return normalize_spot_latest(data)
+
+
+def fetch_spot_market_distribution_latest() -> dict[str, Any] | None:
+    redis_client = get_serving_redis_client()
+    trade_date = trade_date_for(datetime.now(tz=TZ_TAIPEI))
+    key = build_state_key(
+        SERVING_ENV,
+        SPOT_MARKET_CODE,
+        trade_date,
+        "spot_distribution:latest",
+    )
+    raw = redis_client.get(key)
+    if raw is None:
+        return None
+    payload = raw.decode("utf-8") if isinstance(raw, bytes) else str(raw)
+    try:
+        data = json.loads(payload)
+    except json.JSONDecodeError:
+        return None
+    return normalize_spot_market_distribution(data)
+
+
+def fetch_spot_market_distribution_today_range(
+    time_range: TimeRange | None = None,
+) -> list[dict[str, Any]]:
+    redis_client = get_serving_redis_client()
+    if time_range is None:
+        trade_date = trade_date_for(datetime.now(tz=TZ_TAIPEI))
+        key = build_state_key(
+            SERVING_ENV,
+            SPOT_MARKET_CODE,
+            trade_date,
+            "spot_distribution:zset",
+        )
+        entries = redis_client.zrangebyscore(key, float("-inf"), float("inf"))
+    else:
+        trade_date = trade_date_for(time_range.end)
+        key = build_state_key(
+            SERVING_ENV,
+            SPOT_MARKET_CODE,
+            trade_date,
+            "spot_distribution:zset",
+        )
+        start_score = int(time_range.start.timestamp() * 1000)
+        end_score = int(time_range.end.timestamp() * 1000)
+        entries = redis_client.zrangebyscore(key, start_score, end_score)
+    result: list[dict[str, Any]] = []
+    for entry in entries or []:
+        payload = entry.decode("utf-8") if isinstance(entry, bytes) else str(entry)
+        try:
+            data = json.loads(payload)
+        except json.JSONDecodeError:
+            continue
+        result.append(normalize_spot_market_distribution(data))
+    return result
 
 
 def fetch_spot_latest_list() -> dict[str, Any]:
