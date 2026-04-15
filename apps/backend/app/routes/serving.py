@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -52,6 +53,7 @@ from app.state import metrics, serving_rate_limiter
 from app.utils.time import utcnow
 
 router = APIRouter(prefix="/v1", tags=["serving"])
+logger = logging.getLogger(__name__)
 
 
 def _sse_message(event: str, data: dict[str, Any]) -> bytes:
@@ -529,10 +531,15 @@ async def stream_sse(
                     quote_latest_data = fetch_quote_latest(instrument)
                     market_summary_latest_data = fetch_market_summary_latest(instrument)
                     otc_summary_latest_data = fetch_otc_summary_latest(OTC_SUMMARY_CODE)
-                    spot_latest_list_data = fetch_spot_latest_list()
                 except Exception:
                     metrics.inc("serving_redis_errors_total")
                     break
+                try:
+                    spot_latest_list_data = fetch_spot_latest_list()
+                except Exception:
+                    logger.exception("serving SSE spot latest list fetch failed")
+                    metrics.inc("serving_redis_errors_total")
+                    spot_latest_list_data = None
                 now = asyncio.get_running_loop().time()
 
                 if current_k and current_k != last_kbar:

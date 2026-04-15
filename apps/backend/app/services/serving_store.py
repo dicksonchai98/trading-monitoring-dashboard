@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from datetime import time as dt_time
@@ -21,7 +22,10 @@ from app.config import (
     SERVING_DEFAULT_METRIC_SECONDS,
     SERVING_ENV,
 )
-from app.market_ingestion.spot_symbols import load_and_validate_spot_symbols
+from app.market_ingestion.spot_symbols import (
+    classify_spot_symbols,
+    load_spot_symbols_from_file,
+)
 from app.models.kbar_1m import Kbar1mModel
 from app.models.market_summary_1m import MarketSummary1mModel
 from app.models.quote_feature_1m import QuoteFeature1mModel
@@ -35,6 +39,7 @@ _DEFAULT_CODE_CACHE: dict[str, object] = {"code": None, "ts": 0.0}
 _DEFAULT_CODE_TTL_SECONDS = 10.0
 _SPOT_SYMBOLS_CACHE: dict[str, object] = {"symbols": None, "ts": 0.0}
 _SPOT_SYMBOLS_TTL_SECONDS = 10.0
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -565,10 +570,19 @@ def _load_spot_symbols() -> list[str]:
     cached_ts = float(_SPOT_SYMBOLS_CACHE.get("ts", 0.0))
     if isinstance(cached_symbols, list) and (now - cached_ts) < _SPOT_SYMBOLS_TTL_SECONDS:
         return [str(item) for item in cached_symbols]
-    symbols = load_and_validate_spot_symbols(
-        path=INGESTOR_SPOT_SYMBOLS_FILE,
-        expected_count=INGESTOR_SPOT_SYMBOLS_EXPECTED_COUNT,
-    )
+    parsed_symbols = load_spot_symbols_from_file(INGESTOR_SPOT_SYMBOLS_FILE)
+    classified = classify_spot_symbols(parsed_symbols)
+    symbols = classified.valid_symbols
+    if classified.invalid_symbols or classified.duplicate_symbols:
+        logger.warning(
+            "serving spot symbol registry sanitized file=%s expected=%s valid=%s "
+            "invalid=%s duplicates=%s",
+            INGESTOR_SPOT_SYMBOLS_FILE,
+            INGESTOR_SPOT_SYMBOLS_EXPECTED_COUNT,
+            len(symbols),
+            classified.invalid_symbols[:10],
+            classified.duplicate_symbols[:10],
+        )
     _SPOT_SYMBOLS_CACHE["symbols"] = symbols
     _SPOT_SYMBOLS_CACHE["ts"] = now
     return symbols

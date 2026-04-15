@@ -169,3 +169,12 @@ def test_fetch_spot_latest_list_keeps_registry_order_and_null_fallback(monkeypat
             "updated_at": None,
         },
     ]
+
+
+def test_load_spot_symbols_sanitizes_invalid_and_duplicate_entries(monkeypatch, tmp_path) -> None:
+    symbols_file = tmp_path / "symbols.txt"
+    symbols_file.write_text("2330\nBAD\n2317\n2330\n", encoding="utf-8")
+    monkeypatch.setattr(serving_store, "INGESTOR_SPOT_SYMBOLS_FILE", str(symbols_file))
+    monkeypatch.setattr(serving_store, "_SPOT_SYMBOLS_CACHE", {"symbols": None, "ts": 0.0})
+
+    assert serving_store._load_spot_symbols() == ["2330", "2317"]

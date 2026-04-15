@@ -262,6 +262,33 @@ def test_sse_includes_spot_latest_list_event(monkeypatch: pytest.MonkeyPatch) ->
     asyncio.run(_run())
 
 
+def test_sse_keeps_other_events_alive_when_spot_latest_list_fetch_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.routes.serving.fetch_current_kbar",
+        lambda _code: {"code": "TSE001", "minute_ts": 1712368800000},
+    )
+    monkeypatch.setattr("app.routes.serving.fetch_metric_latest", lambda _code: None)
+    monkeypatch.setattr("app.routes.serving.fetch_market_summary_latest", lambda _code: None)
+    monkeypatch.setattr("app.routes.serving.fetch_otc_summary_latest", lambda _code: None)
+    monkeypatch.setattr(
+        "app.routes.serving.fetch_spot_latest_list",
+        lambda: (_ for _ in ()).throw(ValueError("invalid spot symbol")),
+    )
+    monkeypatch.setattr("app.routes.serving.SERVING_HEARTBEAT_SECONDS", 3600)
+
+    async def _run() -> None:
+        req = _FakeSSERequest(host="10.0.0.5", disconnect_after_checks=10)
+        response = await stream_sse(req, code="TSE001")
+        event_bytes = await response.body_iterator.__anext__()
+        event_text = event_bytes.decode("utf-8")
+        assert "event: kbar_current" in event_text
+        await response.body_iterator.aclose()
+
+    asyncio.run(_run())
+
+
 def test_sse_includes_otc_summary_latest_event(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("app.routes.serving.fetch_current_kbar", lambda _code: None)
     monkeypatch.setattr("app.routes.serving.fetch_metric_latest", lambda _code: None)
