@@ -1,5 +1,6 @@
+import type { JSX } from "react";
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation, useNavigate } from "react-router-dom";
 import { AppShell } from "@/app/layout/AppShell";
 import { I18nProvider } from "@/lib/i18n";
 
@@ -13,6 +14,20 @@ vi.mock("react-router-dom", async () => {
 });
 
 describe("AppShell", () => {
+  function NavigationHarness(): JSX.Element {
+    const location = useLocation();
+    const navigate = useNavigate();
+
+    return (
+      <>
+        <button type="button" onClick={() => navigate("/market-thermometer")}>
+          Go to market thermometer
+        </button>
+        <div data-testid="current-path">{location.pathname}</div>
+      </>
+    );
+  }
+
   function renderShell(): void {
     render(
       <I18nProvider>
@@ -75,6 +90,30 @@ describe("AppShell", () => {
 
     expect(screen.getByText("Monitoring")).toBeInTheDocument();
     expect(screen.getByText("Realtime")).toBeInTheDocument();
+  });
+
+  it("keeps route content visible during client-side navigation", () => {
+    render(
+      <I18nProvider>
+        <MemoryRouter initialEntries={["/dashboard"]}>
+          <NavigationHarness />
+          <AppShell />
+        </MemoryRouter>
+      </I18nProvider>,
+    );
+
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+
+    expect(screen.getByTestId("current-path")).toHaveTextContent("/dashboard");
+    expect(screen.getByTestId("outlet-content")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Go to market thermometer" }));
+
+    expect(screen.getByTestId("current-path")).toHaveTextContent("/market-thermometer");
+    expect(screen.getByTestId("outlet-content")).toBeInTheDocument();
+    expect(screen.queryByTestId("page-skeleton")).not.toBeInTheDocument();
   });
 
   it("shows a mobile trigger button and opens sidebar sheet", () => {

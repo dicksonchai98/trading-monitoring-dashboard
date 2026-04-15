@@ -24,9 +24,13 @@ export function triggerCrawlerJob(
   token: string,
   payload: CrawlerSingleDateJobRequest | CrawlerRangeJobRequest,
 ): Promise<CrawlerJobResponse> {
-  return postJson<CrawlerJobResponse, typeof payload>("/admin/batch/crawler/jobs", payload, {
-    headers: {
-      Authorization: `Bearer ${token}`,
+  return postJson<CrawlerJobResponse, typeof payload>(
+    "api/admin/batch/crawler/jobs",
+    payload,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
     },
-  });
+  );
 }

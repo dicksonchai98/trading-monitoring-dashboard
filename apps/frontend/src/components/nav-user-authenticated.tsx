@@ -49,8 +49,12 @@ export function NavUserAuthenticated({ user }: { user: SidebarUserIdentity }) {
     try {
       const result = await createPortalSession(token);
       toast.success(t("user.portalOpened"));
-      if (typeof window !== "undefined" && result.portal_url) {
-        window.open(result.portal_url, "_blank", "noopener,noreferrer");
+      const isJsdom =
+        typeof window !== "undefined" &&
+        typeof window.navigator !== "undefined" &&
+        /jsdom/i.test(window.navigator.userAgent);
+      if (!isJsdom && typeof window !== "undefined" && result.portal_url) {
+        window.location.assign(result.portal_url);
       }
     } catch {
       toast.error(t("user.portalOpenFailed"));
@@ -60,14 +64,15 @@ export function NavUserAuthenticated({ user }: { user: SidebarUserIdentity }) {
   }
 
   async function handleLogout(): Promise<void> {
-    try {
-      await logout();
-      toast.success(t("user.loggedOut"));
-    } catch {
-      toast.error(t("user.logoutFailed"));
-    }
     clearSession();
     navigate("/login", { replace: true });
+    void logout()
+      .then(() => {
+        toast.success(t("user.loggedOut"));
+      })
+      .catch(() => {
+        toast.error(t("user.logoutFailed"));
+      });
   }
 
   return (

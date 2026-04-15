@@ -64,6 +64,16 @@ describe("HistoricalAmplitudeDistributionPage", () => {
     expect(
       await screen.findByTestId("amplitude-histogram-chart"),
     ).toBeInTheDocument();
+    expect(getAnalyticsMetrics).toHaveBeenCalledWith("token", expect.any(AbortSignal));
+    expect(getDistributionStats).toHaveBeenCalledWith(
+      "token",
+      expect.objectContaining({
+        metricId: "amplitude",
+        code: "TXFR1",
+        version: "latest",
+      }),
+      expect.any(AbortSignal),
+    );
   });
 
   it("renders histogram when backend returns numeric bin edges", async () => {

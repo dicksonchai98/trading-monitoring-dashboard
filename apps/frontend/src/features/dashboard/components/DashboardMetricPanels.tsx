@@ -403,6 +403,23 @@ function OtcIndexLinePanel({ title }: { title: string }): JSX.Element {
   const { locale, t } = useI18n();
   const { series } = useOtcIndexSeries();
   const chartData = series;
+  // compute y domain & downsample to avoid cramped rendering
+  const values = chartData.map((p) => p.value);
+  const yMin = values.length > 0 ? Math.min(...values) : 0;
+  const yMax = values.length > 0 ? Math.max(...values) : 1;
+  const range = Math.max(yMax - yMin, 0);
+  const padding = Math.max(range * 0.03, 0.2);
+  const yDomain: [number, number] = [yMin - padding, yMax + padding];
+
+  const MAX_POINTS = 120;
+  let displayData = chartData;
+  if (chartData.length > MAX_POINTS) {
+    const step = Math.ceil(chartData.length / MAX_POINTS);
+    displayData = chartData.filter((_, i) => i % step === 0);
+    if (displayData[displayData.length - 1]?.minuteTs !== chartData[chartData.length - 1]?.minuteTs) {
+      displayData.push(chartData[chartData.length - 1]);
+    }
+  }
   const xTicks =
     chartData.length > 0
       ? [
@@ -432,7 +449,7 @@ function OtcIndexLinePanel({ title }: { title: string }): JSX.Element {
         <div className="h-full min-h-[120px] w-full" data-testid="panel-chart">
           <ResponsiveContainer width="100%" height="100%" minWidth={0}>
             <AreaChart
-              data={chartData}
+              data={displayData}
               margin={{ top: 8, right: 8, bottom: 2, left: -8 }}
             >
               <XAxis
@@ -449,7 +466,7 @@ function OtcIndexLinePanel({ title }: { title: string }): JSX.Element {
                 axisLine={false}
                 tickLine={false}
                 tick={false}
-                domain={["dataMin - 0.2", "dataMax + 0.2"]}
+                domain={yDomain}
                 width={0}
               />
               <Tooltip
@@ -489,7 +506,7 @@ function OtcIndexLinePanel({ title }: { title: string }): JSX.Element {
                 isAnimationActive={false}
                 stroke="#ef4444"
                 strokeWidth={1.8}
-                type="linear"
+                type="monotone"
               />
             </AreaChart>
           </ResponsiveContainer>

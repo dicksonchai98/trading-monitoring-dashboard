@@ -254,7 +254,10 @@ export function RealtimeDashboardOverview(): JSX.Element {
         />
       </BentoGridSection>
 
-      <BentoGridSection title={t("dashboard.realtime.participantOverview")}>
+      <BentoGridSection
+        tooltip={`此区块为显示N日的振幅统计`}
+        title={t("dashboard.realtime.participantOverview")}
+      >
         <PanelCard
           title={t("dashboard.realtime.amplitudeSummary.title")}
           span={2}

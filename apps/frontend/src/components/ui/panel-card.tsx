@@ -1,4 +1,4 @@
-import type { JSX, PropsWithChildren } from "react";
+import type { CSSProperties, JSX, PropsWithChildren } from "react";
 import { Card } from "@/components/ui/card";
 import { PanelHeader } from "@/components/ui/panel-header";
 import { cn } from "@/lib/utils/cn";
@@ -11,6 +11,7 @@ interface PanelCardProps extends PropsWithChildren {
   units?: number;
   className?: string;
   contentClassName?: string;
+  style?: CSSProperties;
   "data-testid"?: string;
 }
 
@@ -37,6 +38,7 @@ export function PanelCard({
   units = 1,
   className,
   contentClassName,
+  style,
   "data-testid": dataTestId = "panel-card",
   children,
 }: PanelCardProps): JSX.Element {
@@ -48,7 +50,7 @@ export function PanelCard({
         className,
       )}
       data-testid={dataTestId}
-      style={{ minHeight: `calc(var(--panel-row-h) * ${units})` }}
+      style={{ minHeight: `calc(var(--panel-row-h) * ${units})`, ...style }}
     >
       <PanelHeader title={title} meta={meta} note={note} />
       <div className={cn("flex min-h-0 flex-1 flex-col", contentClassName)} data-testid={`${dataTestId}-content`}>

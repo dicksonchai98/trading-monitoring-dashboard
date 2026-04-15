@@ -11,6 +11,7 @@ import {
 } from "@/features/dashboard/api/crawler-jobs";
 import type { UnifiedLoaderJobRecord } from "@/features/dashboard/types/loader-jobs";
 import { ApiError } from "@/lib/api/client";
+import { useT } from "@/lib/i18n";
 
 type DateMode = "single" | "range";
 type LoadStatus = "idle" | "loading" | "success" | "error";
@@ -20,20 +21,20 @@ interface CrawlerPanelProps {
   onJobsCreated: (jobs: UnifiedLoaderJobRecord[]) => void;
 }
 
-function mapApiError(error: unknown): string {
+function mapApiError(error: unknown, t: ReturnType<typeof useT>): string {
   if (!(error instanceof ApiError)) {
-    return "Load failed. Please retry.";
+    return t("dashboard.loader.error.retry");
   }
   if (error.status === 401) {
-    return "Session expired. Please login again.";
+    return t("dashboard.loader.error.sessionExpired");
   }
   if (error.status === 403) {
-    return "Admin role is required to trigger crawler jobs.";
+    return t("dashboard.loader.error.crawlerAdminRequired");
   }
   if (error.code === "invalid_date_range") {
-    return "Date range is invalid. Please check start and end date.";
+    return t("dashboard.loader.error.invalidDateRange");
   }
-  return `Load failed: ${error.code}`;
+  return t("dashboard.loader.error.withCode", { code: error.code });
 }
 
 function toUnifiedRecord(
@@ -54,6 +55,7 @@ function toUnifiedRecord(
 }
 
 export function CrawlerPanel({ token, onJobsCreated }: CrawlerPanelProps): JSX.Element {
+  const t = useT();
   const [mode, setMode] = useState<DateMode>("single");
   const [singleDate, setSingleDate] = useState("2026-03-17");
   const [rangeStart, setRangeStart] = useState("2026-03-10");
@@ -90,20 +92,20 @@ export function CrawlerPanel({ token, onJobsCreated }: CrawlerPanelProps): JSX.E
 
   function validateInputs(): string | null {
     if (!datasetCode.trim()) {
-      return "Please provide a dataset code.";
+      return t("dashboard.loader.error.datasetRequired");
     }
     if (!triggerType.trim()) {
-      return "Please provide a trigger type.";
+      return t("dashboard.loader.error.triggerTypeRequired");
     }
     if (mode === "single" && !singleDate) {
-      return "Please pick a date for single-day run.";
+      return t("dashboard.loader.error.singleDate");
     }
     if (mode === "range") {
       if (!rangeStart || !rangeEnd) {
-        return "Please provide both start and end date.";
+        return t("dashboard.loader.error.rangeDate");
       }
       if (rangeStart > rangeEnd) {
-        return "Start date must be earlier than or equal to end date.";
+        return t("dashboard.loader.error.rangeOrder");
       }
     }
     return null;
@@ -118,7 +120,7 @@ export function CrawlerPanel({ token, onJobsCreated }: CrawlerPanelProps): JSX.E
     }
     if (!token) {
       setStatus("error");
-      setErrorMessage("Please login before triggering crawler jobs.");
+      setErrorMessage(t("dashboard.loader.error.loginRequiredCrawler"));
       return;
     }
 
@@ -131,7 +133,7 @@ export function CrawlerPanel({ token, onJobsCreated }: CrawlerPanelProps): JSX.E
       setStatus("success");
     } catch (error: unknown) {
       setStatus("error");
-      setErrorMessage(mapApiError(error));
+      setErrorMessage(mapApiError(error, t));
     }
   }
 
@@ -139,13 +141,13 @@ export function CrawlerPanel({ token, onJobsCreated }: CrawlerPanelProps): JSX.E
   const filterFields: FilterField[] = [
     {
       id: "crawler-date-mode",
-      label: "Date Mode",
+      label: t("dashboard.loader.modeLegend"),
       type: "select",
       value: mode,
       triggerTestId: "crawler-date-mode",
       options: [
-        { value: "single", label: "Single Date" },
-        { value: "range", label: "Date Range" },
+        { value: "single", label: t("dashboard.loader.mode.single") },
+        { value: "range", label: t("dashboard.loader.mode.range") },
       ],
       onValueChange: (value) => setMode(value as DateMode),
     },
@@ -153,7 +155,7 @@ export function CrawlerPanel({ token, onJobsCreated }: CrawlerPanelProps): JSX.E
       ? [
           {
             id: "crawler-single-date",
-            label: "Target Date",
+            label: t("dashboard.loader.crawler.targetDate"),
             type: "date" as const,
             value: singleDate,
             onValueChange: setSingleDate,
@@ -162,14 +164,14 @@ export function CrawlerPanel({ token, onJobsCreated }: CrawlerPanelProps): JSX.E
       : [
           {
             id: "crawler-range-start",
-            label: "From",
+            label: t("dashboard.loader.startDate"),
             type: "date" as const,
             value: rangeStart,
             onValueChange: setRangeStart,
           },
           {
             id: "crawler-range-end",
-            label: "To",
+            label: t("dashboard.loader.endDate"),
             type: "date" as const,
             value: rangeEnd,
             onValueChange: setRangeEnd,
@@ -177,7 +179,7 @@ export function CrawlerPanel({ token, onJobsCreated }: CrawlerPanelProps): JSX.E
         ]),
     {
       id: "crawler-dataset-code",
-      label: "Dataset Code",
+      label: t("dashboard.loader.crawler.datasetCode"),
       className: "md:col-span-2",
       type: "input",
       value: datasetCode,
@@ -186,7 +188,7 @@ export function CrawlerPanel({ token, onJobsCreated }: CrawlerPanelProps): JSX.E
     },
     {
       id: "crawler-trigger-type",
-      label: "Trigger Type",
+      label: t("dashboard.loader.crawler.triggerType"),
       type: "input",
       value: triggerType,
       onValueChange: setTriggerType,
@@ -206,7 +208,7 @@ export function CrawlerPanel({ token, onJobsCreated }: CrawlerPanelProps): JSX.E
               disabled={status === "loading" || triggerMutation.isPending}
               onClick={() => void handleLoad()}
             >
-              {status === "loading" || triggerMutation.isPending ? "Loading..." : "Load Crawler"}
+              {status === "loading" || triggerMutation.isPending ? t("dashboard.loader.loading") : t("dashboard.loader.crawler.load")}
             </Button>
             <Button
               disabled={status === "loading" || triggerMutation.isPending}
@@ -216,7 +218,7 @@ export function CrawlerPanel({ token, onJobsCreated }: CrawlerPanelProps): JSX.E
               }}
               variant="outline"
             >
-              Reset
+              {t("dashboard.loader.reset")}
             </Button>
           </>
         }
@@ -224,17 +226,17 @@ export function CrawlerPanel({ token, onJobsCreated }: CrawlerPanelProps): JSX.E
 
       <div className="space-y-3 text-sm" data-testid="crawler-load-status">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="neutral">Mode: {mode === "single" ? "Single Date" : "Date Range"}</Badge>
-          <Badge variant="info">Date: {dateDisplay}</Badge>
-          <Badge variant="info">Dataset: {datasetCode}</Badge>
-          <Badge variant="info">Trigger: {triggerType}</Badge>
+          <Badge variant="neutral">{t("dashboard.loader.status.mode")}: {mode === "single" ? t("dashboard.loader.mode.single") : t("dashboard.loader.mode.range")}</Badge>
+          <Badge variant="info">{t("dashboard.loader.status.date")}: {dateDisplay}</Badge>
+          <Badge variant="info">{t("dashboard.loader.crawler.datasetLabel")}: {datasetCode}</Badge>
+          <Badge variant="info">{t("dashboard.loader.crawler.triggerLabel")}: {triggerType}</Badge>
         </div>
 
         {status === "error" ? <ApiStatusAlert message={errorMessage} /> : null}
 
         {status === "success" ? (
           <div className="rounded-sm border border-[#22c55e]/35 bg-[#22c55e]/10 px-3 py-2 text-[#14532d]">
-            Triggered crawler job successfully.
+            {t("dashboard.loader.crawler.success")}
           </div>
         ) : null}
       </div>

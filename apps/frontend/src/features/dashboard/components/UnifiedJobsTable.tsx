@@ -10,6 +10,10 @@ interface UnifiedJobsTableProps {
 export function UnifiedJobsTable({ jobs }: UnifiedJobsTableProps): JSX.Element {
   const t = useT();
   const sortedJobs = [...jobs].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const sourceLabelByKey: Record<string, string> = {
+    backfill: t("dashboard.loader.backfill.title"),
+    crawler: t("dashboard.loader.crawler.title"),
+  };
 
   return (
     <PanelCard
@@ -40,7 +44,7 @@ export function UnifiedJobsTable({ jobs }: UnifiedJobsTableProps): JSX.Element {
               <tbody>
                 {sortedJobs.map((job) => (
                   <tr className="border-t border-border" key={`${job.source}-${job.jobId}-${job.createdAt}`}>
-                    <td className="px-3 py-2 text-foreground">{job.source}</td>
+                    <td className="px-3 py-2 text-foreground">{sourceLabelByKey[job.source] ?? job.source}</td>
                     <td className="px-3 py-2 text-foreground">{job.jobId}</td>
                     <td className="px-3 py-2 text-foreground">{job.workerType}</td>
                     <td className="px-3 py-2 text-foreground">{job.jobType}</td>

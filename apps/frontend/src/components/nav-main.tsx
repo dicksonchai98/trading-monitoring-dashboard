@@ -13,6 +13,7 @@ import {
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarMenuSubItem,
+  useSidebar,
 } from "@/components/ui/sidebar"
 import { ChevronRightIcon } from "lucide-react"
 import { useT } from "@/lib/i18n"
@@ -34,6 +35,14 @@ export function NavMain({
   pathname: string
 }) {
   const t = useT();
+  const { isMobile, setOpenMobile } = useSidebar();
+
+  function handleMobileNavClick(): void {
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+  }
+
   return (
     <SidebarGroup>
       <SidebarGroupLabel>{t("nav.monitoring")}</SidebarGroupLabel>
@@ -58,7 +67,7 @@ export function NavMain({
                   {item.items?.map((subItem) => (
                     <SidebarMenuSubItem key={subItem.title}>
                       <SidebarMenuSubButton asChild isActive={pathname === subItem.url}>
-                        <Link to={subItem.url}>
+                        <Link to={subItem.url} onClick={handleMobileNavClick}>
                           <span>{subItem.title}</span>
                         </Link>
                       </SidebarMenuSubButton>

@@ -20,42 +20,62 @@ import {
 import { ChevronsUpDownIcon, PlusIcon } from "lucide-react";
 import { useT } from "@/lib/i18n";
 
+import { useNavigate } from "react-router-dom";
+
 export function TeamSwitcher({
   teams,
+  disableDropdown = false,
 }: {
   teams: {
     name: string;
     logo: React.ReactNode;
     plan: string;
   }[];
+  disableDropdown?: boolean;
 }) {
   const t = useT();
   const { isMobile } = useSidebar();
   const [activeTeam, setActiveTeam] = React.useState(teams[0]);
+  const navigate = useNavigate();
 
   if (!activeTeam) {
     return null;
+  }
+
+  const handleClick = (e: React.MouseEvent) => {
+    e.preventDefault(); // 阻止默认刷新行为
+    navigate("/dashboard");
+  };
+
+  const teamButton = (
+    <SidebarMenuButton
+      size="lg"
+      className="data-[state=open]:bg-sidebar-accent pl-0 data-[state=open]:text-sidebar-accent-foreground focus-visible:ring-0 focus-visible:ring-offset-0"
+    >
+      <div className="flex aspect-square size-8 items-center justify-center  rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+        {activeTeam.logo}
+      </div>
+      <div className="grid flex-1 text-left text-sm leading-tight">
+        <span className="truncate font-medium">{activeTeam.name}</span>
+        <span className="truncate text-xs">{activeTeam.plan}</span>
+      </div>
+      {!disableDropdown ? <ChevronsUpDownIcon className="ml-auto" /> : null}
+    </SidebarMenuButton>
+  );
+
+  if (disableDropdown) {
+    return (
+      <SidebarMenu>
+        <SidebarMenuItem onClick={handleClick}>{teamButton}</SidebarMenuItem>
+      </SidebarMenu>
+    );
   }
 
   return (
     <SidebarMenu>
       <SidebarMenuItem>
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <SidebarMenuButton
-              size="lg"
-              className="data-[state=open]:bg-sidebar-accent pl-0 data-[state=open]:text-sidebar-accent-foreground focus-visible:ring-0 focus-visible:ring-offset-0"
-            >
-              <div className="flex aspect-square size-8 items-center justify-center  rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-                {activeTeam.logo}
-              </div>
-              <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-medium">{activeTeam.name}</span>
-                <span className="truncate text-xs">{activeTeam.plan}</span>
-              </div>
-              <ChevronsUpDownIcon className="ml-auto" />
-            </SidebarMenuButton>
-          </DropdownMenuTrigger>
+          <DropdownMenuTrigger asChild>{teamButton}</DropdownMenuTrigger>
           <DropdownMenuContent
             className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-56 rounded-lg"
             align="start"

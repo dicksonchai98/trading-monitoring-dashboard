@@ -48,7 +48,7 @@ function mapMetricLabel(
   fallbackLabel?: string,
 ): string {
   const key = METRIC_LABEL_KEYS[metricId];
-  return key ? t(key) : fallbackLabel ?? metricId;
+  return key ? t(key) : (fallbackLabel ?? metricId);
 }
 
 function parseBinRange(raw: string): { start: number; end: number } {
@@ -61,7 +61,10 @@ function parseBinRange(raw: string): { start: number; end: number } {
   };
 }
 
-function toHistogramRows(bins: Array<string | number>, counts: number[]): HistogramRow[] {
+function toHistogramRows(
+  bins: Array<string | number>,
+  counts: number[],
+): HistogramRow[] {
   if (bins.length === 0) {
     return [];
   }
@@ -70,8 +73,12 @@ function toHistogramRows(bins: Array<string | number>, counts: number[]): Histog
     if (typeof bins[0] === "number") {
       return bins.filter((edge): edge is number => typeof edge === "number");
     }
-    const stringBins = bins.filter((edge): edge is string => typeof edge === "string");
-    const allNumeric = stringBins.every((edge) => edge.includes("~") === false && Number.isFinite(Number(edge)));
+    const stringBins = bins.filter(
+      (edge): edge is string => typeof edge === "string",
+    );
+    const allNumeric = stringBins.every(
+      (edge) => edge.includes("~") === false && Number.isFinite(Number(edge)),
+    );
     if (!allNumeric) {
       return [];
     }
@@ -116,7 +123,7 @@ export function HistoricalAmplitudeDistributionPage(): JSX.Element {
 
   const metricsQuery = useQuery({
     queryKey: ["historical-amplitude-metrics"],
-    queryFn: () => getAnalyticsMetrics(token),
+    queryFn: ({ signal }) => getAnalyticsMetrics(token, signal),
   });
   const metrics = metricsQuery.data?.metrics ?? [];
 
@@ -127,18 +134,13 @@ export function HistoricalAmplitudeDistributionPage(): JSX.Element {
   }, [metricId, metrics]);
 
   const distributionQuery = useQuery({
-    queryKey: [
-      "historical-amplitude-distribution",
-      metricId,
-      code,
-      version,
-    ],
-    queryFn: () =>
+    queryKey: ["historical-amplitude-distribution", metricId, code, version],
+    queryFn: ({ signal }) =>
       getDistributionStats(token, {
         metricId,
         code,
         version,
-      }),
+      }, signal),
     enabled: Boolean(metricId),
   });
 
@@ -192,7 +194,13 @@ export function HistoricalAmplitudeDistributionPage(): JSX.Element {
               value: metric.id,
               label: mapMetricLabel(metric.id, t, metric.label),
             }))
-          : [{ value: "__none__", label: t("dashboard.amplitude.filter.noMetrics"), disabled: true }],
+          : [
+              {
+                value: "__none__",
+                label: t("dashboard.amplitude.filter.noMetrics"),
+                disabled: true,
+              },
+            ],
       onValueChange: setMetricId,
     },
   ];
@@ -205,7 +213,10 @@ export function HistoricalAmplitudeDistributionPage(): JSX.Element {
     >
       <FilterLayer fields={filterFields} />
 
-      <BentoGridSection title={t("dashboard.amplitude.sectionTitle")}>
+      <BentoGridSection
+        tooltip={`此页功能显示各种振幅的统计资料`}
+        title={t("dashboard.amplitude.sectionTitle")}
+      >
         <PanelCard
           title={t("dashboard.amplitude.hist.title")}
           span={12}
@@ -221,15 +232,23 @@ export function HistoricalAmplitudeDistributionPage(): JSX.Element {
             apiStatus !== 401 &&
             apiStatus !== 403 ? (
               <ApiStatusAlert
-                message={t("dashboard.amplitude.error.fetch", { status: String(apiStatus) })}
+                message={t("dashboard.amplitude.error.fetch", {
+                  status: String(apiStatus),
+                })}
                 status={apiStatus}
               />
             ) : null}
 
             <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              <Badge variant="success">{t("dashboard.amplitude.upDays")}: {upDays}</Badge>
-              <Badge variant="danger">{t("dashboard.amplitude.downDays")}: {downDays}</Badge>
-              <Badge variant="neutral">{t("dashboard.amplitude.net")}: {upDays - downDays}</Badge>
+              <Badge variant="success">
+                {t("dashboard.amplitude.upDays")}: {upDays}
+              </Badge>
+              <Badge variant="danger">
+                {t("dashboard.amplitude.downDays")}: {downDays}
+              </Badge>
+              <Badge variant="neutral">
+                {t("dashboard.amplitude.net")}: {upDays - downDays}
+              </Badge>
             </div>
 
             {distributionQuery.isLoading ? (
@@ -288,11 +307,15 @@ export function HistoricalAmplitudeDistributionPage(): JSX.Element {
                         color: "hsl(var(--foreground))",
                       }}
                       formatter={(value) => [
-                        t("dashboard.amplitude.tooltip.days", { value: String(Number(value ?? 0)) }),
+                        t("dashboard.amplitude.tooltip.days", {
+                          value: String(Number(value ?? 0)),
+                        }),
                         t("dashboard.amplitude.tooltip.count"),
                       ]}
                       labelFormatter={(label) =>
-                        t("dashboard.amplitude.tooltip.bucket", { label: String(label) })
+                        t("dashboard.amplitude.tooltip.bucket", {
+                          label: String(label),
+                        })
                       }
                     />
                     <Bar dataKey="count">
@@ -316,4 +339,3 @@ export function HistoricalAmplitudeDistributionPage(): JSX.Element {
     </PageLayout>
   );
 }
-

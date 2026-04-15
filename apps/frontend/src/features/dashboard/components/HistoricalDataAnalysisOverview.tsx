@@ -4,7 +4,10 @@ import { Badge } from "@/components/ui/badge";
 import { BentoGridSection } from "@/components/ui/bento-grid";
 import { ApiStatusAlert } from "@/components/ui/api-status-alert";
 import { PageLayout } from "@/components/ui/page-layout";
-import { getAnalyticsEvents, getEventStats } from "@/features/analytics/api/analytics";
+import {
+  getAnalyticsEvents,
+  getEventStats,
+} from "@/features/analytics/api/analytics";
 import { PanelCard } from "@/components/ui/panel-card";
 import { DealerPositionChart } from "@/features/dashboard/components/PanelCharts";
 import { HistoricalDataAnalysisFilters } from "@/features/dashboard/components/HistoricalDataAnalysisFilters";
@@ -26,9 +29,13 @@ const EVENT_LABEL_KEYS: Partial<Record<string, TranslationKey>> = {
   gap_down_lt_minus_100: "dashboard.analysis.event.gap_down_lt_minus_100",
 };
 
-function toEventLabel(eventId: string, t: ReturnType<typeof useT>, fallback?: string): string {
+function toEventLabel(
+  eventId: string,
+  t: ReturnType<typeof useT>,
+  fallback?: string,
+): string {
   const key = EVENT_LABEL_KEYS[eventId];
-  return key ? t(key) : fallback ?? eventId;
+  return key ? t(key) : (fallback ?? eventId);
 }
 
 export function HistoricalDataAnalysisOverview(): JSX.Element {
@@ -40,7 +47,7 @@ export function HistoricalDataAnalysisOverview(): JSX.Element {
 
   const eventsQuery = useQuery({
     queryKey: ["historical-event-registry"],
-    queryFn: () => getAnalyticsEvents(token),
+    queryFn: ({ signal }) => getAnalyticsEvents(token, signal),
     retry: false,
   });
 
@@ -65,12 +72,12 @@ export function HistoricalDataAnalysisOverview(): JSX.Element {
 
   const statsQuery = useQuery({
     queryKey: ["historical-event-stats", eventId, code],
-    queryFn: () =>
+    queryFn: ({ signal }) =>
       getEventStats(token, {
         eventId: eventId.trim(),
         code,
         flatThreshold: 0,
-      }),
+      }, signal),
     enabled: !hasInvalidRequiredInput,
     retry: false,
   });
@@ -88,7 +95,9 @@ export function HistoricalDataAnalysisOverview(): JSX.Element {
   return (
     <PageLayout
       title={t("dashboard.analysis.title")}
-      actions={<Badge variant="success">{t("dashboard.analysis.connected")}</Badge>}
+      actions={
+        <Badge variant="success">{t("dashboard.analysis.connected")}</Badge>
+      }
       bodyClassName="space-y-[var(--section-gap)]"
     >
       <HistoricalDataAnalysisFilters
@@ -102,12 +111,15 @@ export function HistoricalDataAnalysisOverview(): JSX.Element {
 
       {apiStatus && apiStatus >= 400 ? (
         <ApiStatusAlert
-          message={t("dashboard.analysis.apiFailed", { status: String(apiStatus) })}
+          message={t("dashboard.analysis.apiFailed", {
+            status: String(apiStatus),
+          })}
           status={apiStatus}
         />
       ) : null}
 
       <BentoGridSection
+        tooltip={`此页主要显示该事件发生后\n隔天行情走势的概率`}
         title={t("dashboard.analysis.sectionTitle")}
         gridClassName="h-full auto-rows-fr lg:grid-cols-8"
       >
@@ -171,7 +183,9 @@ export function HistoricalDataAnalysisOverview(): JSX.Element {
             contentClassName="pt-[var(--panel-gap)]"
             data-testid="historical-signal-panel"
           >
-            <div className="text-sm text-muted-foreground">{t("dashboard.analysis.empty")}</div>
+            <div className="text-sm text-muted-foreground">
+              {t("dashboard.analysis.empty")}
+            </div>
           </PanelCard>
         )}
       </BentoGridSection>

@@ -20,13 +20,12 @@ export function triggerHistoricalBackfillJob(
   token: string,
   payload: HistoricalBackfillTriggerRequest,
 ): Promise<HistoricalBackfillTriggerResponse> {
-  return postJson<HistoricalBackfillTriggerResponse, HistoricalBackfillTriggerRequest>(
-    "/admin/batch/backfill/jobs",
-    payload,
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+  return postJson<
+    HistoricalBackfillTriggerResponse,
+    HistoricalBackfillTriggerRequest
+  >("api/admin/batch/backfill/jobs", payload, {
+    headers: {
+      Authorization: `Bearer ${token}`,
     },
-  );
+  });
 }

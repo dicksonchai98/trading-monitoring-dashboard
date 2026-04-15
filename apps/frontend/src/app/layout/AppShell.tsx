@@ -3,7 +3,6 @@ import { Fragment, useEffect, useState } from "react";
 import { Languages, Moon, Sun } from "lucide-react";
 import { Outlet, Link, useLocation } from "react-router-dom";
 import { AppSidebar } from "@/components/app-sidebar";
-import { PageSkeleton } from "@/components/ui/page-skeleton";
 import { SidebarInset, SidebarProvider, SidebarSeparator, SidebarTrigger } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
@@ -49,15 +48,8 @@ const BREADCRUMB_LABEL_KEYS: Record<string, TranslationKey> = {
 export function AppShell(): JSX.Element {
   const { locale, setLocale, t } = useI18n();
   const location = useLocation();
-  const [routeLoading, setRouteLoading] = useState(true);
   const [colorMode, setColorMode] = useState<ColorMode>(readInitialColorMode);
   const segments = location.pathname.split("/").filter(Boolean);
-
-  useEffect(() => {
-    setRouteLoading(true);
-    const timerId = window.setTimeout(() => setRouteLoading(false), 260);
-    return () => window.clearTimeout(timerId);
-  }, [location.pathname]);
 
   useEffect(() => {
     applyColorModeToDocument(colorMode);
@@ -143,7 +135,7 @@ export function AppShell(): JSX.Element {
             {renderHeaderActions("h-8 w-8")}
           </header>
           <div className="min-h-screen min-w-0 bg-background p-[var(--shell-padding)]">
-            {routeLoading ? <PageSkeleton className="px-0 py-0" /> : <Outlet />}
+            <Outlet />
           </div>
         </SidebarInset>
       </SidebarProvider>
