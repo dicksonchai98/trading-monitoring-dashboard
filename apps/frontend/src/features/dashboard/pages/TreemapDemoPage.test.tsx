@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { I18nProvider, LANGUAGE_STORAGE_KEY } from "@/lib/i18n";
 import { TreemapDemoPage } from "@/features/dashboard/pages/TreemapDemoPage";
@@ -18,7 +18,18 @@ describe("TreemapDemoPage", () => {
     useRealtimeStore.getState().resetRealtime();
   });
 
+  afterEach(() => {
+    window.localStorage.removeItem(LANGUAGE_STORAGE_KEY);
+  });
+
   it("shows ranking rows with code and localized stock name", () => {
+    useRealtimeStore.setState({
+      indexContribRanking: {
+        top: [{ rank_no: 1, symbol: "2330", contribution_points: 12.34 }],
+        bottom: [{ rank_no: 2, symbol: "2412", contribution_points: -5.67 }],
+      },
+    });
+
     renderPage();
 
     expect(screen.getByText("2330 TSMC")).toBeInTheDocument();
