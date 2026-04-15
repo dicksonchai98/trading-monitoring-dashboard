@@ -103,7 +103,7 @@ const router = createBrowserRouter([
         ),
       },
       {
-        path: "/treemap-demo",
+        path: "/industry-contribution-heatmap",
         element: (
           <GuardedRoute requiredRole="member" requireActiveEntitlement>
             <TreemapDemoPage />

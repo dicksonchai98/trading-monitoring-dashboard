@@ -2,7 +2,7 @@ import type { JSX } from "react";
 import { BentoGridSection } from "@/components/ui/bento-grid";
 import { PageLayout } from "@/components/ui/page-layout";
 import { useRealtimeStore } from "@/features/realtime/store/realtime.store";
-import { useI18n } from "@/lib/i18n";
+import { useI18n, useT, type TranslationKey } from "@/lib/i18n";
 import { ResponsiveContainer, Treemap, type TreemapNode } from "recharts";
 
 const data = [
@@ -99,6 +99,53 @@ const STOCK_NAME_MAP: Record<string, { en: string; zh: string }> = {
 };
 
 const TREEMAP_PANEL_HEIGHT_CLASS = "h-[520px]";
+const SECTOR_LABEL_KEYS = {
+  semiconductor: "dashboard.treemap.sector.semiconductor",
+  financial: "dashboard.treemap.sector.financial",
+  traditional: "dashboard.treemap.sector.traditional",
+  other: "dashboard.treemap.sector.other",
+  electronics: "dashboard.treemap.sector.electronics",
+  plastics: "dashboard.treemap.sector.plastics",
+  steel: "dashboard.treemap.sector.steel",
+  shipping: "dashboard.treemap.sector.shipping",
+  telecom: "dashboard.treemap.sector.telecom",
+  automobile: "dashboard.treemap.sector.automobile",
+} satisfies Record<string, TranslationKey>;
+const SECTOR_ID_ALIASES = {
+  semiconductor: "semiconductor",
+  finance: "financial",
+  financial: "financial",
+  traditional: "traditional",
+  other: "other",
+  electronics: "electronics",
+  plastics: "plastics",
+  steel: "steel",
+  shipping: "shipping",
+  telecom: "telecom",
+  automobile: "automobile",
+  electronic: "electronics",
+  autos: "automobile",
+  auto: "automobile",
+  半導體: "semiconductor",
+  半导体: "semiconductor",
+  金融: "financial",
+  傳產: "traditional",
+  传统产业: "traditional",
+  傳統產業: "traditional",
+  其他: "other",
+  電子: "electronics",
+  电子: "electronics",
+  塑膠: "plastics",
+  塑胶: "plastics",
+  鋼鐵: "steel",
+  钢铁: "steel",
+  航運: "shipping",
+  航运: "shipping",
+  電信: "telecom",
+  电信: "telecom",
+  汽車: "automobile",
+  汽车: "automobile",
+} as const;
 
 function getStockName(symbol: string, locale: string): string | null {
   const stockInfo = STOCK_NAME_MAP[symbol];
@@ -113,26 +160,98 @@ function formatStockLabel(symbol: string, locale: string): string {
   return stockName ? `${symbol} ${stockName}` : symbol;
 }
 
+function getSectorLabel(sectorId: string, t: ReturnType<typeof useT>): string {
+  const normalizedSectorId =
+    SECTOR_ID_ALIASES[
+      sectorId.trim().toLowerCase() as keyof typeof SECTOR_ID_ALIASES
+    ] ??
+    SECTOR_ID_ALIASES[sectorId.trim() as keyof typeof SECTOR_ID_ALIASES] ??
+    sectorId;
+  const translationKey =
+    SECTOR_LABEL_KEYS[normalizedSectorId as keyof typeof SECTOR_LABEL_KEYS];
+  return translationKey ? t(translationKey) : sectorId;
+}
+
 function CustomizedContent(
-  props: TreemapNode & { stockName?: string | null },
+  props: TreemapNode & {
+    stockName?: string | null;
+    sectorLabel?: string | null;
+  },
 ): JSX.Element {
-  const { root, depth, x, y, width, height, index, name, stockName } = props;
+  const {
+    root,
+    depth,
+    x,
+    y,
+    width,
+    height,
+    index,
+    name,
+    stockName,
+    sectorLabel,
+  } = props;
+  const SECTOR_HEADER_HEIGHT = 16;
 
   // contribution_points is directly on props, not in payload
   const contributionPoints = (props as any).contribution_points;
+  const hasSectorRoot =
+    depth === 2 &&
+    root?.depth === 1 &&
+    typeof root.height === "number" &&
+    root.height > SECTOR_HEADER_HEIGHT;
+  const contentScaleY = hasSectorRoot
+    ? (root.height - SECTOR_HEADER_HEIGHT) / root.height
+    : 1;
+  const renderX = x;
+  const renderY = hasSectorRoot
+    ? root.y + SECTOR_HEADER_HEIGHT + (y - root.y) * contentScaleY
+    : y;
+  const renderWidth = width;
+  const renderHeight = hasSectorRoot ? height * contentScaleY : height;
 
-  const showSectorLabel = depth === 1 && width > 80 && height > 28;
-  const showSymbolLabel = depth === 2 && width > 34 && height > 18;
+  const showSectorLabel = depth === 1;
+  const showSymbolLabel = depth === 2 && renderWidth > 34 && renderHeight > 18;
   const showStockNameLabel =
-    depth === 2 && Boolean(stockName) && width > 72 && height > 42;
+    depth === 2 && Boolean(stockName) && renderWidth > 72 && renderHeight > 42;
   const showContributionLabel =
     depth === 2 && showSymbolLabel && typeof contributionPoints === "number";
-  const contributionColor =
-    contributionPoints > 0
-      ? "#ef4444"
-      : contributionPoints < 0
-        ? "#22c55e"
-        : "#94a3b8";
+  const sectorFontSize = Math.max(
+    8,
+    Math.min(10, Math.floor(Math.min(width / 10, height / 2.4))),
+  );
+  const symbolFontSize = Math.max(
+    9,
+    Math.min(13, Math.floor(Math.min(renderWidth / 5, renderHeight / 2.2))),
+  );
+  const stockNameFontSize = Math.max(
+    7,
+    Math.min(10, Math.floor(Math.min(renderWidth / 8, renderHeight / 3.2))),
+  );
+  const contributionFontSize = Math.max(
+    8,
+    Math.min(12, Math.floor(Math.min(renderWidth / 6, renderHeight / 2.8))),
+  );
+  const symbolOffsetY = showContributionLabel
+    ? showStockNameLabel
+      ? -(stockNameFontSize + 4)
+      : -Math.max(6, Math.round(contributionFontSize * 0.75))
+    : showStockNameLabel
+      ? -Math.max(3, Math.round(stockNameFontSize * 0.4))
+      : 4;
+  const stockNameOffsetY = showContributionLabel
+    ? 0
+    : Math.max(8, Math.round(stockNameFontSize * 1.1));
+  const contributionOffsetY = showStockNameLabel
+    ? Math.max(12, stockNameFontSize + 6)
+    : Math.max(10, contributionFontSize);
+  const tileFillColor =
+    depth === 2 && typeof contributionPoints === "number"
+      ? contributionPoints > 0
+        ? "#ef4444"
+        : contributionPoints < 0
+          ? "#22c55e"
+          : "#94a3b8"
+      : null;
   const contributionText =
     typeof contributionPoints !== "number"
       ? "--"
@@ -141,73 +260,73 @@ function CustomizedContent(
   return (
     <g>
       <rect
-        x={x}
-        y={y}
-        width={width}
-        height={height}
+        x={renderX}
+        y={renderY}
+        width={renderWidth}
+        height={renderHeight}
         style={{
           fill:
-            depth < 2
-              ? COLORS[Math.floor((index / (root?.children?.length ?? 1)) * 6)]
-              : "#ffffff00",
-          stroke: "#fff",
+            depth === 2 && tileFillColor
+              ? tileFillColor
+              : depth === 1
+                ? "transparent"
+                : depth < 2
+                  ? COLORS[
+                      Math.floor((index / (root?.children?.length ?? 1)) * 6)
+                    ]
+                  : "#ffffff",
           strokeWidth: 2 / (depth + 1e-10),
-          strokeOpacity: 1 / (depth + 1e-10),
+          strokeOpacity: 4 / (depth + 1e-10),
         }}
       />
       {showSectorLabel ? (
         <text
-          x={x + width / 2}
-          y={y + height / 2 + 7}
-          textAnchor="middle"
-          fill="#fff"
-          fontSize={14}
+          x={x + 8}
+          y={y + 12}
+          textAnchor="start"
+          fill="black"
+          stroke="none"
+          paintOrder="fill"
+          fontSize={sectorFontSize}
+          fontWeight={300}
         >
-          {name}
+          {sectorLabel ?? name}
         </text>
       ) : null}
       {showSymbolLabel ? (
         <text
-          x={x + width / 2}
-          y={
-            y +
-            height / 2 +
-            (showContributionLabel
-              ? showStockNameLabel
-                ? -14
-                : -8
-              : showStockNameLabel
-                ? -4
-                : 4)
-          }
+          x={renderX + renderWidth / 2}
+          y={renderY + renderHeight / 2 + symbolOffsetY}
           textAnchor="middle"
           fill="#f8fafc"
-          fontSize={13}
+          fontSize={symbolFontSize}
           fontWeight={200}
+          stroke="none"
         >
           {name}
         </text>
       ) : null}
       {showStockNameLabel ? (
         <text
-          x={x + width / 2}
-          y={y + height / 2 + (showContributionLabel ? 0 : 12)}
+          x={renderX + renderWidth / 2}
+          y={renderY + renderHeight / 2 + stockNameOffsetY}
           textAnchor="middle"
           fill="#f8fafc"
-          fontSize={10}
-          fontWeight={400}
+          fontSize={stockNameFontSize}
+          fontWeight={200}
+          stroke="none"
         >
           {stockName}
         </text>
       ) : null}
       {showContributionLabel ? (
         <text
-          x={x + width / 2}
-          y={y + height / 2 + (showStockNameLabel ? 16 : 12)}
+          x={renderX + renderWidth / 2}
+          y={renderY + renderHeight / 2 + contributionOffsetY}
           textAnchor="middle"
-          fill={contributionColor}
+          fill="#f8fafc"
           stroke="none"
-          fontSize={12}
+          fontSize={contributionFontSize}
           fontWeight={9000}
         >
           {contributionText}
@@ -219,8 +338,13 @@ function CustomizedContent(
 
 export function TreemapDemoPage(): JSX.Element {
   const { locale } = useI18n();
-  const indexContribRanking = useRealtimeStore((state) => state.indexContribRanking);
-  const indexContribSector = useRealtimeStore((state) => state.indexContribSector);
+  const t = useT();
+  const indexContribRanking = useRealtimeStore(
+    (state) => state.indexContribRanking,
+  );
+  const indexContribSector = useRealtimeStore(
+    (state) => state.indexContribSector,
+  );
 
   const topFive = (indexContribRanking?.top ?? []).slice(0, 5);
   const bottomFive = (indexContribRanking?.bottom ?? []).slice(0, 5);
@@ -242,12 +366,12 @@ export function TreemapDemoPage(): JSX.Element {
 
   return (
     <PageLayout
-      title="Treemap Demo"
+      title={t("dashboard.treemap.title")}
       bodyClassName="space-y-[var(--section-gap)]"
     >
       <BentoGridSection
-        title="Industry Weight Treemap"
-        tooltip="Mock data (20 symbols / 4 sectors)"
+        title={t("dashboard.treemap.sectionTitle")}
+        tooltip={t("dashboard.treemap.sectionTooltip")}
       >
         <div
           className={`lg:col-span-9 rounded-sm p-3 ${TREEMAP_PANEL_HEIGHT_CLASS}`}
@@ -261,7 +385,7 @@ export function TreemapDemoPage(): JSX.Element {
               <Treemap
                 data={treemapData}
                 dataKey="size"
-                aspectRatio={4 / 3}
+                aspectRatio={4 / 4}
                 stroke="#fff"
                 fill="#8884d8"
                 content={(props) => (
@@ -270,6 +394,11 @@ export function TreemapDemoPage(): JSX.Element {
                     stockName={
                       typeof props.name === "string"
                         ? getStockName(props.name, locale)
+                        : null
+                    }
+                    sectorLabel={
+                      props.depth === 1 && typeof props.name === "string"
+                        ? getSectorLabel(props.name, t)
                         : null
                     }
                   />
@@ -285,7 +414,7 @@ export function TreemapDemoPage(): JSX.Element {
         >
           <div className="flex min-h-0 flex-1 flex-col rounded-sm border border-border bg-card p-3">
             <p className="text-sm font-semibold text-foreground">
-              Top Contributors
+              {t("dashboard.treemap.topContributors")}
             </p>
             <div className="mt-2 h-full space-y-2 overflow-y-auto">
               {displayTopFive.map((item) => (
@@ -311,7 +440,7 @@ export function TreemapDemoPage(): JSX.Element {
 
           <div className="flex min-h-0 flex-1 flex-col rounded-sm border border-border bg-card p-3">
             <p className="text-sm font-semibold text-foreground">
-              Bottom Contributors
+              {t("dashboard.treemap.bottomContributors")}
             </p>
             <div className="mt-2 h-full space-y-2 overflow-y-auto">
               {displayBottomFive.map((item) => (
