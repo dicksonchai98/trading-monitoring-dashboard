@@ -76,7 +76,11 @@ describe("useMarketOverviewTimeline", () => {
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    expect(getOrderFlowBaselineMock).toHaveBeenCalledWith("token", "TXFD6");
+    expect(getOrderFlowBaselineMock).toHaveBeenCalledWith(
+      "token",
+      "TXFD6",
+      expect.any(AbortSignal),
+    );
     expect(DEFAULT_ORDER_FLOW_CODE).toBe("TXFD6");
     expect(result.current.error).toBeNull();
     expect(result.current.series).toEqual([

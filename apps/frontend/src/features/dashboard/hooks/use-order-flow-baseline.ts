@@ -40,6 +40,7 @@ export function useOrderFlowBaseline(
 
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
 
     setBaselineReady(false);
 
@@ -68,7 +69,7 @@ export function useOrderFlowBaseline(
     setLoading(true);
     setError(null);
 
-    void getOrderFlowBaseline(token, code)
+    void getOrderFlowBaseline(token, code, controller.signal)
       .then((result) => {
         if (cancelled) {
           return;
@@ -92,6 +93,7 @@ export function useOrderFlowBaseline(
 
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [code, resolved, role, token]);
 

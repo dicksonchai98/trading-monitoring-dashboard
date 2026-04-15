@@ -2,9 +2,12 @@ import {
   applyServingSseEvent,
   createSpotLatestListMockGenerator,
   parseSseFrame,
+  realtimeManager,
   splitSseBuffer,
 } from "@/features/realtime/services/realtime-manager";
 import { useRealtimeStore } from "@/features/realtime/store/realtime.store";
+import type { SpotLatestListPayload } from "@/features/realtime/types/realtime.types";
+import { afterEach, vi } from "vitest";
 
 describe("realtime-manager", () => {
   const inSessionMinuteTs = Date.parse("2026-04-09T10:00:00+08:00");
@@ -16,6 +19,12 @@ describe("realtime-manager", () => {
 
   beforeEach(() => {
     useRealtimeStore.getState().resetRealtime();
+  });
+
+  afterEach(() => {
+    realtimeManager.disconnect();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it("splits SSE buffers by frame boundary and preserves tail rest", () => {
@@ -50,6 +59,35 @@ describe("realtime-manager", () => {
     const parsed = parseSseFrame('event: metric_latest\r\ndata: {"bid":1}\r\ndata: {"ask":2}');
     expect(parsed.event).toBe("metric_latest");
     expect(parsed.data).toBe('{"bid":1}\n{"ask":2}');
+  });
+
+  it("waits for an aborted SSE request to settle before reconnecting", async () => {
+    let rejectFirstRequest: ((reason?: unknown) => void) | undefined;
+    const firstRequest = new Promise<Response>((_resolve, reject) => {
+      rejectFirstRequest = reject;
+    });
+    const secondRequest = new Promise<Response>(() => {});
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockImplementationOnce(() => firstRequest)
+      .mockImplementationOnce(() => secondRequest);
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    realtimeManager.connect("token-a");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    realtimeManager.disconnect();
+    realtimeManager.connect("token-a");
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    if (rejectFirstRequest) {
+      rejectFirstRequest(new DOMException("The operation was aborted.", "AbortError"));
+    }
+    await vi.waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
   });
 
   it("writes validated kbar and heartbeat events into realtime store", () => {
@@ -270,7 +308,7 @@ describe("realtime-manager", () => {
     const second = generator.next().value;
 
     expect(first?.items).toHaveLength(6);
-    expect(first?.items.map((item) => item.symbol)).toEqual([
+    expect(first?.items.map((item: SpotLatestListPayload["items"][number]) => item.symbol)).toEqual([
       "2330",
       "2317",
       "2454",
@@ -284,7 +322,12 @@ describe("realtime-manager", () => {
     expect(first?.market_strength_count).toBe(6);
     expect(first?.sector_strength).toBeDefined();
     expect(typeof first?.items[0]?.strength_pct).toBe("number");
-    expect(first?.items.some((item) => typeof item.strength_pct !== "number")).toBe(false);
+    expect(
+      first?.items.some(
+        (item: SpotLatestListPayload["items"][number]) =>
+          typeof item.strength_pct !== "number",
+      ),
+    ).toBe(false);
     expect(first?.market_strength_breakdown).toBeDefined();
     expect(second?.ts).toBe(startTs + 1000);
     expect(second?.items[0]?.last_price).not.toBe(first?.items[0]?.last_price);

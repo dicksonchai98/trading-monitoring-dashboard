@@ -51,6 +51,7 @@ export function useQuoteTimeline(
 
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
 
     if (!resolved) {
       setLoading(true);
@@ -73,7 +74,7 @@ export function useQuoteTimeline(
     setLoading(true);
     setError(null);
 
-    void getQuoteToday(token, code)
+    void getQuoteToday(token, code, controller.signal)
       .then((rows) => {
         if (cancelled) {
           return;
@@ -112,6 +113,7 @@ export function useQuoteTimeline(
 
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [code, resolved, role, token]);
 

@@ -21,6 +21,7 @@ describe("getOrderFlowBaseline", () => {
   });
 
   it("requests TXFD6 kbar and bidask today baselines with bearer token headers", async () => {
+    const signal = new AbortController().signal;
     fetchMock
       .mockResolvedValueOnce(
         new Response(JSON.stringify([{ code: "TXFD6", minute_ts: 1 }]), {
@@ -35,7 +36,7 @@ describe("getOrderFlowBaseline", () => {
         }),
       );
 
-    await expect(getOrderFlowBaseline("token")).resolves.toEqual({
+    await expect(getOrderFlowBaseline("token", undefined, signal)).resolves.toEqual({
       kbarToday: [{ code: "TXFD6", minute_ts: 1 }],
       metricToday: [{ ts: 2, main_force_big_order: 3 }],
     });
@@ -48,6 +49,7 @@ describe("getOrderFlowBaseline", () => {
       expect.objectContaining({
         credentials: "include",
         method: "GET",
+        signal,
         headers: {
           Authorization: "Bearer token",
         },
@@ -59,6 +61,7 @@ describe("getOrderFlowBaseline", () => {
       expect.objectContaining({
         credentials: "include",
         method: "GET",
+        signal,
         headers: {
           Authorization: "Bearer token",
         },

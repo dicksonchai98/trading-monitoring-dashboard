@@ -108,16 +108,22 @@ function normalizeAnalyticsError(error: unknown): never {
   throw new ApiError("analytics_request_failed", 500);
 }
 
-export function getAnalyticsEvents(token: string | null): Promise<AnalyticsEventsRegistryResponse> {
-  return getJson<unknown>("/analytics/events", { headers: authHeaders(token) })
+export function getAnalyticsEvents(
+  token: string | null,
+  signal?: AbortSignal,
+): Promise<AnalyticsEventsRegistryResponse> {
+  return getJson<unknown>("/analytics/events", { headers: authHeaders(token), signal })
     .then((payload) =>
       parseOrThrow(AnalyticsEventsRegistryResponseSchema, normalizeRegistryPayload(payload, "events")),
     )
     .catch(normalizeAnalyticsError);
 }
 
-export function getAnalyticsMetrics(token: string | null): Promise<AnalyticsMetricsRegistryResponse> {
-  return getJson<unknown>("/analytics/metrics", { headers: authHeaders(token) })
+export function getAnalyticsMetrics(
+  token: string | null,
+  signal?: AbortSignal,
+): Promise<AnalyticsMetricsRegistryResponse> {
+  return getJson<unknown>("/analytics/metrics", { headers: authHeaders(token), signal })
     .then((payload) =>
       parseOrThrow(AnalyticsMetricsRegistryResponseSchema, normalizeRegistryPayload(payload, "metrics")),
     )
@@ -127,6 +133,7 @@ export function getAnalyticsMetrics(token: string | null): Promise<AnalyticsMetr
 export function getEventStats(
   token: string | null,
   { eventId, code, startDate, endDate, version = "latest", flatThreshold }: EventStatsParams,
+  signal?: AbortSignal,
 ): Promise<EventStatsListResponse> {
   const query = buildQuery({
     code,
@@ -138,6 +145,7 @@ export function getEventStats(
 
   return getJson<unknown>(`/analytics/events/${encodeURIComponent(eventId)}/stats?${query}`, {
     headers: authHeaders(token),
+    signal,
   })
     .then((payload) => {
       if (payload && typeof payload === "object" && Array.isArray((payload as { items?: unknown[] }).items)) {
@@ -152,6 +160,7 @@ export function getEventStats(
 export function getEventSamples(
   token: string | null,
   { eventId, code, startDate, endDate, page, pageSize, sort, flatThreshold }: EventSamplesParams,
+  signal?: AbortSignal,
 ): Promise<EventSamplesResponse> {
   const query = buildQuery({
     code,
@@ -167,6 +176,7 @@ export function getEventSamples(
     `/analytics/events/${encodeURIComponent(eventId)}/samples?${query}`,
     {
       headers: authHeaders(token),
+      signal,
     },
   )
     .then((payload) => parseOrThrow(EventSamplesResponseSchema, payload))
@@ -176,6 +186,7 @@ export function getEventSamples(
 export function getDistributionStats(
   token: string | null,
   { metricId, code, startDate, endDate, version = "latest" }: DistributionParams,
+  signal?: AbortSignal,
 ): Promise<DistributionStatsResponse> {
   const query = buildQuery({
     code,
@@ -186,6 +197,7 @@ export function getDistributionStats(
 
   return getJson<unknown>(`/analytics/distributions/${encodeURIComponent(metricId)}?${query}`, {
     headers: authHeaders(token),
+    signal,
   })
     .then((payload) => parseOrThrow(DistributionStatsResponseSchema, payload))
     .catch(normalizeAnalyticsError);

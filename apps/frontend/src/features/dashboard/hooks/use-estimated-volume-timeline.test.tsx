@@ -65,7 +65,11 @@ describe("useEstimatedVolumeTimeline", () => {
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    expect(getEstimatedVolumeBaselineMock).toHaveBeenCalledWith("token", "TXFD6");
+    expect(getEstimatedVolumeBaselineMock).toHaveBeenCalledWith(
+      "token",
+      "TXFD6",
+      expect.any(AbortSignal),
+    );
     expect(DEFAULT_ORDER_FLOW_CODE).toBe("TXFD6");
     expect(result.current.error).toBeNull();
     expect(result.current.series).toEqual([
@@ -88,6 +92,30 @@ describe("useEstimatedVolumeTimeline", () => {
         negativeDiff: 0,
       },
     ]);
+  });
+
+  it("aborts the baseline request when the hook unmounts", async () => {
+    let capturedSignal: AbortSignal | undefined;
+    getEstimatedVolumeBaselineMock.mockImplementationOnce(
+      async (_token, _code, signal?: AbortSignal) => {
+        capturedSignal = signal;
+        return new Promise(() => {});
+      },
+    );
+
+    const { unmount } = renderHook(() => useEstimatedVolumeTimeline());
+
+    await waitFor(() =>
+      expect(getEstimatedVolumeBaselineMock).toHaveBeenCalledWith(
+        "token",
+        "TXFD6",
+        expect.any(AbortSignal),
+      ),
+    );
+
+    unmount();
+
+    expect(capturedSignal?.aborted).toBe(true);
   });
 
   it("patches the current minute from market_summary_latest SSE event", async () => {

@@ -183,6 +183,7 @@ export function useParticipantAmplitude(
 
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
     setClosedSeries([]);
     setTodayRealtimeCandle(null);
 
@@ -191,6 +192,7 @@ export function useParticipantAmplitude(
       setError(null);
       return () => {
         cancelled = true;
+        controller.abort();
       };
     }
 
@@ -199,6 +201,7 @@ export function useParticipantAmplitude(
       setError(null);
       return () => {
         cancelled = true;
+        controller.abort();
       };
     }
 
@@ -206,8 +209,8 @@ export function useParticipantAmplitude(
     setError(null);
 
     void Promise.allSettled([
-      getDailyAmplitudeHistory(token, code, 19),
-      getOrderFlowBaseline(token, code),
+      getDailyAmplitudeHistory(token, code, 19, controller.signal),
+      getOrderFlowBaseline(token, code, controller.signal),
     ])
       .then((results) => {
         if (cancelled) {
@@ -237,6 +240,7 @@ export function useParticipantAmplitude(
 
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [code, resolved, role, token]);
 

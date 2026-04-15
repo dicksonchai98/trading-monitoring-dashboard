@@ -77,6 +77,7 @@ export function useEstimatedVolumeTimeline(): UseEstimatedVolumeTimelineResult {
 
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
 
     setBaselineReady(false);
     yesterdayByMinuteOfDayRef.current = {};
@@ -103,7 +104,7 @@ export function useEstimatedVolumeTimeline(): UseEstimatedVolumeTimelineResult {
     setLoading(true);
     setError(null);
 
-    void getEstimatedVolumeBaseline(token, DEFAULT_ORDER_FLOW_CODE)
+    void getEstimatedVolumeBaseline(token, DEFAULT_ORDER_FLOW_CODE, controller.signal)
       .then(({ marketSummaryToday, marketSummaryYesterday }) => {
         if (cancelled) {
           return;
@@ -130,6 +131,7 @@ export function useEstimatedVolumeTimeline(): UseEstimatedVolumeTimelineResult {
 
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [resolved, role, token]);
 

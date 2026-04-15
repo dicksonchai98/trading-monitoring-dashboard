@@ -83,13 +83,15 @@ export function useOtcIndexSeries(): UseOtcIndexSeriesResult {
 
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
     if (!resolved || !token || role === "visitor") {
       setSeries([]);
       return () => {
         cancelled = true;
+        controller.abort();
       };
     }
-    void getOtcSummaryToday(token, DEFAULT_OTC_CODE)
+    void getOtcSummaryToday(token, DEFAULT_OTC_CODE, controller.signal)
       .then((rows) => {
         if (cancelled) {
           return;
@@ -103,6 +105,7 @@ export function useOtcIndexSeries(): UseOtcIndexSeriesResult {
       });
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [resolved, role, token]);
 

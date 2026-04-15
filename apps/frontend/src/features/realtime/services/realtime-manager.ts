@@ -586,10 +586,12 @@ function collectServingSseEvent(
 class RealtimeManager {
   private token: string | null = null;
   private abortController: AbortController | null = null;
+  private streamTask: Promise<void> | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private spotGapMockTimer: ReturnType<typeof setInterval> | null = null;
   private spotGapMockGenerator: Generator<SpotLatestListPayload> | null = null;
   private reconnectAttempts = 0;
+  private startSequence = 0;
   private stoppedByClient = false;
 
   connect(token: string): void {
@@ -616,6 +618,7 @@ class RealtimeManager {
   disconnect(): void {
     this.stoppedByClient = true;
     this.token = null;
+    this.startSequence += 1;
     this.reconnectAttempts = 0;
     this.clearReconnectTimer();
     this.clearSpotGapMockTimer();
@@ -627,12 +630,25 @@ class RealtimeManager {
   }
 
   private start(): void {
+    const sequence = ++this.startSequence;
+    void this.startWhenReady(sequence);
+  }
+
+  private async startWhenReady(sequence: number): Promise<void> {
     if (!this.token) {
       return;
     }
 
+    const previousTask = this.streamTask;
     if (this.abortController) {
       this.abortController.abort();
+    }
+
+    if (previousTask) {
+      await previousTask.catch(() => undefined);
+      if (sequence !== this.startSequence || !this.token || this.stoppedByClient) {
+        return;
+      }
     }
 
     const controller = new AbortController();
@@ -644,45 +660,56 @@ class RealtimeManager {
         null,
       );
 
-    void this.stream(controller.signal, this.token).catch((error: unknown) => {
-      if (this.stoppedByClient || controller.signal.aborted) {
-        return;
-      }
+    const streamTask = this.stream(controller.signal, this.token)
+      .catch((error: unknown) => {
+        if (this.stoppedByClient || controller.signal.aborted) {
+          return;
+        }
 
-      if (error instanceof Error && error.message === "insecure_transport") {
+        if (error instanceof Error && error.message === "insecure_transport") {
+          useRealtimeStore
+            .getState()
+            .setConnectionStatus("error", "stream_disconnected");
+          return;
+        }
+
+        const status =
+          typeof error === "object" && error !== null && "status" in error
+            ? Number((error as StreamHttpError).status)
+            : null;
+
+        if (status === 401 || status === 403) {
+          useRealtimeStore.getState().setConnectionStatus("error", "auth_failed");
+          return;
+        }
+
+        if (status === 429) {
+          useRealtimeStore
+            .getState()
+            .setConnectionStatus("retrying", "rate_limited");
+          this.scheduleReconnect(5000);
+          return;
+        }
+
         useRealtimeStore
           .getState()
-          .setConnectionStatus("error", "stream_disconnected");
-        return;
-      }
+          .setConnectionStatus("retrying", "stream_disconnected");
+        const delayMs = Math.min(
+          30_000,
+          1_000 * Math.max(1, 2 ** this.reconnectAttempts),
+        );
+        this.scheduleReconnect(delayMs);
+      })
+      .finally(() => {
+        if (this.abortController === controller) {
+          this.abortController = null;
+        }
+        if (this.streamTask === streamTask) {
+          this.streamTask = null;
+        }
+      });
 
-      const status =
-        typeof error === "object" && error !== null && "status" in error
-          ? Number((error as StreamHttpError).status)
-          : null;
-
-      if (status === 401 || status === 403) {
-        useRealtimeStore.getState().setConnectionStatus("error", "auth_failed");
-        return;
-      }
-
-      if (status === 429) {
-        useRealtimeStore
-          .getState()
-          .setConnectionStatus("retrying", "rate_limited");
-        this.scheduleReconnect(5000);
-        return;
-      }
-
-      useRealtimeStore
-        .getState()
-        .setConnectionStatus("retrying", "stream_disconnected");
-      const delayMs = Math.min(
-        30_000,
-        1_000 * Math.max(1, 2 ** this.reconnectAttempts),
-      );
-      this.scheduleReconnect(delayMs);
-    });
+    this.streamTask = streamTask;
   }
 
   private scheduleReconnect(delayMs: number): void {

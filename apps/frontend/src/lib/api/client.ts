@@ -59,6 +59,7 @@ export async function getJson<TResponse>(
 ): Promise<TResponse> {
   return request<TResponse>(path, {
     method: "GET",
+    signal: options?.signal,
     headers: {
       ...options?.headers,
     },
@@ -72,6 +73,7 @@ export async function postJson<TResponse, TBody extends object>(
 ): Promise<TResponse> {
   return request<TResponse>(path, {
     method: "POST",
+    signal: options?.signal,
     headers: {
       "Content-Type": "application/json",
       ...options?.headers,

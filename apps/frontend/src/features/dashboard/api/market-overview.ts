@@ -74,6 +74,7 @@ function resolveYesterdayRangeMs(): { fromMs: number; toMs: number } {
 export async function getEstimatedVolumeBaseline(
   token: string,
   code: string = DEFAULT_ORDER_FLOW_CODE,
+  signal?: AbortSignal,
 ): Promise<EstimatedVolumeBaselineResponse> {
   const headers = {
     Authorization: `Bearer ${token}`,
@@ -87,12 +88,14 @@ export async function getEstimatedVolumeBaseline(
     resolveOrFallbackOnNotFound(
       getJson<MarketSummaryResponse>(`/v1/market-summary/today?${todayQuery}`, {
         headers,
+        signal,
       }),
       [],
     ),
     resolveOrFallbackOnNotFound(
       getJson<MarketSummaryResponse>(`/v1/market-summary/history?${yesterdayQuery}`, {
         headers,
+        signal,
       }),
       [],
     ),
@@ -108,6 +111,7 @@ export async function getDailyAmplitudeHistory(
   token: string,
   code: string = DEFAULT_ORDER_FLOW_CODE,
   n: number = 19,
+  signal?: AbortSignal,
 ): Promise<DailyAmplitudeResponse> {
   const headers = {
     Authorization: `Bearer ${token}`,
@@ -115,12 +119,14 @@ export async function getDailyAmplitudeHistory(
   const query = `code=${encodeURIComponent(code)}&n=${n}`;
   return getJson<DailyAmplitudeResponse>(`/v1/kbar/1m/daily-amplitude?${query}`, {
     headers,
+    signal,
   });
 }
 
 export async function getOrderFlowBaseline(
   token: string,
   code: string = DEFAULT_ORDER_FLOW_CODE,
+  signal?: AbortSignal,
 ): Promise<OrderFlowBaselineResponse> {
   const headers = {
     Authorization: `Bearer ${token}`,
@@ -132,12 +138,14 @@ export async function getOrderFlowBaseline(
     resolveOrFallbackOnNotFound(
       getJson<KbarTodayResponse>(`/v1/kbar/1m/today?${query}`, {
         headers,
+        signal,
       }),
       [],
     ),
     resolveOrFallbackOnNotFound(
       getJson<MetricTodayResponse>(`/v1/metric/bidask/today?${query}`, {
         headers,
+        signal,
       }),
       [],
     ),
@@ -152,6 +160,7 @@ export async function getOrderFlowBaseline(
 export async function getQuoteToday(
   token: string,
   code: string = DEFAULT_ORDER_FLOW_CODE,
+  signal?: AbortSignal,
 ): Promise<QuoteTodayResponse> {
   const headers = {
     Authorization: `Bearer ${token}`,
@@ -160,12 +169,14 @@ export async function getQuoteToday(
   const query = `code=${encodeURIComponent(code)}&from_ms=${fromMs}&to_ms=${toMs}`;
   return getJson<QuoteTodayResponse>(`/v1/quote/today?${query}`, {
     headers,
+    signal,
   });
 }
 
 export async function getOtcSummaryToday(
   token: string,
   code: string = DEFAULT_OTC_CODE,
+  signal?: AbortSignal,
 ): Promise<OtcSummaryResponse> {
   const headers = {
     Authorization: `Bearer ${token}`,
@@ -184,5 +195,6 @@ export async function getOtcSummaryToday(
   const query = `code=${encodeURIComponent(code)}&from_ms=${fromMs}&to_ms=${toMs}`;
   return getJson<OtcSummaryResponse>(`/v1/otc-summary/today?${query}`, {
     headers,
+    signal,
   });
 }

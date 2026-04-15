@@ -64,8 +64,17 @@ describe("useParticipantAmplitude", () => {
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    expect(getDailyAmplitudeHistoryMock).toHaveBeenCalledWith("token", "TXFD6", 19);
-    expect(getOrderFlowBaselineMock).toHaveBeenCalledWith("token", "TXFD6");
+    expect(getDailyAmplitudeHistoryMock).toHaveBeenCalledWith(
+      "token",
+      "TXFD6",
+      19,
+      expect.any(AbortSignal),
+    );
+    expect(getOrderFlowBaselineMock).toHaveBeenCalledWith(
+      "token",
+      "TXFD6",
+      expect.any(AbortSignal),
+    );
     expect(DEFAULT_ORDER_FLOW_CODE).toBe("TXFD6");
     expect(result.current.summary.avg5).toBe(48);
     expect(result.current.summary.yesterday).toBe(50);
