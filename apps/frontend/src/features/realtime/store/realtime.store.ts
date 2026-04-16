@@ -13,6 +13,9 @@ import type {
   SpotLatestListPayload,
 } from "@/features/realtime/types/realtime.types";
 
+type SpotMarketDistributionSeriesItem =
+  SpotMarketDistributionSeriesPayload["items"][number];
+
 interface RealtimeStore {
   connectionStatus: SseConnectionStatus;
   errorReason: string | null;
@@ -50,6 +53,8 @@ interface RealtimeStore {
   resetRealtime: () => void;
 }
 
+const SPOT_MARKET_DISTRIBUTION_SERIES_CAP = 600;
+
 const initialState = {
   connectionStatus: "idle" as SseConnectionStatus,
   errorReason: null as string | null,
@@ -65,6 +70,38 @@ const initialState = {
   spotMarketDistributionSeries: null as SpotMarketDistributionSeriesPayload | null,
   lastHeartbeatTs: null as number | null,
 };
+
+function toSpotMarketDistributionSeriesItem(
+  payload: SpotMarketDistributionLatestPayload,
+): SpotMarketDistributionSeriesItem {
+  return {
+    ts: payload.ts,
+    up_count: payload.up_count,
+    down_count: payload.down_count,
+    flat_count: payload.flat_count,
+    total_count: payload.total_count,
+    trend_index: payload.trend_index,
+  };
+}
+
+function appendSpotMarketDistributionSeries(
+  current: SpotMarketDistributionSeriesPayload | null,
+  next: SpotMarketDistributionSeriesItem,
+): SpotMarketDistributionSeriesPayload {
+  const items = current?.items ?? [];
+  const copied = [...items];
+  if (copied.length > 0 && copied[copied.length - 1]?.ts === next.ts) {
+    copied[copied.length - 1] = next;
+  } else {
+    copied.push(next);
+  }
+  return {
+    items:
+      copied.length > SPOT_MARKET_DISTRIBUTION_SERIES_CAP
+        ? copied.slice(copied.length - SPOT_MARKET_DISTRIBUTION_SERIES_CAP)
+        : copied,
+  };
+}
 
 export const useRealtimeStore = create<RealtimeStore>((set) => ({
   ...initialState,
@@ -158,6 +195,12 @@ export const useRealtimeStore = create<RealtimeStore>((set) => ({
 
       if (batch.spotMarketDistributionLatest) {
         nextState.spotMarketDistributionLatest = batch.spotMarketDistributionLatest;
+        if (!batch.spotMarketDistributionSeries) {
+          nextState.spotMarketDistributionSeries = appendSpotMarketDistributionSeries(
+            state.spotMarketDistributionSeries,
+            toSpotMarketDistributionSeriesItem(batch.spotMarketDistributionLatest),
+          );
+        }
         changed = true;
       }
 

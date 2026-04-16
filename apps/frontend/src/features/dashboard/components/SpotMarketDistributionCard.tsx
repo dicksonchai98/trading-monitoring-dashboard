@@ -5,7 +5,7 @@ import {
   CartesianGrid,
   Cell,
   ComposedChart,
-  Line,
+  LabelList,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -13,6 +13,11 @@ import {
 } from "recharts";
 import { PanelCard } from "@/components/ui/panel-card";
 import { CardDataState } from "@/features/dashboard/components/CardDataState";
+import {
+  ChartShell,
+  axisTick,
+  tooltipStyle,
+} from "@/features/dashboard/components/PanelCharts";
 import { useSpotMarketDistributionBaseline } from "@/features/dashboard/hooks/use-spot-market-distribution";
 import { useRealtimeStore } from "@/features/realtime/store/realtime.store";
 import { useT } from "@/lib/i18n";
@@ -20,13 +25,8 @@ import { useT } from "@/lib/i18n";
 interface MarketDistributionChartDatum {
   bucketLabel: string;
   count: number;
-  trendIndex: number;
   lowerPct: number;
   upperPct: number;
-}
-
-function formatTrendIndex(value: number): string {
-  return `${value.toFixed(1)}%`;
 }
 
 function bucketFill(lowerPct: number, upperPct: number): string {
@@ -45,23 +45,6 @@ export function SpotMarketDistributionCard(): JSX.Element {
   const spotMarketDistributionLatest = useRealtimeStore(
     (state) => state.spotMarketDistributionLatest,
   );
-  const spotMarketDistributionSeries = useRealtimeStore(
-    (state) => state.spotMarketDistributionSeries,
-  );
-
-  const trendIndexReference = useMemo(() => {
-    const seriesItems = spotMarketDistributionSeries?.items ?? [];
-    const latestSeriesTrendIndex =
-      seriesItems.length > 0 ? seriesItems[seriesItems.length - 1]?.trend_index : undefined;
-    const latestSnapshotTrendIndex = spotMarketDistributionLatest?.trend_index;
-    const rawValue =
-      typeof latestSeriesTrendIndex === "number"
-        ? latestSeriesTrendIndex
-        : typeof latestSnapshotTrendIndex === "number"
-          ? latestSnapshotTrendIndex
-          : null;
-    return rawValue === null ? null : Number((rawValue * 100).toFixed(1));
-  }, [spotMarketDistributionLatest?.trend_index, spotMarketDistributionSeries?.items]);
 
   const chartData = useMemo<MarketDistributionChartDatum[]>(() => {
     const buckets = spotMarketDistributionLatest?.distribution_buckets ?? [];
@@ -71,11 +54,10 @@ export function SpotMarketDistributionCard(): JSX.Element {
       .map((bucket) => ({
         bucketLabel: bucket.label,
         count: bucket.count,
-        trendIndex: trendIndexReference ?? 0,
         lowerPct: bucket.lower_pct,
         upperPct: bucket.upper_pct,
       }));
-  }, [spotMarketDistributionLatest?.distribution_buckets, trendIndexReference]);
+  }, [spotMarketDistributionLatest?.distribution_buckets]);
 
   const hasData = chartData.length > 0;
   const state = hasData
@@ -92,7 +74,7 @@ export function SpotMarketDistributionCard(): JSX.Element {
       meta={t("dashboard.realtime.breadth.meta")}
       note={t("dashboard.realtime.breadth.note")}
       span={4}
-      units={1}
+      units={2}
       data-testid="spot-market-distribution-card"
     >
       {state === "loading" ? (
@@ -105,8 +87,14 @@ export function SpotMarketDistributionCard(): JSX.Element {
         <CardDataState text={t("dashboard.realtime.breadth.empty")} />
       ) : null}
       {state === "ready" ? (
-        <div className="mt-[var(--panel-gap)] h-[180px] w-full">
-          <div className="h-full w-full" data-testid="spot-market-distribution-chart">
+        <div className="mt-[var(--panel-gap)] flex flex-col gap-4">
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+            <span>{t("dashboard.realtime.breadth.summary", { total: spotMarketDistributionLatest?.total_count ?? 0 })}</span>
+            <span>{t("dashboard.realtime.breadth.up", { count: spotMarketDistributionLatest?.up_count ?? 0 })}</span>
+            <span>{t("dashboard.realtime.breadth.down", { count: spotMarketDistributionLatest?.down_count ?? 0 })}</span>
+            <span>{t("dashboard.realtime.breadth.flat", { count: spotMarketDistributionLatest?.flat_count ?? 0 })}</span>
+          </div>
+          <ChartShell testId="spot-market-distribution-chart">
             <ResponsiveContainer width="100%" height="100%" minWidth={0}>
               <ComposedChart
                 data={chartData}
@@ -122,52 +110,23 @@ export function SpotMarketDistributionCard(): JSX.Element {
                   dataKey="bucketLabel"
                   height={56}
                   interval={0}
-                  tick={{
-                    fill: "hsl(var(--subtle-foreground))",
-                    fontSize: 11,
-                    angle: -30,
-                    textAnchor: "end",
-                  }}
+                  tick={{ ...axisTick, angle: -30, textAnchor: "end" }}
                   tickLine={false}
                 />
                 <YAxis
                   yAxisId="count"
                   axisLine={false}
-                  tick={{
-                    fill: "hsl(var(--subtle-foreground))",
-                    fontSize: 11,
-                  }}
+                  tick={axisTick}
                   tickLine={false}
                   width={42}
                 />
-                <YAxis
-                  yAxisId="trend"
-                  orientation="right"
-                  axisLine={false}
-                  domain={[-100, 100]}
-                  tick={{
-                    fill: "hsl(var(--subtle-foreground))",
-                    fontSize: 11,
-                  }}
-                  tickFormatter={(value) => formatTrendIndex(Number(value))}
-                  tickLine={false}
-                  width={54}
-                />
                 <Tooltip
-                  contentStyle={{
-                    backgroundColor: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
-                    borderRadius: "4px",
-                    color: "hsl(var(--foreground))",
-                  }}
+                  contentStyle={tooltipStyle}
                   labelStyle={{ color: "hsl(var(--foreground))" }}
-                  formatter={(value, name) => {
+                  formatter={(value) => {
                     const normalized =
                       typeof value === "number" ? value : Number(value ?? 0);
-                    if (name === "count") {
-                      return [normalized, t("dashboard.realtime.breadth.count")];
-                    }
-                    return [formatTrendIndex(normalized), t("dashboard.realtime.breadth.trend")];
+                    return [normalized, t("dashboard.realtime.breadth.count")];
                   }}
                 />
                 <Bar
@@ -183,20 +142,17 @@ export function SpotMarketDistributionCard(): JSX.Element {
                       fill={bucketFill(entry.lowerPct, entry.upperPct)}
                     />
                   ))}
+                  <LabelList
+                    dataKey="count"
+                    position="top"
+                    offset={6}
+                    fill="hsl(var(--foreground))"
+                    fontSize={10}
+                  />
                 </Bar>
-                <Line
-                  yAxisId="trend"
-                  dataKey="trendIndex"
-                  dot={false}
-                  stroke="#38bdf8"
-                  strokeWidth={2}
-                  strokeDasharray="5 4"
-                  type="linear"
-                  isAnimationActive={false}
-                />
               </ComposedChart>
             </ResponsiveContainer>
-          </div>
+          </ChartShell>
         </div>
       ) : null}
     </PanelCard>

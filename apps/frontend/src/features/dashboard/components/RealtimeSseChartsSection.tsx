@@ -89,8 +89,8 @@ function EmptyState(): JSX.Element {
 export function RealtimeSseChartsSection(): JSX.Element {
   const t = useT();
   const { connectionStatus } = useRealtimeConnection();
-  const kbar = useKbarCurrent("TXFD6");
-  const metric = useMetricLatest("TXFD6");
+  const kbar = useKbarCurrent("TXFE6");
+  const metric = useMetricLatest("TXFE6");
 
   const [closeSeries, setCloseSeries] = useState<SeriesPoint[]>([]);
   const [spreadSeries, setSpreadSeries] = useState<SpreadPoint[]>([]);
@@ -198,7 +198,7 @@ export function RealtimeSseChartsSection(): JSX.Element {
                 <Line
                   dataKey="value"
                   type="monotone"
-                  stroke="hsl(var(--primary))"
+                  stroke="hsl(var(--chart-line))"
                   dot={false}
                   strokeWidth={2}
                   isAnimationActive={false}

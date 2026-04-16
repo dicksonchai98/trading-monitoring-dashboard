@@ -23,7 +23,7 @@ export function MarketOverviewChartCard({
   title,
   testId,
   span,
-  units,
+  units = 2,
   meta,
   note,
   loading,

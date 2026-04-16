@@ -21,15 +21,28 @@ import { useT } from "@/lib/i18n";
 import type { EstimatedVolumeSeriesPoint } from "@/features/dashboard/lib/estimated-volume-mapper";
 import type { OrderFlowSeriesPoint } from "@/features/dashboard/lib/market-overview-mapper";
 
-const axisTick = { fill: "hsl(var(--subtle-foreground))", fontSize: 11 };
-const tooltipStyle = {
+export const axisTick = { fill: "hsl(var(--subtle-foreground))", fontSize: 11 };
+export const timeSeriesAxisTick = {
+  ...axisTick,
+  angle: -90,
+  textAnchor: "end" as const,
+};
+export const tooltipStyle = {
   backgroundColor: "hsl(var(--card))",
   border: "1px solid hsl(var(--border))",
   borderRadius: "4px",
   color: "hsl(var(--foreground))",
 };
+export const timeSeriesXAxisProps = {
+  axisLine: false,
+  height: 52,
+  interval: 14,
+  tick: timeSeriesAxisTick,
+  tickLine: false,
+  type: "category" as const,
+};
 
-function ChartShell({
+export function ChartShell({
   children,
   testId,
   compact = false,
@@ -113,15 +126,7 @@ function MarketOverviewHybridChart({
             stroke="hsl(var(--border-strong))"
             strokeDasharray="3 3"
           />
-          <XAxis
-            axisLine={false}
-            dataKey="time"
-            height={52}
-            interval={14}
-            tick={{ ...axisTick, angle: -90, textAnchor: "end" }}
-            tickLine={false}
-            type="category"
-          />
+          <XAxis {...timeSeriesXAxisProps} dataKey="time" />
           <YAxis
             yAxisId="price"
             axisLine={false}
@@ -184,7 +189,7 @@ function MarketOverviewHybridChart({
             yAxisId="price"
             dataKey="indexPrice"
             dot={false}
-            stroke="hsl(var(--primary))"
+            stroke="hsl(var(--chart-line))"
             strokeWidth={2}
             type="linear"
             isAnimationActive={false}
@@ -312,33 +317,6 @@ export function BreadthDistributionChart(): JSX.Element {
           data={breadthDistributionData}
           margin={{ top: 8, right: 10, bottom: 0, left: -10 }}
         >
-          <CartesianGrid
-            vertical={false}
-            stroke="hsl(var(--border-strong))"
-            strokeDasharray="3 3"
-          />
-          <XAxis
-            axisLine={false}
-            dataKey="bucket"
-            tick={axisTick}
-            tickLine={false}
-            interval={1}
-          />
-          <YAxis
-            yAxisId="count"
-            axisLine={false}
-            tick={axisTick}
-            tickLine={false}
-            width={44}
-            label={{
-              value: t("dashboard.chart.breadth.countAxis"),
-              angle: -90,
-              position: "insideLeft",
-              offset: 6,
-              fill: "hsl(var(--subtle-foreground))",
-              fontSize: 10,
-            }}
-          />
           <YAxis
             yAxisId="breadth"
             axisLine={false}
@@ -416,7 +394,9 @@ export function EstimatedVolumeCompareChart({
           <XAxis
             axisLine={false}
             dataKey="minuteOfDay"
-            tick={axisTick}
+            height={52}
+            interval={0}
+            tick={timeSeriesAxisTick}
             tickFormatter={(value) => {
               const matched = data.find((item) => item.minuteOfDay === value);
               return matched?.time ?? "";

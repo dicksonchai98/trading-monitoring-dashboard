@@ -22,10 +22,14 @@
   --subtle-foreground: 220 12% 54%;
   --border: 220 20% 20%;
   --border-strong: 220 18% 28%;
+  --input: 220 12% 34%;
+  --ring: 220 10% 72%;
+  --destructive: var(--danger);
   --info: 204 89% 61%;
   --success: 152 68% 47%;
   --warning: 38 92% 58%;
   --danger: 0 84% 64%;
+  --chart-line: var(--danger);
   --chart-1: 24 96% 54%;
   --chart-2: 204 89% 61%;
   --chart-3: 152 68% 47%;
@@ -124,6 +128,9 @@
   --subtle-foreground: 215 14% 46%;
   --border: 214 32% 91%;
   --border-strong: 214 28% 83%;
+  --input: 215 14% 36%;
+  --ring: 215 12% 78%;
+  --destructive: var(--danger);
   --info: 204 89% 45%;
   --success: 152 62% 36%;
   --warning: 38 88% 44%;

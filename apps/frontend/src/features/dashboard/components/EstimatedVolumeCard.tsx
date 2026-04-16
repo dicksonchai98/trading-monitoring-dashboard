@@ -50,7 +50,8 @@ export function EstimatedVolumeCard({
         {latest ? (
           <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
             <span>
-              {t("dashboard.realtime.estimatedVolume.latestTime")}: {latest.time}
+              {t("dashboard.realtime.estimatedVolume.latestTime")}:{" "}
+              {latest.time}
             </span>
             <span>
               {t("dashboard.realtime.estimatedVolume.today")}:{" "}
@@ -61,7 +62,8 @@ export function EstimatedVolumeCard({
               {formatEstimate(latest.yesterdayEstimated)}
             </span>
             <span className={diffClassName}>
-              {t("dashboard.realtime.estimatedVolume.diff")}: {formatEstimate(diff)}
+              {t("dashboard.realtime.estimatedVolume.diff")}:{" "}
+              {formatEstimate(diff)}
             </span>
           </div>
         ) : null}

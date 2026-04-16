@@ -22,7 +22,7 @@ import { shouldBlockInsecureTransport } from "@/lib/api/transport";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api";
 const STREAM_PATH = "/v1/stream/sse";
-const DEFAULT_STREAM_CODE = "TXFD6";
+const DEFAULT_STREAM_CODE = "TXFE6";
 const SESSION_START_HHMM = "09:00:00";
 const SESSION_END_HHMM = "13:45:00";
 const TAIPEI_DATE_FORMATTER = new Intl.DateTimeFormat("en-CA", {
@@ -112,12 +112,10 @@ interface SpotGapMockSymbolState {
 
 const SPOT_STRENGTH_THRESHOLD_PCT = 0.8;
 let cachedSessionDatePart: string | null = null;
-let cachedSessionBounds:
-  | {
-      startMs: number;
-      endMs: number;
-    }
-  | null = null;
+let cachedSessionBounds: {
+  startMs: number;
+  endMs: number;
+} | null = null;
 
 type SpotStrengthState =
   | "new_high"
@@ -676,7 +674,11 @@ class RealtimeManager {
 
     if (previousTask) {
       await previousTask.catch(() => undefined);
-      if (sequence !== this.startSequence || !this.token || this.stoppedByClient) {
+      if (
+        sequence !== this.startSequence ||
+        !this.token ||
+        this.stoppedByClient
+      ) {
         return;
       }
     }
@@ -709,7 +711,9 @@ class RealtimeManager {
             : null;
 
         if (status === 401 || status === 403) {
-          useRealtimeStore.getState().setConnectionStatus("error", "auth_failed");
+          useRealtimeStore
+            .getState()
+            .setConnectionStatus("error", "auth_failed");
           return;
         }
 
@@ -853,6 +857,8 @@ class RealtimeManager {
         batch.otcSummaryLatest ||
         batch.quoteLatest ||
         batch.spotLatestList ||
+        batch.spotMarketDistributionLatest ||
+        batch.spotMarketDistributionSeries ||
         typeof batch.heartbeatTs === "number"
       ) {
         applyServingSseBatch(batch);

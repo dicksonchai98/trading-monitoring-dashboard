@@ -21,11 +21,11 @@ describe("getOrderFlowBaseline", () => {
     vi.clearAllMocks();
   });
 
-  it("requests TXFD6 kbar and bidask today baselines with bearer token headers", async () => {
+  it("requests TXFE6 kbar and bidask today baselines with bearer token headers", async () => {
     const signal = new AbortController().signal;
     fetchMock
       .mockResolvedValueOnce(
-        new Response(JSON.stringify([{ code: "TXFD6", minute_ts: 1 }]), {
+        new Response(JSON.stringify([{ code: "TXFE6", minute_ts: 1 }]), {
           status: 200,
           headers: { "Content-Type": "application/json" },
         }),
@@ -38,7 +38,7 @@ describe("getOrderFlowBaseline", () => {
       );
 
     await expect(getOrderFlowBaseline("token", undefined, signal)).resolves.toEqual({
-      kbarToday: [{ code: "TXFD6", minute_ts: 1 }],
+      kbarToday: [{ code: "TXFE6", minute_ts: 1 }],
       metricToday: [{ ts: 2, main_force_big_order: 3 }],
     });
 
@@ -46,7 +46,7 @@ describe("getOrderFlowBaseline", () => {
     const expectedFromMs = Date.parse("2026-04-08T09:00:00+08:00");
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
-      expect.stringContaining(`/v1/kbar/1m/today?code=TXFD6&from_ms=${expectedFromMs}&to_ms=${FIXED_NOW_MS}`),
+      expect.stringContaining(`/v1/kbar/1m/today?code=TXFE6&from_ms=${expectedFromMs}&to_ms=${FIXED_NOW_MS}`),
       expect.objectContaining({
         credentials: "include",
         method: "GET",
@@ -58,7 +58,7 @@ describe("getOrderFlowBaseline", () => {
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
-      expect.stringContaining(`/v1/metric/bidask/today?code=TXFD6&from_ms=${expectedFromMs}&to_ms=${FIXED_NOW_MS}`),
+      expect.stringContaining(`/v1/metric/bidask/today?code=TXFE6&from_ms=${expectedFromMs}&to_ms=${FIXED_NOW_MS}`),
       expect.objectContaining({
         credentials: "include",
         method: "GET",
@@ -119,7 +119,7 @@ describe("getOrderFlowBaseline", () => {
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
-      expect.stringContaining(`/v1/market-summary/today?code=TXFD6&from_ms=${expectedTodayFromMs}&to_ms=${FIXED_NOW_MS}`),
+      expect.stringContaining(`/v1/market-summary/today?code=TXFE6&from_ms=${expectedTodayFromMs}&to_ms=${FIXED_NOW_MS}`),
       expect.objectContaining({
         credentials: "include",
         method: "GET",
@@ -130,7 +130,7 @@ describe("getOrderFlowBaseline", () => {
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
-      expect.stringContaining(`/v1/market-summary/history?code=TXFD6&from_ms=${expectedYesterdayFromMs}&to_ms=${expectedYesterdayToMs}`),
+      expect.stringContaining(`/v1/market-summary/history?code=TXFE6&from_ms=${expectedYesterdayFromMs}&to_ms=${expectedYesterdayToMs}`),
       expect.objectContaining({
         credentials: "include",
         method: "GET",
@@ -190,14 +190,14 @@ describe("getOrderFlowBaseline", () => {
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
       expect.stringContaining(
-        `/v1/market-summary/today?code=TXFD6&from_ms=${expectedTodayFromMs}&to_ms=${expectedTodayToMs}`,
+        `/v1/market-summary/today?code=TXFE6&from_ms=${expectedTodayFromMs}&to_ms=${expectedTodayToMs}`,
       ),
       expect.anything(),
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
       expect.stringContaining(
-        `/v1/market-summary/history?code=TXFD6&from_ms=${expectedYesterdayFromMs}&to_ms=${expectedYesterdayToMs}`,
+        `/v1/market-summary/history?code=TXFE6&from_ms=${expectedYesterdayFromMs}&to_ms=${expectedYesterdayToMs}`,
       ),
       expect.anything(),
     );
@@ -331,7 +331,9 @@ describe("getOrderFlowBaseline", () => {
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
-      expect.stringContaining("/v1/spot/market-distribution/today"),
+      expect.stringContaining(
+        `/v1/spot/market-distribution/today?from_ms=${Date.parse("2026-04-08T09:00:00+08:00")}&to_ms=${FIXED_NOW_MS}`,
+      ),
       expect.objectContaining({
         credentials: "include",
         method: "GET",
