@@ -29,7 +29,11 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-trading_dashboard}"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-trading_dashboard}",
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -79,12 +83,162 @@ services:
         max-size: "10m"
         max-file: "5"
 
-  backend-stream-worker:
+  # backend-stream-worker:
+  #   env_file:
+  #     - ./.env.production
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_started
+  #   environment:
+  #     DATABASE_URL: ${DATABASE_URL_DOCKER:-postgresql+psycopg://postgres:postgres@postgres:5432/trading_dashboard}
+  #   restart: unless-stopped
+  #   profiles:
+  #     - full
+  #   logging:
+  #     options:
+  #       max-size: "10m"
+  #       max-file: "5"
+
+  backend-ingestor-worker:
     env_file:
       - ./.env.production
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      DATABASE_URL: ${DATABASE_URL_DOCKER:-postgresql+psycopg://postgres:postgres@postgres:5432/trading_dashboard}
+    volumes:
+      - ./infra/config:/app/infra/config:ro
+    restart: unless-stopped
+    profiles:
+      - full
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  backend-tick-worker:
+    env_file:
+      - ./.env.production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      DATABASE_URL: ${DATABASE_URL_DOCKER:-postgresql+psycopg://postgres:postgres@postgres:5432/trading_dashboard}
+    restart: unless-stopped
+    profiles:
+      - full
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  backend-bidask-worker:
+    env_file:
+      - ./.env.production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      DATABASE_URL: ${DATABASE_URL_DOCKER:-postgresql+psycopg://postgres:postgres@postgres:5432/trading_dashboard}
+    restart: unless-stopped
+    profiles:
+      - full
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  backend-quote-worker:
+    env_file:
+      - ./.env.production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      DATABASE_URL: ${DATABASE_URL_DOCKER:-postgresql+psycopg://postgres:postgres@postgres:5432/trading_dashboard}
+    restart: unless-stopped
+    profiles:
+      - full
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  backend-latest-state-worker:
+    env_file:
+      - ./.env.production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      DATABASE_URL: ${DATABASE_URL_DOCKER:-postgresql+psycopg://postgres:postgres@postgres:5432/trading_dashboard}
+    restart: unless-stopped
+    profiles:
+      - full
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  backend-index-contribution-worker:
+    env_file:
+      - ./.env.production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      DATABASE_URL: ${DATABASE_URL_DOCKER:-postgresql+psycopg://postgres:postgres@postgres:5432/trading_dashboard}
+    volumes:
+      - ./infra/config:/app/infra/config:ro
+    restart: unless-stopped
+    profiles:
+      - full
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  backend-market-summary-worker:
+    env_file:
+      - ./.env.production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      DATABASE_URL: ${DATABASE_URL_DOCKER:-postgresql+psycopg://postgres:postgres@postgres:5432/trading_dashboard}
+    restart: unless-stopped
+    profiles:
+      - full
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  backend-otc-summary-worker:
+    env_file:
+      - ./.env.production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
     environment:
       DATABASE_URL: ${DATABASE_URL_DOCKER:-postgresql+psycopg://postgres:postgres@postgres:5432/trading_dashboard}
     restart: unless-stopped
@@ -101,6 +255,44 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      DATABASE_URL: ${DATABASE_URL_DOCKER:-postgresql+psycopg://postgres:postgres@postgres:5432/trading_dashboard}
+    restart: unless-stopped
+    profiles:
+      - full
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  backend-backfill-worker:
+    env_file:
+      - ./.env.production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      DATABASE_URL: ${DATABASE_URL_DOCKER:-postgresql+psycopg://postgres:postgres@postgres:5432/trading_dashboard}
+    restart: unless-stopped
+    profiles:
+      - full
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  backend-kbar-analytics-cron-worker:
+    env_file:
+      - ./.env.production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
     environment:
       DATABASE_URL: ${DATABASE_URL_DOCKER:-postgresql+psycopg://postgres:postgres@postgres:5432/trading_dashboard}
     restart: unless-stopped

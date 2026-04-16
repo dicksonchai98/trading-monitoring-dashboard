@@ -28,4 +28,15 @@ jobs:
             docker compose --env-file .env.production -f docker-compose.yml -f docker-compose.ec2.yml up -d postgres redis
             docker compose --env-file .env.production -f docker-compose.yml -f docker-compose.ec2.yml run --rm backend-api alembic -c alembic.ini upgrade head
             docker compose --env-file .env.production -f docker-compose.yml -f docker-compose.ec2.yml up -d backend-api nginx
-            docker compose --env-file .env.production -f docker-compose.yml -f docker-compose.ec2.yml --profile full up -d backend-stream-worker backend-email-worker
+            docker compose --env-file .env.production -f docker-compose.yml -f docker-compose.ec2.yml --profile full up -d \
+              backend-ingestor-worker \
+              backend-tick-worker \
+              backend-bidask-worker \
+              backend-quote-worker \
+              backend-latest-state-worker \
+              backend-index-contribution-worker \
+              backend-market-summary-worker \
+              backend-otc-summary-worker \
+              backend-email-worker \
+              backend-backfill-worker \
+              backend-kbar-analytics-cron-worker

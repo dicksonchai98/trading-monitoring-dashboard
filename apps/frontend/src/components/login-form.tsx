@@ -70,6 +70,7 @@ export function LoginForm({
             id="user-id"
             className="h-10 rounded-xl"
             value={userId}
+            placeholder={t("auth.placeholder.userIdRule")}
             onChange={(event) => onUserIdChange(event.target.value)}
             aria-invalid={Boolean(userIdError)}
             disabled={isPending}
@@ -87,6 +88,7 @@ export function LoginForm({
               type={showPassword ? "text" : "password"}
               className="h-10 rounded-xl pr-10"
               value={password}
+              placeholder={t("auth.placeholder.loginPasswordRule")}
               onChange={(event) => onPasswordChange(event.target.value)}
               aria-invalid={Boolean(passwordError)}
               disabled={isPending}
@@ -114,6 +116,9 @@ export function LoginForm({
             className="text-xs leading-3 text-red-600"
           />
         </Field>
+        <Typography as="p" variant="caption" className="text-zinc-600">
+          {t("auth.login.defaultCredentials")}
+        </Typography>
         <Field>
           <Button
             type="submit"

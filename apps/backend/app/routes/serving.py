@@ -63,6 +63,12 @@ def _sse_message(event: str, data: dict[str, Any]) -> bytes:
     return f"event: {event}\ndata: {payload}\n\n".encode()
 
 
+def _payload_signature(payload: dict[str, Any] | None) -> str | None:
+    if payload is None:
+        return None
+    return json.dumps(payload, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
+
+
 def _require_code(code: str | None) -> str:
     normalized = (code or "").strip()
     if not normalized:
@@ -554,8 +560,8 @@ async def stream_sse(
     async def event_stream():
         last_kbar: dict[str, Any] | None = None
         last_metric: dict[str, Any] | None = None
-        last_index_contrib_ranking: dict[str, Any] | None = None
-        last_index_contrib_sector: dict[str, Any] | None = None
+        last_index_contrib_ranking_signature: str | None = None
+        last_index_contrib_sector_signature: str | None = None
         last_heartbeat = 0.0
         last_quote: dict[str, Any] | None = None
         last_market_summary: dict[str, Any] | None = None
@@ -598,6 +604,7 @@ async def stream_sse(
                     spot_market_distribution_latest_data = None
                     spot_market_distribution_series_data = None
                 now = asyncio.get_running_loop().time()
+                event_ts_ms = int(utcnow().timestamp() * 1000)
 
                 if current_k and current_k != last_kbar:
                     last_kbar = current_k
@@ -609,25 +616,27 @@ async def stream_sse(
                     metrics.inc("serving_sse_push_total")
                     yield _sse_message("metric_latest", metric_latest)
 
-                if index_contrib_ranking and index_contrib_ranking != last_index_contrib_ranking:
-                    last_index_contrib_ranking = index_contrib_ranking
+                ranking_signature = _payload_signature(index_contrib_ranking)
+                if ranking_signature and ranking_signature != last_index_contrib_ranking_signature:
+                    last_index_contrib_ranking_signature = ranking_signature
                     metrics.inc("serving_sse_push_total")
                     yield _sse_message(
                         "index_contrib_ranking",
                         {
                             **index_contrib_ranking,
-                            "ts": int(now * 1000),
+                            "ts": event_ts_ms,
                         },
                     )
 
-                if index_contrib_sector and index_contrib_sector != last_index_contrib_sector:
-                    last_index_contrib_sector = index_contrib_sector
+                sector_signature = _payload_signature(index_contrib_sector)
+                if sector_signature and sector_signature != last_index_contrib_sector_signature:
+                    last_index_contrib_sector_signature = sector_signature
                     metrics.inc("serving_sse_push_total")
                     yield _sse_message(
                         "index_contrib_sector",
                         {
                             **index_contrib_sector,
-                            "ts": int(now * 1000),
+                            "ts": event_ts_ms,
                         },
                     )
 
