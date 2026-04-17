@@ -8,7 +8,7 @@ import logging
 import time
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from datetime import time as dt_time
 from typing import Any
 
@@ -49,10 +49,11 @@ def parse_event_ts(event_ts: str) -> datetime | None:
 
 
 def trade_date_for(event_ts: datetime) -> date:
-    cutoff = (15, 0, 0)
-    if (event_ts.hour, event_ts.minute, event_ts.second) >= cutoff:
-        return event_ts.date()
-    return event_ts.date() - timedelta(days=1)
+    # Use the calendar date in Taipei as the trade date for intraday events.
+    # Previously this returned the previous date for most hours (cutoff at 15:00),
+    # which caused realtime SSE payloads during market hours to be labeled with
+    # the prior day. Use the local date to avoid confusing "today" vs "yesterday".
+    return event_ts.date()
 
 
 def unix_seconds(ts: datetime) -> int:
