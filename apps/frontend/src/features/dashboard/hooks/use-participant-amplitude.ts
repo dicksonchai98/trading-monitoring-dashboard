@@ -210,8 +210,26 @@ export function useParticipantAmplitude(
         ? aggregatedTodayCandle
         : null;
 
+    function kbarMinuteTsToTaipeiDateIso(k: typeof kbarCurrent): string | null {
+      if (!k) return null;
+      const ts = k.minute_ts as unknown;
+      if (typeof ts === "number") {
+        // If timestamp looks like seconds, convert to ms
+        const ms = ts > 1e12 ? ts : ts * 1000;
+        return new Intl.DateTimeFormat("en-CA", {
+          timeZone: "Asia/Taipei",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        }).format(new Date(ms));
+      }
+      return null;
+    }
+
+    const kbarMinuteDate = kbarMinuteTsToTaipeiDateIso(kbarCurrent);
+
     const validKbarCurrent =
-      kbarCurrent && kbarCurrent.trade_date === todayTradeDateIso
+      kbarCurrent && (kbarCurrent.trade_date === todayTradeDateIso || kbarMinuteDate === todayTradeDateIso)
         ? kbarCurrent
         : null;
 
