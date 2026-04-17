@@ -16,6 +16,7 @@ import { CardDataState } from "@/features/dashboard/components/CardDataState";
 import {
   ChartShell,
   axisTick,
+  timeSeriesAxisTick,
   tooltipStyle,
 } from "@/features/dashboard/components/PanelCharts";
 import { useSpotMarketDistributionBaseline } from "@/features/dashboard/hooks/use-spot-market-distribution";
@@ -108,17 +109,26 @@ export function SpotMarketDistributionCard(): JSX.Element {
                 <XAxis
                   axisLine={false}
                   dataKey="bucketLabel"
-                  height={56}
+                  height={52}
                   interval={0}
-                  tick={{ ...axisTick, angle: -30, textAnchor: "end" }}
+                  tick={timeSeriesAxisTick}
                   tickLine={false}
                 />
                 <YAxis
                   yAxisId="count"
                   axisLine={false}
-                  tick={axisTick}
+                  tick={{ ...axisTick, fontSize: 10 }}
                   tickLine={false}
-                  width={42}
+                  width={36}
+                  tickFormatter={(value) => {
+                    try {
+                      return Intl.NumberFormat(undefined, { notation: "compact" }).format(
+                        Number(value ?? 0),
+                      );
+                    } catch {
+                      return String(value ?? "");
+                    }
+                  }}
                 />
                 <Tooltip
                   contentStyle={tooltipStyle}

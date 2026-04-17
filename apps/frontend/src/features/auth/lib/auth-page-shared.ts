@@ -3,6 +3,8 @@ import { decodeAccessToken, mapTokenRole } from "@/features/auth/lib/token";
 import { getBillingStatus } from "@/features/subscription/api/billing";
 import { mapEntitlement, resolveEntitlementFromBillingStatus } from "@/features/subscription/lib/entitlement";
 
+type TFn = (key: string, variables?: Record<string, string | number>) => string;
+
 export function getRedirectTarget(state: unknown): string {
   if (typeof state === "object" && state !== null && "from" in state && typeof state.from === "string") {
     return state.from;
@@ -10,37 +12,37 @@ export function getRedirectTarget(state: unknown): string {
   return "/dashboard";
 }
 
-export function formatAuthError(message: string | undefined): string | null {
+export function formatAuthError(t: TFn, message?: string): string | null {
   switch (message) {
     case "invalid_credentials":
-      return "Invalid credentials.";
+      return t("auth.error.invalid_credentials");
     case "user_exists":
-      return "This email is already registered.";
+      return t("auth.error.user_exists");
     case "verification_required":
-      return "Please verify your email before registering.";
+      return t("auth.error.verification_required");
     case "invalid_email":
-      return "Please provide a valid email address.";
+      return t("auth.error.invalid_email");
     case "invalid_user_id":
-      return "User ID format is invalid.";
+      return t("auth.error.invalid_user_id");
     case "invalid_password":
-      return "Password must be at least 8 characters and include uppercase, lowercase, and number.";
+      return t("auth.error.invalid_password");
     case "invalid_otp":
-      return "Invalid verification code.";
+      return t("auth.error.invalid_otp");
     case "expired":
-      return "Verification code expired. Please request a new one.";
+      return t("auth.error.expired");
     case "cooldown":
     case "rate_limited":
-      return "Verification email sent too frequently. Please try again shortly.";
+      return t("auth.error.cooldown");
     case "locked":
-      return "Too many failed attempts. Please request a new verification code.";
+      return t("auth.error.locked");
     case "auth_request_failed":
     case "api_request_failed":
-      return "Authentication request failed.";
+      return t("auth.error.auth_request_failed");
     case "invalid_access_token":
     case "unsupported_role":
-      return "Received an invalid session token from the server.";
+      return t("auth.error.invalid_access_token");
     default:
-      return message ? "Unable to complete authentication." : null;
+      return message ? t("auth.error.generic") : null;
   }
 }
 
@@ -48,16 +50,19 @@ export async function applyAuthenticatedSession(params: {
   token: string;
   source: "login" | "register";
   setSession: (token: string, role: "admin" | "member" | "visitor", entitlement: "none" | "pending" | "active") => void;
+  t?: TFn;
 }): Promise<void> {
-  const payload = decodeAccessToken(params.token);
+  const { token, source, setSession, t } = params;
+  const payload = decodeAccessToken(token);
   const nextRole = mapTokenRole(payload.role);
   let nextEntitlement = mapEntitlement("none");
   try {
-    const status = await getBillingStatus(params.token);
+    const status = await getBillingStatus(token);
     nextEntitlement = resolveEntitlementFromBillingStatus(status);
   } catch {
     nextEntitlement = mapEntitlement("none");
   }
-  params.setSession(params.token, nextRole, nextEntitlement);
-  toast.success(params.source === "register" ? "Registration successful." : "Login successful.");
+  setSession(token, nextRole, nextEntitlement);
+  const translate = t ?? ((k: string) => k);
+  toast.success(source === "register" ? translate("auth.success.registration") : translate("auth.success.login"));
 }

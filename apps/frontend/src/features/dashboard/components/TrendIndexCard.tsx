@@ -189,7 +189,12 @@ export function TrendIndexCard(): JSX.Element {
       emptyText={t("dashboard.realtime.trendIndex.empty")}
     >
       <ChartShell testId="trend-index-chart">
-        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={180}>
+        <ResponsiveContainer
+          width="100%"
+          height="100%"
+          minWidth={0}
+          minHeight={180}
+        >
           <LineChart
             data={chartData}
             margin={{ top: 18, right: 8, bottom: 0, left: -14 }}
@@ -202,7 +207,7 @@ export function TrendIndexCard(): JSX.Element {
             <XAxis
               axisLine={false}
               dataKey="timeLabel"
-              interval={14}
+              // interval={14}
               tick={timeSeriesAxisTick}
               tickLine={false}
               height={52}

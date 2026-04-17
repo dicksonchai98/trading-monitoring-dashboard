@@ -17,6 +17,7 @@ import {
 } from "@/features/subscription/lib/entitlement";
 import { useT } from "@/lib/i18n";
 import { useAuthStore } from "@/lib/store/auth-store";
+import { toast } from "sonner";
 
 function FeatureList({ items }: { items: string[] }): JSX.Element {
   return (
@@ -157,6 +158,7 @@ export function SubscriptionPage(): JSX.Element {
               disabled={checkoutMutation.isPending || isProCurrentPlan}
               onClick={() => {
                 if (!token) {
+                  toast(t("guard.redirect.login"), { icon: "⚠️", duration: 7000 });
                   navigate("/login", { state: { from: "/subscription" } });
                   return;
                 }

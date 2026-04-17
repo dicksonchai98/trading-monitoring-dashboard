@@ -1,5 +1,5 @@
 import type { JSX } from "react";
-import { useMemo } from "react";
+import { useMemo, useEffect, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
 import { BentoGridSection } from "@/components/ui/bento-grid";
 import { PageLayout } from "@/components/ui/page-layout";
@@ -12,6 +12,7 @@ import {
 } from "@/features/dashboard/lib/market-thermometer-sectors";
 import { useSpotLatestList } from "@/features/realtime/hooks/use-spot-latest-list";
 import { useT } from "@/lib/i18n";
+import { toast } from "sonner";
 
 interface SpotPanelData {
   symbol: string;
@@ -168,6 +169,16 @@ export function MarketThermometerPage(): JSX.Element {
   const t = useT();
   const spotLatestList = useSpotLatestList();
   const hasSpotLatestList = spotLatestList !== null;
+
+  const closedToastRef = useRef<string | null>(null);
+  useEffect(() => {
+    const now = new Date();
+    const hhmm = now.getHours() * 100 + now.getMinutes();
+    if ((hhmm < 845 || hhmm > 1345) && closedToastRef.current !== "/market-thermometer") {
+      toast(t("guard.realtime.closed"), { icon: "⚠️", duration: 7000 });
+      closedToastRef.current = "/market-thermometer";
+    }
+  }, [t]);
 
   const marketStrengthPct =
     typeof spotLatestList?.market_strength_pct === "number" &&

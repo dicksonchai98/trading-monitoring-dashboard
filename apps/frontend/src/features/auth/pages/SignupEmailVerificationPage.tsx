@@ -57,9 +57,10 @@ export function SignupEmailVerificationPage(): JSX.Element {
   const registerMutation = useMutation({
     mutationFn: register,
     onSuccess: async (data) => {
-      await applyAuthenticatedSession({ token: data.access_token, source: "register", setSession });
+      await applyAuthenticatedSession({ token: data.access_token, source: "register", setSession, t });
       navigate(redirectTarget, { replace: true });
     },
+
   });
 
   const verifyMutation = useMutation({
@@ -110,9 +111,9 @@ export function SignupEmailVerificationPage(): JSX.Element {
 
   const errorMessage =
     localError ??
-    formatAuthError(registerMutation.error instanceof Error ? registerMutation.error.message : undefined) ??
-    formatAuthError(verifyMutation.error instanceof Error ? verifyMutation.error.message : undefined) ??
-    formatAuthError(resendMutation.error instanceof Error ? resendMutation.error.message : undefined);
+    formatAuthError(t, registerMutation.error instanceof Error ? registerMutation.error.message : undefined) ??
+    formatAuthError(t, verifyMutation.error instanceof Error ? verifyMutation.error.message : undefined) ??
+    formatAuthError(t, resendMutation.error instanceof Error ? resendMutation.error.message : undefined);
 
   return (
     <div className="grid min-h-screen w-full bg-white md:grid-cols-2">

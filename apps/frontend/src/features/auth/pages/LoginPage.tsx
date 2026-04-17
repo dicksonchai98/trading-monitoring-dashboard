@@ -8,23 +8,25 @@ import ColourfulTextDemo from "@/components/colourful-text-demo";
 import { login } from "@/features/auth/api/auth";
 import { AuthSplitPageSkeleton } from "@/features/auth/components/AuthSplitPageSkeleton";
 import { applyAuthenticatedSession, formatAuthError, getRedirectTarget } from "@/features/auth/lib/auth-page-shared";
-import { loginSchema, type LoginFormValues } from "@/features/auth/validation/auth-schema";
+import { useT } from "@/lib/i18n";
+import { createLoginSchema, type LoginFormValues } from "@/features/auth/validation/auth-schema";
 import { useAuthStore } from "@/lib/store/auth-store";
 
 export function LoginPage(): JSX.Element {
   const navigate = useNavigate();
   const location = useLocation();
   const { role, resolved, setSession } = useAuthStore();
+  const t = useT();
   const redirectTarget = getRedirectTarget(location.state);
   const form = useForm<LoginFormValues>({
-    resolver: zodResolver(loginSchema),
+    resolver: zodResolver(createLoginSchema(t)),
     defaultValues: { user_id: "", password: "" },
   });
 
   const mutation = useMutation({
     mutationFn: login,
     onSuccess: async (data) => {
-      await applyAuthenticatedSession({ token: data.access_token, source: "login", setSession });
+      await applyAuthenticatedSession({ token: data.access_token, source: "login", setSession, t });
       navigate(redirectTarget, { replace: true });
     },
   });
@@ -46,7 +48,7 @@ export function LoginPage(): JSX.Element {
             password={form.watch("password")}
             userIdError={form.formState.errors.user_id?.message}
             passwordError={form.formState.errors.password?.message}
-            errorMessage={formatAuthError(mutation.error instanceof Error ? mutation.error.message : undefined)}
+            errorMessage={formatAuthError(t, mutation.error instanceof Error ? mutation.error.message : undefined)}
             isPending={mutation.isPending}
             onUserIdChange={(value) => form.setValue("user_id", value, { shouldDirty: true, shouldValidate: true })}
             onPasswordChange={(value) => form.setValue("password", value, { shouldDirty: true, shouldValidate: true })}
