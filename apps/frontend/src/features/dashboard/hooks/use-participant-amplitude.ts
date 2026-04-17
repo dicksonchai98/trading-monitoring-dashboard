@@ -197,11 +197,30 @@ export function useParticipantAmplitude(
       baselineQuery.data?.kbarToday ?? [],
     );
 
-    if (!kbarCurrent) {
-      return aggregatedTodayCandle;
+    // Validate that the aggregated today candle and realtime kbar belong to the same Taipei trade date.
+    const todayTradeDateIso = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Taipei",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+
+    const validAggregated =
+      aggregatedTodayCandle && aggregatedTodayCandle.tradeDate === todayTradeDateIso
+        ? aggregatedTodayCandle
+        : null;
+
+    const validKbarCurrent =
+      kbarCurrent && kbarCurrent.trade_date === todayTradeDateIso
+        ? kbarCurrent
+        : null;
+
+    // If there's no valid realtime kbar for today, return the validated aggregated candle (might be null).
+    if (!validKbarCurrent) {
+      return validAggregated;
     }
 
-    return patchRealtimeTodayCandle(aggregatedTodayCandle, kbarCurrent);
+    return patchRealtimeTodayCandle(validAggregated, validKbarCurrent);
   }, [baselineQuery.data?.kbarToday, kbarCurrent]);
 
   const summary = useMemo(() => computeSummary(closedSeries), [closedSeries]);
