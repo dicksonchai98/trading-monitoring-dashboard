@@ -67,33 +67,27 @@ interface ServingSseBatch {
   kbarCurrent?: ReturnType<
     typeof useRealtimeStore.getState
   >["kbarCurrentByCode"][string];
-  metricLatest?: {
-    code: string;
-    payload: ReturnType<
-      typeof useRealtimeStore.getState
-    >["metricLatestByCode"][string];
-  };
-  marketSummaryLatest?: {
-    code: string;
-    payload: ReturnType<
-      typeof useRealtimeStore.getState
-    >["marketSummaryLatestByCode"][string];
-  };
-  otcSummaryLatest?: {
-    code: string;
-    payload: ReturnType<
-      typeof useRealtimeStore.getState
-    >["otcSummaryLatestByCode"][string];
-  };
-  quoteLatest?: {
-    code: string;
-    payload: ReturnType<
-      typeof useRealtimeStore.getState
-    >["quoteLatestByCode"][string];
-  };
+  metricLatestMap?: Record<
+    string,
+    ReturnType<typeof useRealtimeStore.getState>["metricLatestByCode"][string]
+  >;
+  marketSummaryMap?: Record<
+    string,
+    ReturnType<typeof useRealtimeStore.getState>["marketSummaryLatestByCode"][string]
+  >;
+  otcSummaryMap?: Record<
+    string,
+    ReturnType<typeof useRealtimeStore.getState>["otcSummaryLatestByCode"][string]
+  >;
+  quoteLatestMap?: Record<
+    string,
+    ReturnType<typeof useRealtimeStore.getState>["quoteLatestByCode"][string]
+  >;
   spotLatestList?: SpotLatestListPayload;
   spotMarketDistributionLatest?: SpotMarketDistributionLatestPayload;
   spotMarketDistributionSeries?: SpotMarketDistributionSeriesPayload;
+  indexContribRanking?: ReturnType<typeof useRealtimeStore.getState>["indexContribRanking"] | null;
+  indexContribSector?: ReturnType<typeof useRealtimeStore.getState>["indexContribSector"] | null;
   heartbeatTs?: number;
 }
 
@@ -504,10 +498,8 @@ function collectServingSseEvent(
       typeof (data as { code?: unknown })?.code === "string"
         ? (data as { code: string }).code || fallbackCode
         : fallbackCode;
-    batch.metricLatest = {
-      code: payloadCode,
-      payload: parsed.data,
-    };
+    batch.metricLatestMap = batch.metricLatestMap || {};
+    batch.metricLatestMap[payloadCode] = parsed.data;
     return;
   }
 
@@ -519,10 +511,8 @@ function collectServingSseEvent(
     const fallbackCode = DEFAULT_STREAM_CODE;
     const payloadCode =
       parsed.data.code || parsed.data.market_code || fallbackCode;
-    batch.marketSummaryLatest = {
-      code: payloadCode,
-      payload: parsed.data,
-    };
+    batch.marketSummaryMap = batch.marketSummaryMap || {};
+    batch.marketSummaryMap[payloadCode] = parsed.data;
     return;
   }
 
@@ -590,10 +580,8 @@ function collectServingSseEvent(
       typeof parsed.data.code === "string" && parsed.data.code.trim()
         ? parsed.data.code
         : "OTC001";
-    batch.otcSummaryLatest = {
-      code: payloadCode,
-      payload: parsed.data,
-    };
+    batch.otcSummaryMap = batch.otcSummaryMap || {};
+    batch.otcSummaryMap[payloadCode] = parsed.data;
     return;
   }
 
@@ -604,10 +592,8 @@ function collectServingSseEvent(
     }
     const fallbackCode = DEFAULT_STREAM_CODE;
     const payloadCode = parsed.data.code || fallbackCode;
-    batch.quoteLatest = {
-      code: payloadCode,
-      payload: parsed.data,
-    };
+    batch.quoteLatestMap = batch.quoteLatestMap || {};
+    batch.quoteLatestMap[payloadCode] = parsed.data;
   }
 }
 
