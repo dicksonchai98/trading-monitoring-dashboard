@@ -187,7 +187,7 @@ Status: mapping extracted to `apps/frontend/src/features/dashboard/lib/trend-ind
 
 - [ ] **Step 1:** Run full test suite: `pnpm test` and `pnpm -w -r -v` as needed
 - [ ] **Step 2:** Manual dev validation with SSE dev feed; measure CPU/GC before/after.
-- [ ] **Step 3:** Update docs: `docs/2026-04-18-timeline-helpers-refactor-design.md` to note changes and guide future migrations.
+- [x] **Step 3:** Update docs: `docs/2026-04-18-timeline-helpers-refactor-design.md` to note changes and guide future migrations. (done)
 
 ---
 
