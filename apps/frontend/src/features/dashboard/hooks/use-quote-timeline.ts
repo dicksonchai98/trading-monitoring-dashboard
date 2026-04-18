@@ -86,28 +86,38 @@ export function useQuoteTimeline(
   }, [baselineQuery.data]);
 
   const mergedMaps = useMemo(() => {
-    const mainChipByMinute = { ...baseMaps.mainChipByMinute };
-    const longShortForceByMinute = { ...baseMaps.longShortForceByMinute };
-
     const latestTs = resolvePointTs(quoteLatest ?? {});
-    if (latestTs !== null) {
-      const minuteTs = minuteKeyFromEpochMs(latestTs);
-      if (
-        typeof quoteLatest?.main_chip === "number" &&
-        Number.isFinite(quoteLatest.main_chip)
-      ) {
-        mainChipByMinute[minuteTs] = quoteLatest.main_chip;
-      }
-      if (
-        typeof quoteLatest?.long_short_force === "number" &&
-        Number.isFinite(quoteLatest.long_short_force)
-      ) {
-        longShortForceByMinute[minuteTs] = quoteLatest.long_short_force;
+    if (latestTs === null) return baseMaps;
+
+    const minuteTs = minuteKeyFromEpochMs(latestTs);
+    let changed = false;
+    let nextMain = baseMaps.mainChipByMinute;
+    let nextLongShort = baseMaps.longShortForceByMinute;
+
+    if (
+      typeof quoteLatest?.main_chip === "number" &&
+      Number.isFinite(quoteLatest.main_chip)
+    ) {
+      if (baseMaps.mainChipByMinute[minuteTs] !== quoteLatest.main_chip) {
+        nextMain = { ...baseMaps.mainChipByMinute, [minuteTs]: quoteLatest.main_chip };
+        changed = true;
       }
     }
 
-    return { mainChipByMinute, longShortForceByMinute };
-  }, [baseMaps.longShortForceByMinute, baseMaps.mainChipByMinute, quoteLatest]);
+    if (
+      typeof quoteLatest?.long_short_force === "number" &&
+      Number.isFinite(quoteLatest.long_short_force)
+    ) {
+      if (baseMaps.longShortForceByMinute[minuteTs] !== quoteLatest.long_short_force) {
+        nextLongShort = { ...baseMaps.longShortForceByMinute, [minuteTs]: quoteLatest.long_short_force };
+        changed = true;
+      }
+    }
+
+    return changed
+      ? { mainChipByMinute: nextMain, longShortForceByMinute: nextLongShort }
+      : baseMaps;
+  }, [baseMaps.mainChipByMinute, baseMaps.longShortForceByMinute, quoteLatest]);
 
   return {
     ...mergedMaps,
