@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   DEFAULT_ORDER_FLOW_CODE,
@@ -11,6 +11,7 @@ import {
 import { dashboardEstimatedVolumeBaselineQueryOptions } from "@/features/dashboard/lib/dashboard-queries";
 import { useMarketSummaryLatest } from "@/features/realtime/hooks/use-market-summary-latest";
 import { useAuthStore } from "@/lib/store/auth-store";
+import { upsertPoint } from "@/features/dashboard/lib/timeline-helpers";
 
 interface UseEstimatedVolumeTimelineResult {
   series: EstimatedVolumeSeriesPoint[];
@@ -98,7 +99,8 @@ export function useEstimatedVolumeTimeline(): UseEstimatedVolumeTimelineResult {
     for (let i = 0; i < baselineSeries.length; ++i) m.set(baselineSeries[i].minuteTs, i);
     indexRef.current = m;
   }, [baselineSeries]);
-n  useEffect(() => {
+
+  useEffect(() => {
     if (!marketSummaryLatest) return;
     if (
       typeof marketSummaryLatest.estimated_turnover !== "number" ||
@@ -117,7 +119,8 @@ export function useEstimatedVolumeTimeline(): UseEstimatedVolumeTimelineResult {
       yesterdayEstimated: marketSummaryLatest.yesterday_estimated_turnover,
       estimatedDiff: marketSummaryLatest.estimated_turnover_diff,
     };
-n    // construct a full point using existing mapper so formatting matches
+
+    // construct a full point using existing mapper so formatting matches
     const point = (applyEstimatedVolumeRealtimePatch([], patch as any, baseline.yesterdayByMinuteOfDay)[0]) as EstimatedVolumeSeriesPoint;
 
     setSeries((current) => {
@@ -127,7 +130,8 @@ export function useEstimatedVolumeTimeline(): UseEstimatedVolumeTimelineResult {
       return nextSeries as EstimatedVolumeSeriesPoint[];
     });
   }, [marketSummaryLatest, baseline.yesterdayByMinuteOfDay]);
-n  return {
+
+  return {
     series,
     latest: series.length ? series[series.length - 1] : null,
     loading: !resolved ? true : baselineQuery.isLoading,
