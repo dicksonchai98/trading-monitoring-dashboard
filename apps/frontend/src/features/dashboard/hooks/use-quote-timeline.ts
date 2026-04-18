@@ -16,7 +16,8 @@ interface UseQuoteTimelineResult extends QuoteMinuteMaps {
   loading: boolean;
   error: string | null;
 }
-ninterface MinutePoint { minuteTs: number; value: number }
+
+interface MinutePoint { minuteTs: number; value: number }
 
 function resolvePointTs(point: {
   ts?: number | string;
@@ -111,7 +112,8 @@ export function useQuoteTimeline(
     for (let i = 0; i < baselineMainSeries.length; ++i) m.set(baselineMainSeries[i].minuteTs, i);
     mainIndexRef.current = m;
     setMainSeries(baselineMainSeries);
-    const l = new Map<number, number>();
+
+    const l = new Map<number, number>();
     for (let i = 0; i < baselineLongSeries.length; ++i) l.set(baselineLongSeries[i].minuteTs, i);
     longIndexRef.current = l;
     setLongSeries(baselineLongSeries);
@@ -131,7 +133,8 @@ export function useQuoteTimeline(
         setMainSeries(nextSeries as MinutePoint[]);
       }
     }
-    if (typeof quoteLatest?.long_short_force === "number" && Number.isFinite(quoteLatest.long_short_force)) {
+
+    if (typeof quoteLatest?.long_short_force === "number" && Number.isFinite(quoteLatest.long_short_force)) {
       const point: MinutePoint = { minuteTs, value: quoteLatest.long_short_force };
       const { nextSeries, nextIndexMap, didChange } = upsertPoint(longSeries, longIndexRef.current, point as any);
       if (didChange) {
@@ -146,11 +149,13 @@ export function useQuoteTimeline(
   const mergedMaps = useMemo(() => {
     const latestTs = resolvePointTs(quoteLatest ?? {});
     if (latestTs === null) return baseMaps;
-    const minuteTs = minuteKeyFromEpochMs(latestTs);
+
+    const minuteTs = minuteKeyFromEpochMs(latestTs);
     let changed = false;
     let nextMain = baseMaps.mainChipByMinute;
     let nextLongShort = baseMaps.longShortForceByMinute;
-    if (
+
+    if (
       typeof quoteLatest?.main_chip === "number" &&
       Number.isFinite(quoteLatest.main_chip)
     ) {
@@ -159,7 +164,8 @@ export function useQuoteTimeline(
         changed = true;
       }
     }
-    if (
+
+    if (
       typeof quoteLatest?.long_short_force === "number" &&
       Number.isFinite(quoteLatest.long_short_force)
     ) {
@@ -168,7 +174,8 @@ export function useQuoteTimeline(
         changed = true;
       }
     }
-    return changed
+
+    return changed
       ? { mainChipByMinute: nextMain, longShortForceByMinute: nextLongShort }
       : baseMaps;
   }, [baseMaps.mainChipByMinute, baseMaps.longShortForceByMinute, quoteLatest]);
@@ -182,4 +189,3 @@ export function useQuoteTimeline(
         : null,
   };
 }
-

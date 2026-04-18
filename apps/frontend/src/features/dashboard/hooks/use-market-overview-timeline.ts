@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect, useRef } from "react";
+import { upsertPoint } from "@/features/dashboard/lib/timeline-helpers";
 import { DEFAULT_ORDER_FLOW_CODE } from "@/features/dashboard/api/market-overview";
 import {
   buildOrderFlowSeriesFromTimelineMaps,
@@ -8,16 +9,6 @@ import { useKbarTimelineFromBaseline } from "@/features/dashboard/hooks/use-kbar
 import { useMetricTimelineFromBaseline } from "@/features/dashboard/hooks/use-metric-timeline";
 import { useOrderFlowBaseline } from "@/features/dashboard/hooks/use-order-flow-baseline";
 
-function findInsertIndex(series: OrderFlowSeriesPoint[], minuteTs: number): number {
-  let lo = 0;
-  let hi = series.length;
-  while (lo < hi) {
-    const mid = (lo + hi) >> 1;
-    if (series[mid].minuteTs < minuteTs) lo = mid + 1;
-    else hi = mid;
-  }
-  return lo;
-}
 
 export function useMarketOverviewTimeline(): UseMarketOverviewTimelineResult {
   const baseline = useOrderFlowBaseline(DEFAULT_ORDER_FLOW_CODE);
@@ -102,23 +93,10 @@ export function useMarketOverviewTimeline(): UseMarketOverviewTimelineResult {
       const point = pointArr[0];
       if (!point) continue;
 
-      const existingIndex = idxMap.get(minuteTs);
-      if (typeof existingIndex === "number") {
-        const existing = nextSeries[existingIndex];
-        if (
-          existing.indexPrice === point.indexPrice &&
-          existing.chipDelta === point.chipDelta
-        ) {
-          continue;
-        }
-        // replace minimal
-        nextSeries = nextSeries.slice();
-        nextSeries[existingIndex] = point;
-      } else {
-        // insert at proper position
-        const insertAt = findInsertIndex(nextSeries, minuteTs);
-        nextSeries = [...nextSeries.slice(0, insertAt), point, ...nextSeries.slice(insertAt)];
-        // rebuild idxMap after insert
+      const { nextSeries: s, nextIndexMap, didChange } = upsertPoint(nextSeries, idxMap, point as any);
+      if (didChange) {
+        nextSeries = s;
+        // update idxMap reference to reflect insertion/replace
         for (let i = 0; i < nextSeries.length; i++) idxMap.set(nextSeries[i].minuteTs, i);
       }
     }
