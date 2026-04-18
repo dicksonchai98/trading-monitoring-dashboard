@@ -87,41 +87,49 @@ export function useEstimatedVolumeTimeline(): UseEstimatedVolumeTimelineResult {
     [baselineQuery.data],
   );
 
-  const series = useMemo(() => {
-    if (!marketSummaryLatest) {
-      return baseline.series;
-    }
+  const baselineSeries = useMemo(() => baseline.series, [baseline.series]);
+  const [series, setSeries] = useState<EstimatedVolumeSeriesPoint[]>(baselineSeries);
+  const indexRef = useRef<Map<number, number>>(new Map());
+
+  // reset baseline when baseline changes
+  useEffect(() => {
+    setSeries(baselineSeries);
+    const m = new Map<number, number>();
+    for (let i = 0; i < baselineSeries.length; ++i) m.set(baselineSeries[i].minuteTs, i);
+    indexRef.current = m;
+  }, [baselineSeries]);
+n  useEffect(() => {
+    if (!marketSummaryLatest) return;
     if (
       typeof marketSummaryLatest.estimated_turnover !== "number" ||
       !Number.isFinite(marketSummaryLatest.estimated_turnover)
     ) {
-      return baseline.series;
+      return;
     }
-
     const minuteTs = resolveRealtimeMinuteTs(marketSummaryLatest);
-    if (minuteTs === null) {
-      return baseline.series;
-    }
+    if (minuteTs === null) return;
     const { sessionStartMs, sessionEndMs } = resolveSessionBoundsMs(Date.now());
-    if (minuteTs < sessionStartMs || minuteTs > sessionEndMs) {
-      return baseline.series;
-    }
+    if (minuteTs < sessionStartMs || minuteTs > sessionEndMs) return;
 
-    return applyEstimatedVolumeRealtimePatch(
-      baseline.series,
-      {
-        minuteTs,
-        todayEstimated: marketSummaryLatest.estimated_turnover,
-        yesterdayEstimated: marketSummaryLatest.yesterday_estimated_turnover,
-        estimatedDiff: marketSummaryLatest.estimated_turnover_diff,
-      },
-      baseline.yesterdayByMinuteOfDay,
-    );
-  }, [baseline.series, baseline.yesterdayByMinuteOfDay, marketSummaryLatest]);
+    const patch = {
+      minuteTs,
+      todayEstimated: marketSummaryLatest.estimated_turnover,
+      yesterdayEstimated: marketSummaryLatest.yesterday_estimated_turnover,
+      estimatedDiff: marketSummaryLatest.estimated_turnover_diff,
+    };
+n    // construct a full point using existing mapper so formatting matches
+    const point = (applyEstimatedVolumeRealtimePatch([], patch as any, baseline.yesterdayByMinuteOfDay)[0]) as EstimatedVolumeSeriesPoint;
 
-  return {
+    setSeries((current) => {
+      const { nextSeries, nextIndexMap, didChange } = upsertPoint(current, indexRef.current, point as any);
+      if (!didChange) return current;
+      indexRef.current = nextIndexMap;
+      return nextSeries as EstimatedVolumeSeriesPoint[];
+    });
+  }, [marketSummaryLatest, baseline.yesterdayByMinuteOfDay]);
+n  return {
     series,
-    latest: resolveLatestPoint(series),
+    latest: series.length ? series[series.length - 1] : null,
     loading: !resolved ? true : baselineQuery.isLoading,
     error:
       isEnabled && baselineQuery.error
