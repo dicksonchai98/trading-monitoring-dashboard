@@ -474,7 +474,7 @@ function applyServingSseBatch(batch: ServingSseBatch): void {
   useRealtimeStore.getState().applySseBatch(batch);
 }
 
-function collectServingSseEvent(
+export function collectServingSseEvent(
   eventName: string,
   data: unknown,
   batch: ServingSseBatch,
