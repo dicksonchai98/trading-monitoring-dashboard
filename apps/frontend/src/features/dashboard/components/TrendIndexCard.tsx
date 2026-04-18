@@ -18,6 +18,7 @@ import {
 import { useSpotMarketDistributionBaseline } from "@/features/dashboard/hooks/use-spot-market-distribution";
 import { useRealtimeStore } from "@/features/realtime/store/realtime.store";
 import { useT } from "@/lib/i18n";
+import { mapSpotMarketDistributionToTrendData } from "@/features/dashboard/lib/trend-index-mapper";
 
 interface TrendIndexDatum {
   timeLabel: string;
@@ -26,50 +27,6 @@ interface TrendIndexDatum {
   ts: number;
 }
 
-const TREND_WINDOW_START_MINUTES = 9 * 60;
-const TREND_WINDOW_END_MINUTES = 13 * 60 + 30;
-const taipeiTimeFormatter = new Intl.DateTimeFormat("en-GB", {
-  hour: "2-digit",
-  hour12: false,
-  minute: "2-digit",
-  timeZone: "Asia/Taipei",
-});
-
-const taipeiTimeLabelFormatter = new Intl.DateTimeFormat("en-GB", {
-  hour: "2-digit",
-  hour12: false,
-  minute: "2-digit",
-  timeZone: "Asia/Taipei",
-});
-
-function formatTrendLabel(ts: number): string {
-  return taipeiTimeLabelFormatter.format(new Date(ts));
-}
-
-function getTaipeiMinutes(ts: number): number {
-  const [hourText, minuteText] = taipeiTimeFormatter
-    .format(new Date(ts))
-    .split(":");
-  return Number(hourText) * 60 + Number(minuteText);
-}
-
-function getTrendDelta(item: { up_count: number; down_count: number }): number {
-  return item.up_count - item.down_count;
-}
-
-function getTrendRatio(item: {
-  trend_index?: number | null;
-  up_count: number;
-  down_count: number;
-  total_count: number;
-}): number {
-  if (typeof item.trend_index === "number") {
-    return Number((item.trend_index * 100).toFixed(1));
-  }
-
-  const totalCount = Math.max(item.total_count, 1);
-  return Number(((getTrendDelta(item) / totalCount) * 100).toFixed(1));
-}
 
 function resolveTrendRatioDomain([dataMin, dataMax]: [number, number]): [
   number,
@@ -96,46 +53,7 @@ export function TrendIndexCard(): JSX.Element {
   );
 
   const chartData = useMemo<TrendIndexDatum[]>(() => {
-    const seriesItems = spotMarketDistributionSeries?.items ?? [];
-    const mapped = seriesItems
-      .filter(
-        (item) =>
-          typeof item.up_count === "number" &&
-          typeof item.down_count === "number" &&
-          getTaipeiMinutes(item.ts) >= TREND_WINDOW_START_MINUTES &&
-          getTaipeiMinutes(item.ts) <= TREND_WINDOW_END_MINUTES,
-      )
-      .map((item) => ({
-        ts: item.ts,
-        timeLabel: formatTrendLabel(item.ts),
-        trendDelta: getTrendDelta(item),
-        trendRatio: getTrendRatio(item),
-      }))
-      .sort((left, right) => left.ts - right.ts);
-
-    if (mapped.length > 0) {
-      return mapped;
-    }
-
-    if (
-      typeof spotMarketDistributionLatest?.up_count === "number" &&
-      typeof spotMarketDistributionLatest?.down_count === "number" &&
-      getTaipeiMinutes(spotMarketDistributionLatest.ts) >=
-        TREND_WINDOW_START_MINUTES &&
-      getTaipeiMinutes(spotMarketDistributionLatest.ts) <=
-        TREND_WINDOW_END_MINUTES
-    ) {
-      return [
-        {
-          ts: spotMarketDistributionLatest.ts,
-          timeLabel: formatTrendLabel(spotMarketDistributionLatest.ts),
-          trendDelta: getTrendDelta(spotMarketDistributionLatest),
-          trendRatio: getTrendRatio(spotMarketDistributionLatest),
-        },
-      ];
-    }
-
-    return [];
+    return mapSpotMarketDistributionToTrendData(spotMarketDistributionSeries?.items, spotMarketDistributionLatest);
   }, [
     spotMarketDistributionLatest?.up_count,
     spotMarketDistributionLatest?.down_count,
