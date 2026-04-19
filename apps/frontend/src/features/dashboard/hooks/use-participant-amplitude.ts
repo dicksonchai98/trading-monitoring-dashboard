@@ -195,11 +195,23 @@ export function useParticipantAmplitude(
   // Internal series includes minuteTs for indexing (use tradeDate midnight in Taipei)
   type InternalPoint = ParticipantCandlePoint & { minuteTs: number };
   const baselineInternal = useMemo<InternalPoint[]>(() => {
-    return closedSeries.map((p) => ({
+    const list = closedSeries.map((p) => ({
       ...p,
       minuteTs: Date.parse(`${p.tradeDate}T00:00:00+08:00`),
     }));
-  }, [closedSeries]);
+
+    const today = aggregatedTodayCandle
+      ? ({ ...aggregatedTodayCandle, minuteTs: Date.parse(`${aggregatedTodayCandle.tradeDate}T00:00:00+08:00`) } as InternalPoint)
+      : null;
+
+    if (today) {
+      const existingIdx = list.findIndex((x) => x.minuteTs === today.minuteTs);
+      if (existingIdx >= 0) list[existingIdx] = today;
+      else list.push(today);
+    }
+
+    return list.sort((a, b) => a.minuteTs - b.minuteTs);
+  }, [closedSeries, aggregatedTodayCandle]);
 
   const [internalSeries, setInternalSeries] = useState<InternalPoint[]>(baselineInternal);
   const indexRef = useRef<Map<number, number>>(new Map());
