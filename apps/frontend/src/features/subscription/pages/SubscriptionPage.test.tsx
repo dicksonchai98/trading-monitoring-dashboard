@@ -183,7 +183,7 @@ describe("SubscriptionPage", () => {
   it("redirects unauthenticated users to login when clicking get started", async () => {
     useAuthStore.setState({
       token: null,
-      role: null,
+      role: undefined,
       entitlement: "none",
       resolved: true,
       checkoutSessionId: null,

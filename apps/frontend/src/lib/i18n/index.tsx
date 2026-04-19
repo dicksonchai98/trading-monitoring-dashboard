@@ -61,7 +61,7 @@ export function I18nProvider({ children }: PropsWithChildren): JSX.Element {
   }, [locale]);
 
   const t = useCallback((key: TranslationKey, variables?: TranslationVariables): string => {
-    const localeMessages = messages[locale];
+    const localeMessages = messages[locale] as Record<string, string>;
     const template = localeMessages[key] ?? messages.en[key];
     return formatMessage(template, variables);
   }, [locale]);
@@ -83,3 +83,5 @@ export function useT(): I18nContextValue["t"] {
 }
 
 export type { LanguagePreset, TranslationKey };
+export type { I18nContextValue };
+

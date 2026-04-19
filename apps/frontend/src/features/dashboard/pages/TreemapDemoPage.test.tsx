@@ -41,6 +41,9 @@ describe("TreemapDemoPage", () => {
   it("falls back to symbol-only labels when a stock name is unavailable", () => {
     useRealtimeStore.setState({
       indexContribRanking: {
+        trade_date: "2026-01-01",
+        ts: Date.now(),
+        index_code: "TXF",
         top: [{ rank_no: 1, symbol: "9999", contribution_points: 1.23 }],
         bottom: [],
       },

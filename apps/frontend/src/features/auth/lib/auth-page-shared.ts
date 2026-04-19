@@ -3,7 +3,9 @@ import { decodeAccessToken, mapTokenRole } from "@/features/auth/lib/token";
 import { getBillingStatus } from "@/features/subscription/api/billing";
 import { mapEntitlement, resolveEntitlementFromBillingStatus } from "@/features/subscription/lib/entitlement";
 
-type TFn = (key: string, variables?: Record<string, string | number>) => string;
+import type { I18nContextValue } from "@/lib/i18n";
+
+type TFn = I18nContextValue["t"];
 
 export function getRedirectTarget(state: unknown): string {
   if (typeof state === "object" && state !== null && "from" in state && typeof state.from === "string") {

@@ -1,6 +1,8 @@
 import { z } from "zod";
 
-type TFn = (key: string, variables?: Record<string, string | number>) => string;
+import type { I18nContextValue } from "@/lib/i18n";
+
+type TFn = I18nContextValue["t"];
 
 // Base schemas used only for type inference (no messages)
 const baseLoginSchema = z.object({

@@ -196,11 +196,11 @@ export function EventAnalyticsPage(): JSX.Element {
           </div>
         ) : (
           <div className="space-y-2 text-sm">
-            <Typography as="p" variant="body">{t("analytics.event.up")}: {statsQuery.data?.up_probability ?? 0}</Typography>
-            <Typography as="p" variant="body">{t("analytics.event.down")}: {statsQuery.data?.down_probability ?? 0}</Typography>
-            <Typography as="p" variant="body">{t("analytics.event.flat")}: {statsQuery.data?.flat_probability ?? 0}</Typography>
-            <Typography as="p" variant="body">{t("analytics.event.avgNextDayReturn")}: {statsQuery.data?.avg_next_day_return ?? 0}</Typography>
-            <Typography as="p" variant="body">{t("analytics.event.avgNextDayRange")}: {statsQuery.data?.avg_next_day_range ?? 0}</Typography>
+            <Typography as="p" variant="body">{t("analytics.event.up")}: {stats?.up_probability ?? 0}</Typography>
+            <Typography as="p" variant="body">{t("analytics.event.down")}: {stats?.down_probability ?? 0}</Typography>
+            <Typography as="p" variant="body">{t("analytics.event.flat")}: {stats?.flat_probability ?? 0}</Typography>
+            <Typography as="p" variant="body">{t("analytics.event.avgNextDayReturn")}: {stats?.avg_next_day_return ?? 0}</Typography>
+            <Typography as="p" variant="body">{t("analytics.event.avgNextDayRange")}: {stats?.avg_next_day_range ?? 0}</Typography>
           </div>
         )}
       </PanelCard>
