@@ -177,6 +177,12 @@ export const useRealtimeStore = create<RealtimeStore>((set) => ({
     })),
   applySseBatch: (batch) =>
     set((state) => {
+      // eslint-disable-next-line no-console
+      console.log("STORE.applySseBatch called", {
+        hasSpotDistLatest: Boolean((batch as any).spotMarketDistributionLatest),
+        hasSpotLatest: Boolean((batch as any).spotLatestList),
+        metricCount: (batch as any).metricLatestMap ? Object.keys((batch as any).metricLatestMap).length : 0,
+      });
       const nextState: Partial<RealtimeStore> = {};
       let changed = false;
 
@@ -194,58 +200,87 @@ export const useRealtimeStore = create<RealtimeStore>((set) => ({
         }
       }
 
-      if (batch.metricLatest) {
-        const { code, payload } = batch.metricLatest;
+      // Support both single-item shape and map shape in batch for backward compatibility
+      const metricEntries: Array<[string, MetricLatestPayload]> = [];
+      if ((batch as any).metricLatest) {
+        metricEntries.push([(batch as any).metricLatest.code, (batch as any).metricLatest.payload]);
+      }
+      if (batch.metricLatestMap) {
+        for (const k of Object.keys(batch.metricLatestMap)) {
+          metricEntries.push([k, batch.metricLatestMap[k] as MetricLatestPayload]);
+        }
+      }
+
+      for (const [code, payload] of metricEntries) {
         const existing = state.metricLatestByCode[code];
         const existingTs = (existing as any)?.ts;
         const incomingTs = (payload as any)?.ts;
         if (!existing || incomingTs !== existingTs || !shallowEqual(existing, payload)) {
-          nextState.metricLatestByCode = {
-            ...state.metricLatestByCode,
-            [code]: payload,
-          };
+          if (!nextState.metricLatestByCode) nextState.metricLatestByCode = { ...state.metricLatestByCode };
+          (nextState.metricLatestByCode as Record<string, MetricLatestPayload>)[code] = payload;
           changed = true;
         }
       }
 
-      if (batch.marketSummaryLatest) {
-        const { code, payload } = batch.marketSummaryLatest;
+      const marketEntries: Array<[string, MarketSummaryLatestPayload]> = [];
+      if ((batch as any).marketSummaryLatest) {
+        marketEntries.push([(batch as any).marketSummaryLatest.code, (batch as any).marketSummaryLatest.payload]);
+      }
+      if (batch.marketSummaryMap) {
+        for (const k of Object.keys(batch.marketSummaryMap)) {
+          marketEntries.push([k, batch.marketSummaryMap[k] as MarketSummaryLatestPayload]);
+        }
+      }
+
+      for (const [code, payload] of marketEntries) {
         const existing = state.marketSummaryLatestByCode[code];
         const existingTs = (existing as any)?.ts;
         const incomingTs = (payload as any)?.ts;
         if (!existing || incomingTs !== existingTs || !shallowEqual(existing, payload)) {
-          nextState.marketSummaryLatestByCode = {
-            ...state.marketSummaryLatestByCode,
-            [code]: payload,
-          };
+          if (!nextState.marketSummaryLatestByCode) nextState.marketSummaryLatestByCode = { ...state.marketSummaryLatestByCode };
+          (nextState.marketSummaryLatestByCode as Record<string, MarketSummaryLatestPayload>)[code] = payload;
           changed = true;
         }
       }
 
-      if (batch.otcSummaryLatest) {
-        const { code, payload } = batch.otcSummaryLatest;
+      const otcEntries: Array<[string, OtcSummaryLatestPayload]> = [];
+      if ((batch as any).otcSummaryLatest) {
+        otcEntries.push([(batch as any).otcSummaryLatest.code, (batch as any).otcSummaryLatest.payload]);
+      }
+      if (batch.otcSummaryMap) {
+        for (const k of Object.keys(batch.otcSummaryMap)) {
+          otcEntries.push([k, batch.otcSummaryMap[k] as OtcSummaryLatestPayload]);
+        }
+      }
+
+      for (const [code, payload] of otcEntries) {
         const existing = state.otcSummaryLatestByCode[code];
         const existingTs = (existing as any)?.ts;
         const incomingTs = (payload as any)?.ts;
         if (!existing || incomingTs !== existingTs || !shallowEqual(existing, payload)) {
-          nextState.otcSummaryLatestByCode = {
-            ...state.otcSummaryLatestByCode,
-            [code]: payload,
-          };
+          if (!nextState.otcSummaryLatestByCode) nextState.otcSummaryLatestByCode = { ...state.otcSummaryLatestByCode };
+          (nextState.otcSummaryLatestByCode as Record<string, OtcSummaryLatestPayload>)[code] = payload;
           changed = true;
         }
       }
 
-      if (batch.quoteLatest) {
-        const { code, payload } = batch.quoteLatest;
+      const quoteEntries: Array<[string, QuoteLatestPayload]> = [];
+      if ((batch as any).quoteLatest) {
+        quoteEntries.push([(batch as any).quoteLatest.code, (batch as any).quoteLatest.payload]);
+      }
+      if (batch.quoteLatestMap) {
+        for (const k of Object.keys(batch.quoteLatestMap)) {
+          quoteEntries.push([k, batch.quoteLatestMap[k] as QuoteLatestPayload]);
+        }
+      }
+
+      for (const [code, payload] of quoteEntries) {
         const existing = state.quoteLatestByCode[code];
         const existingTs = (existing as any)?.ts;
         const incomingTs = (payload as any)?.ts;
         if (!existing || incomingTs !== existingTs || !shallowEqual(existing, payload)) {
-          nextState.quoteLatestByCode = {
-            ...state.quoteLatestByCode,
-            [code]: payload,
-          };
+          if (!nextState.quoteLatestByCode) nextState.quoteLatestByCode = { ...state.quoteLatestByCode };
+          (nextState.quoteLatestByCode as Record<string, QuoteLatestPayload>)[code] = payload;
           changed = true;
         }
       }
@@ -258,13 +293,19 @@ export const useRealtimeStore = create<RealtimeStore>((set) => ({
       }
 
       if (batch.spotMarketDistributionLatest) {
+        // eslint-disable-next-line no-console
+        console.log("STORE: spotMarketDistributionLatest incoming up_count", (batch.spotMarketDistributionLatest as SpotMarketDistributionLatestPayload).up_count);
         if (!shallowEqual(state.spotMarketDistributionLatest, batch.spotMarketDistributionLatest)) {
           nextState.spotMarketDistributionLatest = batch.spotMarketDistributionLatest;
+          // eslint-disable-next-line no-console
+          console.log("STORE: will set spotMarketDistributionLatest");
           if (!batch.spotMarketDistributionSeries) {
             const nextItem = toSpotMarketDistributionSeriesItem(batch.spotMarketDistributionLatest);
             const appended = appendSpotMarketDistributionSeries(state.spotMarketDistributionSeries, nextItem);
             if (appended && appended !== state.spotMarketDistributionSeries) {
               nextState.spotMarketDistributionSeries = appended;
+              // eslint-disable-next-line no-console
+              console.log("STORE: appended series length", appended.items.length);
             }
           }
           changed = true;
