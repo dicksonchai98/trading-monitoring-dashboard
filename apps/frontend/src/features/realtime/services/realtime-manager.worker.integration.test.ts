@@ -15,7 +15,7 @@ describe('realtime-manager worker integration', () => {
     vi.restoreAllMocks();
   });
 
-  test('applies batches from fake worker to store', () => {
+  test('merges worker batch and applies on flush', () => {
     const spy = vi.spyOn(useRealtimeStore.getState(), 'applySseBatch');
     const fakeWorker = {
       postMessage: vi.fn(),
@@ -35,7 +35,35 @@ describe('realtime-manager worker integration', () => {
       (manager as any).worker.onmessage({ data: { type: 'batch', batch } } as MessageEvent);
     }
 
+    expect(spy).not.toHaveBeenCalled();
+    (manager as any).flushPendingBatch();
     expect(spy).toHaveBeenCalledWith(batch);
     spy.mockRestore();
+  });
+
+  test('disconnect tears down worker and clears pending batch without stale flush', () => {
+    vi.useFakeTimers();
+    const applySpy = vi.spyOn(useRealtimeStore.getState(), 'applySseBatch');
+    const fakeWorker = {
+      postMessage: vi.fn(),
+      terminate: vi.fn(),
+      onmessage: null as any,
+    } as unknown as Worker;
+
+    (manager as any).worker = fakeWorker;
+    (manager as any).handleWorkerMessage({
+      data: { type: 'batch', batch: { metricLatestMap: { A: { code: 'A', ts: Date.now() } } } },
+    } as MessageEvent);
+
+    manager.disconnect();
+    vi.advanceTimersByTime(200);
+
+    expect(fakeWorker.postMessage).toHaveBeenCalledWith({ type: 'teardown' });
+    expect(fakeWorker.terminate).toHaveBeenCalledTimes(1);
+    expect((manager as any).pendingBatch).toBeNull();
+    expect((manager as any).pendingBatchTimer).toBeNull();
+    expect(applySpy).not.toHaveBeenCalled();
+    applySpy.mockRestore();
+    vi.useRealTimers();
   });
 });

@@ -41,12 +41,18 @@ interface RealtimeStore {
   applySseBatch: (batch: {
     kbarCurrent?: KbarCurrentPayload;
     metricLatest?: { code: string; payload: MetricLatestPayload };
+    metricLatestMap?: Record<string, MetricLatestPayload>;
     marketSummaryLatest?: { code: string; payload: MarketSummaryLatestPayload };
+    marketSummaryMap?: Record<string, MarketSummaryLatestPayload>;
     otcSummaryLatest?: { code: string; payload: OtcSummaryLatestPayload };
+    otcSummaryMap?: Record<string, OtcSummaryLatestPayload>;
     quoteLatest?: { code: string; payload: QuoteLatestPayload };
+    quoteLatestMap?: Record<string, QuoteLatestPayload>;
     spotLatestList?: SpotLatestListPayload;
     spotMarketDistributionLatest?: SpotMarketDistributionLatestPayload;
     spotMarketDistributionSeries?: SpotMarketDistributionSeriesPayload;
+    indexContribRanking?: IndexContributionRankingPayload | null;
+    indexContribSector?: IndexContributionSectorPayload | null;
     heartbeatTs?: number;
   }) => void;
   setHeartbeat: (ts: number) => void;
@@ -177,12 +183,6 @@ export const useRealtimeStore = create<RealtimeStore>((set) => ({
     })),
   applySseBatch: (batch) =>
     set((state) => {
-      // eslint-disable-next-line no-console
-      console.log("STORE.applySseBatch called", {
-        hasSpotDistLatest: Boolean((batch as any).spotMarketDistributionLatest),
-        hasSpotLatest: Boolean((batch as any).spotLatestList),
-        metricCount: (batch as any).metricLatestMap ? Object.keys((batch as any).metricLatestMap).length : 0,
-      });
       const nextState: Partial<RealtimeStore> = {};
       let changed = false;
 
@@ -293,19 +293,13 @@ export const useRealtimeStore = create<RealtimeStore>((set) => ({
       }
 
       if (batch.spotMarketDistributionLatest) {
-        // eslint-disable-next-line no-console
-        console.log("STORE: spotMarketDistributionLatest incoming up_count", (batch.spotMarketDistributionLatest as SpotMarketDistributionLatestPayload).up_count);
         if (!shallowEqual(state.spotMarketDistributionLatest, batch.spotMarketDistributionLatest)) {
           nextState.spotMarketDistributionLatest = batch.spotMarketDistributionLatest;
-          // eslint-disable-next-line no-console
-          console.log("STORE: will set spotMarketDistributionLatest");
           if (!batch.spotMarketDistributionSeries) {
             const nextItem = toSpotMarketDistributionSeriesItem(batch.spotMarketDistributionLatest);
             const appended = appendSpotMarketDistributionSeries(state.spotMarketDistributionSeries, nextItem);
             if (appended && appended !== state.spotMarketDistributionSeries) {
               nextState.spotMarketDistributionSeries = appended;
-              // eslint-disable-next-line no-console
-              console.log("STORE: appended series length", appended.items.length);
             }
           }
           changed = true;
@@ -315,6 +309,20 @@ export const useRealtimeStore = create<RealtimeStore>((set) => ({
       if (batch.spotMarketDistributionSeries) {
         if (!shallowEqual(state.spotMarketDistributionSeries, batch.spotMarketDistributionSeries)) {
           nextState.spotMarketDistributionSeries = batch.spotMarketDistributionSeries;
+          changed = true;
+        }
+      }
+
+      if (batch.indexContribRanking !== undefined) {
+        if (!shallowEqual(state.indexContribRanking, batch.indexContribRanking)) {
+          nextState.indexContribRanking = batch.indexContribRanking;
+          changed = true;
+        }
+      }
+
+      if (batch.indexContribSector !== undefined) {
+        if (!shallowEqual(state.indexContribSector, batch.indexContribSector)) {
+          nextState.indexContribSector = batch.indexContribSector;
           changed = true;
         }
       }

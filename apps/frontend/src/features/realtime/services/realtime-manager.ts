@@ -473,12 +473,6 @@ export function applyServingSseEvent(eventName: string, data: unknown): void {
 }
 
 function applyServingSseBatch(batch: ServingSseBatch): void {
-  // eslint-disable-next-line no-console
-  console.log("APPLY SERVING SSE BATCH", {
-    hasSpotDistLatest: Boolean(batch.spotMarketDistributionLatest),
-    hasSpotLatest: Boolean(batch.spotLatestList),
-    metricCount: batch.metricLatestMap ? Object.keys(batch.metricLatestMap).length : 0,
-  });
   useRealtimeStore.getState().applySseBatch(batch);
 }
 
@@ -557,7 +551,7 @@ export function collectServingSseEvent(
     if (!parsed.success) {
       return;
     }
-    useRealtimeStore.getState().setHeartbeat(parsed.data.ts);
+    batch.heartbeatTs = parsed.data.ts;
     return;
   }
 
@@ -566,7 +560,7 @@ export function collectServingSseEvent(
     if (!parsed.success) {
       return;
     }
-    useRealtimeStore.getState().setIndexContribRanking(parsed.data);
+    batch.indexContribRanking = parsed.data;
     return;
   }
 
@@ -575,7 +569,7 @@ export function collectServingSseEvent(
     if (!parsed.success) {
       return;
     }
-    useRealtimeStore.getState().setIndexContribSector(parsed.data);
+    batch.indexContribSector = parsed.data;
     batch.heartbeatTs = parsed.data.ts;
     return;
   }
@@ -592,12 +586,8 @@ export function collectServingSseEvent(
   if (eventName === "spot_market_distribution_latest") {
     const parsed = SpotMarketDistributionLatestSchema.safeParse(data);
     if (!parsed.success) {
-      // eslint-disable-next-line no-console
-      console.log("SPOT LATEST PARSE FAIL", JSON.stringify(data));
       return;
     }
-    // eslint-disable-next-line no-console
-    console.log("SPOT LATEST PARSED", parsed.data?.up_count);
     batch.spotMarketDistributionLatest = parsed.data;
     return;
   }
@@ -715,6 +705,24 @@ export class RealtimeManager {
     if (this.abortController) {
       this.abortController.abort();
       this.abortController = null;
+    }
+    if (this.pendingBatchTimer) {
+      clearTimeout(this.pendingBatchTimer);
+      this.pendingBatchTimer = null;
+    }
+    this.pendingBatch = null;
+    if (this.worker) {
+      try {
+        this.worker.postMessage({ type: "teardown" });
+      } catch {
+        // ignore
+      }
+      try {
+        this.worker.terminate();
+      } catch {
+        // ignore
+      }
+      this.worker = null;
     }
     useRealtimeStore.getState().setConnectionStatus("idle", null);
   }
@@ -864,19 +872,11 @@ export class RealtimeManager {
     if (this.pendingBatchTimer) {
       return;
     }
-
-    // Schedule a delayed flush; keep behavior deterministic and avoid test-only immediate flush hacks
-    // eslint-disable-next-line no-console
-    console.log("SCHEDULE FLUSH: delayed", this.BATCH_WINDOW_MS);
     this.pendingBatchTimer = setTimeout(() => {
       try {
-        // eslint-disable-next-line no-console
-        console.log("TIMER FIRED: flushing pending batch");
         this.flushPendingBatch();
-      } catch (e) {
+      } catch {
         // swallow - never let timer crash the stream loop
-        // eslint-disable-next-line no-console
-        console.error("flushPendingBatch error", e);
       }
     }, this.BATCH_WINDOW_MS);
   }
@@ -889,8 +889,6 @@ export class RealtimeManager {
     const batch = this.pendingBatch;
     this.pendingBatch = null;
     if (!batch) {
-      // eslint-disable-next-line no-console
-      console.log("FLUSH: no pending batch");
       return;
     }
 
@@ -904,30 +902,12 @@ export class RealtimeManager {
       Boolean(batch.spotLatestList) ||
       Boolean(batch.spotMarketDistributionLatest) ||
       Boolean(batch.spotMarketDistributionSeries) ||
+      batch.indexContribRanking !== undefined ||
+      batch.indexContribSector !== undefined ||
       typeof batch.heartbeatTs === "number";
 
-    // eslint-disable-next-line no-console
-    console.log("FLUSH: shouldApply=", shouldApply, {
-      hasKbar: Boolean(batch.kbarCurrent),
-      metricCount: batch.metricLatestMap ? Object.keys(batch.metricLatestMap).length : 0,
-      marketSummaryCount: batch.marketSummaryMap ? Object.keys(batch.marketSummaryMap).length : 0,
-      otcCount: batch.otcSummaryMap ? Object.keys(batch.otcSummaryMap).length : 0,
-      quoteCount: batch.quoteLatestMap ? Object.keys(batch.quoteLatestMap).length : 0,
-      hasSpotLatest: Boolean(batch.spotLatestList),
-      hasSpotDistLatest: Boolean(batch.spotMarketDistributionLatest),
-      hasSpotDistSeries: Boolean(batch.spotMarketDistributionSeries),
-      heartbeatTs: batch.heartbeatTs,
-    });
-
     if (shouldApply) {
-      if (batch.spotMarketDistributionLatest) {
-        // eslint-disable-next-line no-console
-        console.log("FLUSH APPLY SPOT", batch.spotMarketDistributionLatest.up_count);
-      }
       applyServingSseBatch(batch);
-    } else {
-      // eslint-disable-next-line no-console
-      console.log("FLUSH SKIP: nothing to apply");
     }
   }
 
@@ -942,22 +922,10 @@ export class RealtimeManager {
       !incoming.spotLatestList &&
       !incoming.spotMarketDistributionLatest &&
       !incoming.spotMarketDistributionSeries &&
+      incoming.indexContribRanking === undefined &&
+      incoming.indexContribSector === undefined &&
       typeof incoming.heartbeatTs !== "number";
     if (isEmpty) return;
-
-    // summary of incoming batch for debugging
-    // eslint-disable-next-line no-console
-    console.log("MERGE: incoming summary", {
-      hasKbar: Boolean(incoming.kbarCurrent),
-      metricCount: incoming.metricLatestMap ? Object.keys(incoming.metricLatestMap).length : 0,
-      marketSummaryCount: incoming.marketSummaryMap ? Object.keys(incoming.marketSummaryMap).length : 0,
-      otcCount: incoming.otcSummaryMap ? Object.keys(incoming.otcSummaryMap).length : 0,
-      quoteCount: incoming.quoteLatestMap ? Object.keys(incoming.quoteLatestMap).length : 0,
-      hasSpotLatest: Boolean(incoming.spotLatestList),
-      hasSpotDistLatest: Boolean(incoming.spotMarketDistributionLatest),
-      hasSpotDistSeries: Boolean(incoming.spotMarketDistributionSeries),
-      heartbeatTs: incoming.heartbeatTs,
-    });
 
     if (!this.pendingBatch) {
       // shallow clone to avoid accidental external mutations
@@ -968,10 +936,6 @@ export class RealtimeManager {
         otcSummaryMap: incoming.otcSummaryMap ? { ...incoming.otcSummaryMap } : undefined,
         quoteLatestMap: incoming.quoteLatestMap ? { ...incoming.quoteLatestMap } : undefined,
       };
-      // eslint-disable-next-line no-console
-      console.log("MERGE: created new pendingBatch", {
-        hasSpotDistLatest: Boolean(this.pendingBatch.spotMarketDistributionLatest),
-      });
       this.scheduleFlushPendingBatch();
       return;
     }
@@ -985,16 +949,18 @@ export class RealtimeManager {
       target.spotMarketDistributionLatest = incoming.spotMarketDistributionLatest;
     if (incoming.spotMarketDistributionSeries)
       target.spotMarketDistributionSeries = incoming.spotMarketDistributionSeries;
+    if (incoming.indexContribRanking !== undefined)
+      target.indexContribRanking = incoming.indexContribRanking;
+    if (incoming.indexContribSector !== undefined)
+      target.indexContribSector = incoming.indexContribSector;
 
     // merge maps
     const mergeMap = (key: keyof ServingSseBatch, incomingMap?: Record<string, unknown>) => {
       if (!incomingMap) return;
       if (!target[key]) {
-        // @ts-expect-error dynamic assignment
         target[key] = { ...incomingMap } as any;
         return;
       }
-      // @ts-expect-error dynamic assignment
       Object.assign(target[key] as Record<string, unknown>, incomingMap);
     };
 
@@ -1002,12 +968,6 @@ export class RealtimeManager {
     mergeMap("marketSummaryMap", incoming.marketSummaryMap as any);
     mergeMap("otcSummaryMap", incoming.otcSummaryMap as any);
     mergeMap("quoteLatestMap", incoming.quoteLatestMap as any);
-
-    // eslint-disable-next-line no-console
-    console.log("MERGE: merged into existing pendingBatch", {
-      hasSpotDistLatest: Boolean(target.spotMarketDistributionLatest),
-      metricCount: target.metricLatestMap ? Object.keys(target.metricLatestMap).length : 0,
-    });
 
     this.scheduleFlushPendingBatch();
 
@@ -1087,10 +1047,6 @@ export class RealtimeManager {
           if (!shouldApplyDashboardSseEvent(parsed.event, payload)) continue;
           collectServingSseEvent(parsed.event as ServingSseEventName, payload, batch);
         }
-        if (batch.spotMarketDistributionLatest) {
-          // eslint-disable-next-line no-console
-          console.log("STREAM FALLBACK APPLY SPOT", batch.spotMarketDistributionLatest.up_count);
-        }
         // Merge into pendingBatch so the same flush path is used as streaming chunks.
         this.mergeIntoPendingBatch(batch);
         // finished
@@ -1103,10 +1059,13 @@ export class RealtimeManager {
     // If worker mode is enabled, ensure worker exists and is wired
     try {
       if (ENABLE_SSE_WORKER && !this.worker) {
-        this.worker = createSseWorker();
-        this.worker.onmessage = (ev) => this.handleWorkerMessage(ev as MessageEvent);
+        const worker = createSseWorker();
+        if (worker) {
+          this.worker = worker;
+          this.worker.onmessage = (ev) => this.handleWorkerMessage(ev as MessageEvent);
+        }
       }
-    } catch (e) {
+    } catch {
       // ignore worker creation failures and fall back to local parsing
     }
 
@@ -1116,9 +1075,14 @@ export class RealtimeManager {
 
     while (true) {
       const { done, value } = await reader.read();
-      // eslint-disable-next-line no-console
-      console.log("STREAM READ chunk", { done, bytes: value ? (value as Uint8Array).length : 0 });
       if (done) {
+        if (this.worker) {
+          try {
+            this.worker.postMessage({ type: "flush" });
+          } catch {
+            // ignore
+          }
+        }
         break;
       }
       if (!value) {
@@ -1131,6 +1095,7 @@ export class RealtimeManager {
       if (this.worker) {
         try {
           this.worker.postMessage({ type: 'chunk', data: decodedChunk });
+          processedAny = true;
         } catch (e) {
           // if postMessage fails, fall back to local parsing below
           buffer += decodedChunk;
@@ -1139,37 +1104,22 @@ export class RealtimeManager {
       }
 
       buffer += decodedChunk;
-      // eslint-disable-next-line no-console
-      console.log("STREAM BUFFER len", buffer.length);
       const { frames, rest } = splitSseBuffer(buffer);
-      // eslint-disable-next-line no-console
-      console.log("STREAM PARSED FRAMES", frames.length, "rest_len", rest.length);
       buffer = rest;
       const batch: ServingSseBatch = {};
 
-      if (frames.length > 0) {
-        // eslint-disable-next-line no-console
-        console.log("STREAM PROCESSING FRAMES", frames.length);
-      }
-
       for (const frame of frames) {
         const parsed = parseSseFrame(frame);
-        // eslint-disable-next-line no-console
-        console.log("FRAME PARSED", { event: parsed.event });
         if (!parsed.event || !parsed.data) {
           continue;
         }
         let payload: unknown;
         try {
           payload = JSON.parse(parsed.data);
-        } catch (err) {
-          // eslint-disable-next-line no-console
-          console.log("FRAME JSON PARSE FAIL", err);
+        } catch {
           continue;
         }
         if (!shouldApplyDashboardSseEvent(parsed.event, payload)) {
-          // eslint-disable-next-line no-console
-          console.log("FRAME SKIP by shouldApply", parsed.event);
           continue;
         }
         collectServingSseEvent(
@@ -1180,28 +1130,7 @@ export class RealtimeManager {
         processedAny = true;
       }
 
-      // summary of collected batch
-      // eslint-disable-next-line no-console
-      console.log("BATCH COLLECTED", {
-        hasKbar: Boolean(batch.kbarCurrent),
-        metricCount: batch.metricLatestMap ? Object.keys(batch.metricLatestMap).length : 0,
-        marketSummaryCount: batch.marketSummaryMap ? Object.keys(batch.marketSummaryMap).length : 0,
-        otcCount: batch.otcSummaryMap ? Object.keys(batch.otcSummaryMap).length : 0,
-        quoteCount: batch.quoteLatestMap ? Object.keys(batch.quoteLatestMap).length : 0,
-        hasSpotLatest: Boolean(batch.spotLatestList),
-        hasSpotDistLatest: Boolean(batch.spotMarketDistributionLatest),
-        hasSpotDistSeries: Boolean(batch.spotMarketDistributionSeries),
-        heartbeatTs: batch.heartbeatTs,
-        processedAny,
-      });
-
       // Merge collected batch into the manager's pendingBatch and schedule a flush.
-      if (batch.spotMarketDistributionLatest) {
-        // eslint-disable-next-line no-console
-        console.log("STREAM APPLY SPOT", batch.spotMarketDistributionLatest.up_count);
-      }
-      // eslint-disable-next-line no-console
-      console.log("MERGE INTO PENDING BATCH");
       this.mergeIntoPendingBatch(batch);
     }
 

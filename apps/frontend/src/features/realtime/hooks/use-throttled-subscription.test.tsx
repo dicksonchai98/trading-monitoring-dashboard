@@ -11,7 +11,7 @@ function TestHarness({ ms = 100 }: { ms?: number }) {
 describe('useThrottledSubscription', () => {
   beforeEach(() => {
     // ensure baseline
-    useRealtimeStore.setState({ __test_value: null });
+    (useRealtimeStore as any).setState({ __test_value: null });
     vi.useFakeTimers();
   });
 
@@ -24,14 +24,14 @@ describe('useThrottledSubscription', () => {
     expect(getByTestId('val').textContent).toBe('null');
 
     act(() => {
-      useRealtimeStore.setState({ __test_value: 1 });
+      (useRealtimeStore as any).setState({ __test_value: 1 });
     });
 
     // before tick, hook should still show old value
     expect(getByTestId('val').textContent).toBe('null');
 
     act(() => {
-      jest.advanceTimersByTime(100);
+      vi.advanceTimersByTime(100);
     });
 
     // after interval, the hook should reflect new value
