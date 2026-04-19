@@ -350,11 +350,7 @@ export function MetricNeedleChart({
           >
             <PieChart width={geometry.width} height={geometry.height}>
               <HalfPie data={chartData} />
-              <HalfPie
-                data={needleLayerData}
-                activeIndex={0}
-                activeShape={Needle}
-              />
+              <HalfPie {...({ data: needleLayerData, activeIndex: 0, activeShape: Needle } as any)} />
               <Tooltip defaultIndex={0} content={() => null} active />
             </PieChart>
           </div>

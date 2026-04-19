@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect, useRef } from "react";
-import { upsertPoint } from "@/features/dashboard/lib/timeline-helpers";
+import { buildSeriesFromMaps } from "@/features/dashboard/lib/build-series-from-maps";
 import { DEFAULT_ORDER_FLOW_CODE } from "@/features/dashboard/api/market-overview";
 import {
   buildOrderFlowSeriesFromTimelineMaps,
@@ -84,30 +84,27 @@ export function useMarketOverviewTimeline(): UseMarketOverviewTimelineResult {
     let nextSeries = seriesRef.current.slice();
     const idxMap = new Map(indexRef.current);
 
+    // Build a map of minuteTs -> full OrderFlowSeriesPoint for changed minutes
+    const realtimePointMap: Record<string, OrderFlowSeriesPoint | undefined> = {};
     for (const minuteTs of Array.from(changed).sort((a, b) => a - b)) {
-      // build single point using mapper to keep formatting consistent
       const pointArr = buildOrderFlowSeriesFromTimelineMaps(
         { [minuteTs]: indexPriceByMinuteTs[minuteTs] ?? 0 },
         { [minuteTs]: chipDeltaByMinuteTs[minuteTs] ?? 0 },
       );
       const point = pointArr[0];
       if (!point) continue;
-
-      const { nextSeries: s, nextIndexMap, didChange } = upsertPoint(nextSeries, idxMap, point as any);
-      if (didChange) {
-        nextSeries = s;
-        // update idxMap reference to reflect insertion/replace
-        for (let i = 0; i < nextSeries.length; i++) idxMap.set(nextSeries[i].minuteTs, i);
-      }
+      realtimePointMap[String(minuteTs)] = point;
     }
 
-    // commit
-    setSeries(nextSeries);
-    seriesRef.current = nextSeries;
-    // rebuild index map
-    const finalMap = new Map<number, number>();
-    for (let i = 0; i < nextSeries.length; i++) finalMap.set(nextSeries[i].minuteTs, i);
-    indexRef.current = finalMap;
+    // Apply all changed points using shared helper to keep upsert logic consistent
+    const { series: appliedSeries, indexMap: appliedIndexMap } = buildSeriesFromMaps(nextSeries, idxMap, realtimePointMap as any);
+
+    // commit if changed
+    if (appliedSeries !== nextSeries) {
+      setSeries(appliedSeries as OrderFlowSeriesPoint[]);
+      seriesRef.current = appliedSeries as OrderFlowSeriesPoint[];
+      indexRef.current = appliedIndexMap as Map<number, number>;
+    }
 
     prevIndexPriceRef.current = { ...indexPriceByMinuteTs };
     prevChipDeltaRef.current = { ...chipDeltaByMinuteTs };

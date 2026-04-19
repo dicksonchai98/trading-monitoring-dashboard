@@ -133,7 +133,7 @@ export function TrendIndexCard(): JSX.Element {
             />
             <YAxis
               axisLine={false}
-              domain={resolveTrendRatioDomain}
+              domain={resolveTrendRatioDomain as any}
               orientation="left"
               tick={{
                 fill: "hsl(var(--subtle-foreground))",
@@ -151,7 +151,7 @@ export function TrendIndexCard(): JSX.Element {
                 fontSize: 10,
               }}
             />
-            <Tooltip content={renderTrendTooltip} />
+            <Tooltip content={renderTrendTooltip as any} />
             <Line
               dataKey="trendRatio"
               dot={false}

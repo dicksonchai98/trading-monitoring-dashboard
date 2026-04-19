@@ -119,69 +119,64 @@ export function useQuoteTimeline(
     setLongSeries(baselineLongSeries);
   }, [baselineMainSeries, baselineLongSeries]);
 
-  // Apply realtime quoteLatest patches incrementally to internal series
+
+
   useEffect(() => {
     const latestTs = resolvePointTs(quoteLatest ?? {});
     if (latestTs === null) return;
-    const minuteTs = minuteKeyFromEpochMs(latestTs);
-
-    if (typeof quoteLatest?.main_chip === "number" && Number.isFinite(quoteLatest.main_chip)) {
-      const point: MinutePoint = { minuteTs, value: quoteLatest.main_chip };
-      const { nextSeries, nextIndexMap, didChange } = upsertPoint(mainSeries, mainIndexRef.current, point as any);
-      if (didChange) {
-        mainIndexRef.current = nextIndexMap;
-        setMainSeries(nextSeries as MinutePoint[]);
-      }
-    }
-
-    if (typeof quoteLatest?.long_short_force === "number" && Number.isFinite(quoteLatest.long_short_force)) {
-      const point: MinutePoint = { minuteTs, value: quoteLatest.long_short_force };
-      const { nextSeries, nextIndexMap, didChange } = upsertPoint(longSeries, longIndexRef.current, point as any);
-      if (didChange) {
-        longIndexRef.current = nextIndexMap;
-        setLongSeries(nextSeries as MinutePoint[]);
-      }
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [quoteLatest]);
-
-  // Keep returning the same map-shaped API for compatibility; mergedMaps already avoids unnecessary copies.
-  const mergedMaps = useMemo(() => {
-    const latestTs = resolvePointTs(quoteLatest ?? {});
-    if (latestTs === null) return baseMaps;
 
     const minuteTs = minuteKeyFromEpochMs(latestTs);
-    let changed = false;
-    let nextMain = baseMaps.mainChipByMinute;
-    let nextLongShort = baseMaps.longShortForceByMinute;
 
     if (
       typeof quoteLatest?.main_chip === "number" &&
       Number.isFinite(quoteLatest.main_chip)
     ) {
-      if (baseMaps.mainChipByMinute[minuteTs] !== quoteLatest.main_chip) {
-        nextMain = { ...baseMaps.mainChipByMinute, [minuteTs]: quoteLatest.main_chip };
-        changed = true;
-      }
+      const point: MinutePoint = { minuteTs, value: quoteLatest.main_chip };
+      setMainSeries((current) => {
+        const { nextSeries, nextIndexMap, didChange } = upsertPoint(
+          current,
+          mainIndexRef.current,
+          point,
+        );
+        if (!didChange) return current;
+        mainIndexRef.current = nextIndexMap;
+        return nextSeries as MinutePoint[];
+      });
     }
 
     if (
       typeof quoteLatest?.long_short_force === "number" &&
       Number.isFinite(quoteLatest.long_short_force)
     ) {
-      if (baseMaps.longShortForceByMinute[minuteTs] !== quoteLatest.long_short_force) {
-        nextLongShort = { ...baseMaps.longShortForceByMinute, [minuteTs]: quoteLatest.long_short_force };
-        changed = true;
-      }
+      const point: MinutePoint = { minuteTs, value: quoteLatest.long_short_force };
+      setLongSeries((current) => {
+        const { nextSeries, nextIndexMap, didChange } = upsertPoint(
+          current,
+          longIndexRef.current,
+          point,
+        );
+        if (!didChange) return current;
+        longIndexRef.current = nextIndexMap;
+        return nextSeries as MinutePoint[];
+      });
     }
+  }, [quoteLatest]);
 
-    return changed
-      ? { mainChipByMinute: nextMain, longShortForceByMinute: nextLongShort }
-      : baseMaps;
-  }, [baseMaps.mainChipByMinute, baseMaps.longShortForceByMinute, quoteLatest]);
+  const mainChipByMinute = useMemo<Record<number, number>>(() => {
+    const out: Record<number, number> = {};
+    for (const point of mainSeries) out[point.minuteTs] = point.value;
+    return out;
+  }, [mainSeries]);
+
+  const longShortForceByMinute = useMemo<Record<number, number>>(() => {
+    const out: Record<number, number> = {};
+    for (const point of longSeries) out[point.minuteTs] = point.value;
+    return out;
+  }, [longSeries]);
 
   return {
-    ...mergedMaps,
+    mainChipByMinute,
+    longShortForceByMinute,
     loading: !resolved ? true : baselineQuery.isLoading,
     error:
       isEnabled && baselineQuery.error

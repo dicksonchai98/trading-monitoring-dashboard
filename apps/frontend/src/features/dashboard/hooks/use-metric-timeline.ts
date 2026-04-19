@@ -83,7 +83,7 @@ function resolveMetricLatestSample(
   };
 }
 
-type InternalPoint = { minuteTs: number; value: number; ts: number };
+type InternalPoint = { minuteTs: number; value: number };
 
 export function useMetricTimelineFromBaseline(
   baseline: MetricTimelineBaselineInput,
@@ -104,7 +104,7 @@ export function useMetricTimelineFromBaseline(
     }
 
     const series = Array.from(latestMetricByMinute.values())
-      .map((s) => ({ minuteTs: s.minuteTs, value: s.value, ts: s.ts }))
+      .map((s) => ({ minuteTs: s.minuteTs, value: s.value }))
       .sort((a, b) => a.minuteTs - b.minuteTs);
 
     const m = new Map<number, number>();
@@ -117,7 +117,7 @@ export function useMetricTimelineFromBaseline(
     if (!baseline.baselineReady) return;
     const realtimeSample = resolveMetricLatestSample(metricLatest);
     if (!realtimeSample) return;
-    const point: InternalPoint = { minuteTs: realtimeSample.minuteTs, value: realtimeSample.value, ts: realtimeSample.ts };
+    const point: InternalPoint = { minuteTs: realtimeSample.minuteTs, value: realtimeSample.value };
     setInternalSeries((current) => {
       const { nextSeries, nextIndexMap, didChange } = upsertPoint(current, indexRef.current, point as any);
       if (!didChange) return current;

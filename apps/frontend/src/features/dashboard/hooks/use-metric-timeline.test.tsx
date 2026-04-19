@@ -38,3 +38,25 @@ test('realtime sample appends and replace behavior', () => {
   rerender(<Probe baseline={baseline} />);
   expect(screen.getByTestId('out').textContent).toContain('12');
 });
+
+test('same-minute same-value refresh keeps map identity stable', () => {
+  let latestMapRef: Record<string, number> | null = null;
+  function IdentityProbe({ baseline }: any) {
+    const res = useMetricTimelineFromBaseline(baseline);
+    latestMapRef = res.chipDeltaByMinuteTs as unknown as Record<string, number>;
+    return <div data-testid="identity-out">{JSON.stringify(res.chipDeltaByMinuteTs)}</div>;
+  }
+
+  const baseline = { metricToday: [], loading: false, error: null, baselineReady: true };
+  const { rerender } = render(<IdentityProbe baseline={baseline} />);
+
+  const rt1 = Date.parse('2026-04-18T09:31:05+08:00');
+  act(() => { metricLatestRef.value = { ts: rt1, main_force_big_order: 10 }; });
+  rerender(<IdentityProbe baseline={baseline} />);
+  const previousMapRef = latestMapRef;
+
+  act(() => { metricLatestRef.value = { ts: rt1 + 1000, main_force_big_order: 10 }; });
+  rerender(<IdentityProbe baseline={baseline} />);
+
+  expect(latestMapRef).toBe(previousMapRef);
+});

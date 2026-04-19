@@ -162,7 +162,7 @@ export function HistoricalDataAnalysisOverview(): JSX.Element {
               <PanelCard
                 key={`${item.event_id}-${item.version}`}
                 title={toEventLabel(item.event_id, t, item.event_id)}
-                note={t("dashboard.analysis.codeNote", { code: item.code })}
+                note={t("dashboard.analysis.codeNote", { code: String(item.code) })}
                 span={2}
                 units={1}
                 className="h-full"

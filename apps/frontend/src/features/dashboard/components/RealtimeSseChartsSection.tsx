@@ -13,9 +13,10 @@ import { Badge } from "@/components/ui/badge";
 import { BentoGridSection } from "@/components/ui/bento-grid";
 import { PanelCard } from "@/components/ui/panel-card";
 import { useRealtimeConnection } from "@/features/realtime/hooks/use-realtime-connection";
-import { useRealtimeStore } from "@/features/realtime/store/realtime.store";
 import { useThrottledSubscription } from '@/hooks/use-throttled-subscription';
 import { useT } from "@/lib/i18n";
+
+const ACTIVE_CODE = "TXFD6";
 
 interface SeriesPoint {
   ts: number;
@@ -104,8 +105,8 @@ function EmptyState(): JSX.Element {
 export function RealtimeSseChartsSection(): JSX.Element {
   const t = useT();
   const { connectionStatus } = useRealtimeConnection();
-  const kbar = useThrottledSubscription((s) => s.kbarCurrentByCode?.['TXFE6'] ?? null, 100);
-  const metric = useThrottledSubscription((s) => s.metricLatestByCode?.['TXFE6'] ?? null, 100);
+  const kbar = useThrottledSubscription((s) => s.kbarCurrentByCode?.[ACTIVE_CODE] ?? null, 100);
+  const metric = useThrottledSubscription((s) => s.metricLatestByCode?.[ACTIVE_CODE] ?? null, 100);
 
   const closeSeriesRef = useRef<SeriesPoint[]>([]);
   const spreadSeriesRef = useRef<SpreadPoint[]>([]);
@@ -180,7 +181,7 @@ export function RealtimeSseChartsSection(): JSX.Element {
       }
     >
       <PanelCard
-        title={t("dashboard.sse.close.title", { code: activeCode })}
+        title={t("dashboard.sse.close.title", { code: ACTIVE_CODE })}
         meta={
           latestPrice
             ? t("dashboard.sse.close.latest", { price: latestPrice })

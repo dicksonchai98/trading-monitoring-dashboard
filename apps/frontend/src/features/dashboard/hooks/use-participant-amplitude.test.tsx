@@ -162,6 +162,46 @@ describe("useParticipantAmplitude", () => {
     expect(latest.isRealtime).toBe(true);
   });
 
+  it("keeps summary based on closed candles after realtime candle arrives", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    getDailyAmplitudeHistoryMock.mockResolvedValueOnce([
+      { code: "TXFD6", trade_date: "2026-04-03", open: 205, high: 255, low: 205, close: 250, day_amplitude: 50 },
+      { code: "TXFD6", trade_date: "2026-04-02", open: 140, high: 210, low: 140, close: 205, day_amplitude: 70 },
+      { code: "TXFD6", trade_date: "2026-04-01", open: 150, high: 180, low: 130, close: 140, day_amplitude: 50 },
+      { code: "TXFD6", trade_date: "2026-03-31", open: 120, high: 160, low: 120, close: 150, day_amplitude: 40 },
+      { code: "TXFD6", trade_date: "2026-03-28", open: 100, high: 130, low: 100, close: 120, day_amplitude: 30 },
+    ]);
+    getOrderFlowBaselineMock.mockResolvedValueOnce({
+      kbarToday: [],
+      metricToday: [],
+    });
+
+    const { result } = renderHook(() => useParticipantAmplitude(), {
+      wrapper: createWrapper(queryClient),
+    });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    const summaryBeforeRealtime = result.current.summary;
+
+    act(() => {
+      useRealtimeStore.getState().upsertKbarCurrent({
+        code: "TXFD6",
+        trade_date: "2026-04-08",
+        minute_ts: Date.parse("2026-04-08T09:05:00+08:00"),
+        open: 35000,
+        high: 35080,
+        low: 34980,
+        close: 35020,
+        volume: 10,
+      });
+    });
+
+    await waitFor(() => expect(result.current.series).toHaveLength(6));
+    expect(result.current.summary).toEqual(summaryBeforeRealtime);
+  });
+
   it("keeps closed-day amplitude visible when intraday baseline request fails", async () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },

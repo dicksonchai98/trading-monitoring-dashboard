@@ -240,7 +240,7 @@ export function useParticipantAmplitude(
   }, [kbarCurrent, aggregatedTodayCandle]);
 
   const series = useMemo<ParticipantCandlePoint[]>(() => internalSeries.map(({ minuteTs, ...rest }) => rest), [internalSeries]);
-  const summary = useMemo(() => computeSummary(series), [series]);
+  const summary = useMemo(() => computeSummary(closedSeries), [closedSeries]);
 
   return {
     summary,

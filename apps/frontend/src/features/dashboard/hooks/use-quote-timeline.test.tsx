@@ -121,4 +121,49 @@ describe("useQuoteTimeline", () => {
       [minute1]: 44,
     });
   });
+
+  it("keeps map identity stable on same-minute same-value realtime refresh", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    getQuoteTodayMock.mockResolvedValueOnce([
+      { ts: minute0, main_chip: 10, long_short_force: 20 },
+    ]);
+
+    const { result } = renderHook(() => useQuoteTimeline(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    act(() => {
+      useRealtimeStore.getState().upsertQuoteLatest("TXFD6", {
+        ts: minute1,
+        main_chip: 33,
+        long_short_force: 44,
+      });
+    });
+
+    await waitFor(() =>
+      expect(result.current.mainChipByMinute).toEqual({
+        [minute0]: 10,
+        [minute1]: 33,
+      }),
+    );
+
+    const prevMain = result.current.mainChipByMinute;
+    const prevLong = result.current.longShortForceByMinute;
+
+    act(() => {
+      useRealtimeStore.getState().upsertQuoteLatest("TXFD6", {
+        ts: minute1 + 20_000,
+        main_chip: 33,
+        long_short_force: 44,
+      });
+    });
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.mainChipByMinute).toBe(prevMain);
+    expect(result.current.longShortForceByMinute).toBe(prevLong);
+  });
 });
