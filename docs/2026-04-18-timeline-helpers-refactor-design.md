@@ -42,6 +42,24 @@ Testing & Validation (status)
 - Hook tests: focused tests for migrated hooks ran where available; many hooks do not have dedicated tests and should be added incrementally.
 - Full repo typecheck shows unrelated UI typing issues; these pre-existed and should be addressed separately before a full `pnpm test`/CI run will pass.
 
+Post-review fixes (2026-04-19)
+- Fixed participant amplitude summary contamination: summary now remains closed-day only and excludes today's realtime candle.
+- Fixed metric no-op regression: same-minute same-value refresh no longer triggers timeline replacement due to timestamp-only change.
+- Fixed quote timeline exposure gap: hook output now derives from incremental internal series (not cloned merged maps).
+- Added regression tests:
+  - use-quote-timeline: same-minute same-value refresh keeps map identity stable.
+  - use-metric-timeline: same-minute same-value refresh keeps map identity stable.
+  - use-participant-amplitude: summary remains based on closed candles after realtime arrival.
+
+Task coverage cross-check (after fixes)
+- Task 1 (helpers + unit tests): covered.
+- Task 2 (market-overview migration): covered.
+- Task 3 (quote migration): covered, including exposed output using incremental state.
+- Task 4 (kbar/metric/estimated/otc/participant migrations): covered, with no-op and summary regressions fixed.
+- Task 5 (TrendIndexCard mapping extraction): covered.
+- Task 6 Step 3 (docs update): covered.
+- Task 6 Step 1-2 (full suite + manual perf validation): still pending.
+
 Migration order (priority)
 1. market-overview
 2. quote

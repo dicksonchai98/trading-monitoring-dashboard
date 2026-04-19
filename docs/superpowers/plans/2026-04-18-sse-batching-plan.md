@@ -253,7 +253,7 @@ If CPU still high, proceed with Worker plan (Task 7)
 - Modify: `apps/frontend/src/features/realtime/services/realtime-manager.test.ts` (tests for worker integration)
 - Test: `apps/frontend/src/features/realtime/worker/sse-worker.test.ts`
 
-- [ ] **Step 1: Write failing tests (integration)**
+- [x] **Step 1: Write failing tests (integration)**
 
 Add test that when feature flag enabled, realtime manager instantiates a worker and when worker posts 'batch' message, applyServingSseBatch is called exactly once per worker message.
 
