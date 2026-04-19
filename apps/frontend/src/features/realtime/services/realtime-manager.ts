@@ -667,7 +667,7 @@ export function collectServingSseEvent(
   }
 }
 
-class RealtimeManager {
+export class RealtimeManager {
   private token: string | null = null;
   private abortController: AbortController | null = null;
   private streamTask: Promise<void> | null = null;
@@ -865,19 +865,7 @@ class RealtimeManager {
       return;
     }
 
-    // In test environment, flush immediately to avoid flakiness with timers
-    try {
-      if (typeof process !== "undefined" && (process as any).env && (process as any).env.NODE_ENV === "test") {
-        // eslint-disable-next-line no-console
-        console.log("SCHEDULE FLUSH: test-mode immediate");
-        this.pendingBatchTimer = setTimeout(() => {}, 0);
-        this.flushPendingBatch();
-        return;
-      }
-    } catch (e) {
-      // ignore
-    }
-
+    // Schedule a delayed flush; keep behavior deterministic and avoid test-only immediate flush hacks
     // eslint-disable-next-line no-console
     console.log("SCHEDULE FLUSH: delayed", this.BATCH_WINDOW_MS);
     this.pendingBatchTimer = setTimeout(() => {
@@ -1023,16 +1011,6 @@ class RealtimeManager {
 
     this.scheduleFlushPendingBatch();
 
-    // Force immediate flush to avoid flakiness in unit tests where timer behavior
-    // or global mocking may interfere with the scheduled flush timing.
-    // This is safe because flushPendingBatch is idempotent when there's nothing to do.
-    // eslint-disable-next-line no-console
-    console.log("MERGE: forcing immediate flush to avoid test flakiness");
-    try {
-      this.flushPendingBatch();
-    } catch (e) {
-      // ignore
-    }
   }
 
   private async stream(signal: AbortSignal, token: string): Promise<void> {
