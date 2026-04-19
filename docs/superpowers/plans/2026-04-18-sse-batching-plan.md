@@ -16,7 +16,7 @@
 - Modify: `apps/frontend/src/features/realtime/services/realtime-manager.ts` (collectServingSseEvent & create batch types)
 - Modify: `apps/frontend/src/features/realtime/services/realtime-manager.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 ```ts
 // add tests in realtime-manager.test.ts to assert collectServingSseEvent merges multiple frames of same event type
@@ -30,12 +30,12 @@ test('collectServingSseEvent collects multiple metric_latest into metricLatestMa
 });
 ```
 
-- [ ] **Step 2: Run tests to verify failure**
+- [x] **Step 2: Run tests to verify failure**
 
 Run: `pnpm test apps/frontend -- -t collectServingSseEvent`
 Expected: FAIL
 
-- [ ] **Step 3: Implement changes**
+- [x] **Step 3: Implement changes**
 
 Edit `collectServingSseEvent` to append into maps:
 
@@ -51,12 +51,12 @@ if (eventName === 'metric_latest') {
 }
 ```
 
-- [ ] **Step 4: Run tests to ensure pass**
+- [x] **Step 4: Run tests to ensure pass**
 
 Run: `pnpm test apps/frontend -- -t collectServingSseEvent`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/frontend/src/features/realtime/services/realtime-manager.ts apps/frontend/src/features/realtime/services/realtime-manager.test.ts
@@ -69,7 +69,7 @@ git commit -m "fix(realtime): collectServingSseEvent -> use maps to avoid overwr
 - Modify: `apps/frontend/src/features/realtime/services/realtime-manager.ts`
 - Modify: `apps/frontend/src/features/realtime/services/realtime-manager.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 ```ts
 // test that frames merged across multiple reads are flushed in one apply
@@ -85,7 +85,7 @@ test('manager flushes pending batch after window', async () => {
 });
 ```
 
-- [ ] **Step 2: Implement pendingBatch**
+- [x] **Step 2: Implement pendingBatch**
 
 Implementation sketch in realtime-manager.ts:
 - add private pendingBatch: ServingSseBatch | null = null;
@@ -94,12 +94,12 @@ Implementation sketch in realtime-manager.ts:
 - in stream read loop, instead of applyServingSseBatch(batch) call this.mergePending(batch) and schedule timer if not set.
 - implement flushPendingBatch() which calls applyServingSseBatch(this.pendingBatch) and clears the timer.
 
-- [ ] **Step 3: Run tests**
+- [x] **Step 3: Run tests**
 
 Run: `pnpm test apps/frontend -- -t pendingBatch`
 Expected: PASS
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add apps/frontend/src/features/realtime/services/realtime-manager.ts
@@ -113,7 +113,7 @@ git commit -m "feat(realtime): add pendingBatch + 100ms flush to reduce frequent
 - Modify: `apps/frontend/src/features/realtime/store/realtime.store.ts` (ensure upsert helpers)
 - Test: `apps/frontend/src/features/realtime/services/realtime-manager.test.ts`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 ```ts
 // ensure applyServingSseBatch calls upsertMetricLatest for each entry
@@ -123,7 +123,7 @@ applyServingSseBatch(batch);
 expect(useRealtimeStore.getState().upsertMetricLatest).toHaveBeenCalledTimes(2);
 ```
 
-- [ ] **Step 2: Implement**
+- [x] **Step 2: Implement**
 
 ```ts
 export function applyServingSseBatch(batch: ServingSseBatch): void {
@@ -145,12 +145,12 @@ export function applyServingSseBatch(batch: ServingSseBatch): void {
 }
 ```
 
-- [ ] **Step 3: Run tests**
+- [x] **Step 3: Run tests**
 
 Run: `pnpm test apps/frontend -- -t applyServingSseBatch`
 Expected: PASS
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add apps/frontend/src/features/realtime/services/realtime-manager.ts apps/frontend/src/features/realtime/store/realtime.store.ts
@@ -164,10 +164,10 @@ git commit -m "refactor(realtime): applyServingSseBatch -> fine-grained upserts"
 - Modify: `apps/frontend/src/features/dashboard/components/RealtimeSseChartsSection.tsx` (use the new hook)
 - Test: `apps/frontend/src/features/realtime/hooks/use-throttled-subscription.test.tsx`
 
-- [ ] **Step 1: Write test**
+- [x] **Step 1: Write test**
 
 ```tsx
-import { renderHook, act } from '@testing-library/react';
+import { render, act } from '@testing-library/react';
 import { useThrottledSubscription } from '@/hooks/use-throttled-subscription';
 
 test('throttles updates to 100ms', async () => {
@@ -182,7 +182,7 @@ test('throttles updates to 100ms', async () => {
 });
 ```
 
-- [ ] **Step 2: Implement hook**
+- [x] **Step 2: Implement hook**
 
 ```ts
 import { useEffect, useRef, useState } from 'react';
@@ -200,11 +200,11 @@ export function useThrottledSubscription<T>(selector: (s:any)=>T, ms=100): T {
 }
 ```
 
-- [ ] **Step 3: Integrate in charts**
+- [x] **Step 3: Integrate in charts**
 
 Replace useKbarCurrent with useThrottledSubscription((s)=>s.kbarCurrentByCode['TXFE6'], 100)
 
-- [ ] **Step 4: Run tests and commit**
+- [x] **Step 4: Run tests and commit**
 
 Run: `pnpm test apps/frontend -- -t use-throttled-subscription`
 

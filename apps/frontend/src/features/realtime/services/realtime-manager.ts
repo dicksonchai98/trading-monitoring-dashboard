@@ -12,6 +12,7 @@ import {
   SpotLatestListSchema,
 } from "@/features/realtime/schemas/serving-event.schema";
 import { useRealtimeStore } from "@/features/realtime/store/realtime.store";
+import { createSseWorker } from "@/features/realtime/worker-index";
 import type {
   ServingSseEventName,
   SpotMarketDistributionLatestPayload,
@@ -34,6 +35,7 @@ const TAIPEI_DATE_FORMATTER = new Intl.DateTimeFormat("en-CA", {
 const ENABLE_SPOT_GAP_K_MOCK =
   String(import.meta.env.VITE_ENABLE_SPOT_GAP_K_MOCK ?? "").toLowerCase() ===
   "true";
+const ENABLE_SSE_WORKER = String(import.meta.env.VITE_ENABLE_SSE_WORKER ?? "").toLowerCase() === "true";
 const SPOT_GAP_K_SYMBOLS = [
   "2330",
   "2317",
@@ -680,6 +682,7 @@ class RealtimeManager {
   private pendingBatch: ServingSseBatch | null = null;
   private pendingBatchTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly BATCH_WINDOW_MS = Number(import.meta.env.VITE_SSE_BATCH_WINDOW_MS ?? 100);
+  private worker: Worker | null = null;
 
   connect(token: string): void {
     if (!token) {
@@ -719,6 +722,18 @@ class RealtimeManager {
   private start(): void {
     const sequence = ++this.startSequence;
     void this.startWhenReady(sequence);
+  }
+
+  private handleWorkerMessage(ev: MessageEvent): void {
+    try {
+      const data = ev.data;
+      if (!data || typeof data !== 'object') return;
+      if (data.type === 'batch' && data.batch) {
+        this.mergeIntoPendingBatch(data.batch);
+      }
+    } catch (e) {
+      // swallow
+    }
   }
 
   private async startWhenReady(sequence: number): Promise<void> {
@@ -1107,6 +1122,16 @@ class RealtimeManager {
       }
     }
 
+    // If worker mode is enabled, ensure worker exists and is wired
+    try {
+      if (ENABLE_SSE_WORKER && !this.worker) {
+        this.worker = createSseWorker();
+        this.worker.onmessage = (ev) => this.handleWorkerMessage(ev as MessageEvent);
+      }
+    } catch (e) {
+      // ignore worker creation failures and fall back to local parsing
+    }
+
     const reader = (response.body as any).getReader();
     const decoder = new TextDecoder();
     let processedAny = false;
@@ -1121,7 +1146,21 @@ class RealtimeManager {
       if (!value) {
         continue;
       }
-      buffer += decoder.decode(value, { stream: true });
+
+      const decodedChunk = decoder.decode(value, { stream: true });
+
+      // If worker enabled, forward raw decoded chunks to worker and skip local parsing
+      if (this.worker) {
+        try {
+          this.worker.postMessage({ type: 'chunk', data: decodedChunk });
+        } catch (e) {
+          // if postMessage fails, fall back to local parsing below
+          buffer += decodedChunk;
+        }
+        continue;
+      }
+
+      buffer += decodedChunk;
       // eslint-disable-next-line no-console
       console.log("STREAM BUFFER len", buffer.length);
       const { frames, rest } = splitSseBuffer(buffer);

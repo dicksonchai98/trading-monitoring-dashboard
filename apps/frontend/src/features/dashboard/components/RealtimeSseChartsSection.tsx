@@ -14,6 +14,7 @@ import { BentoGridSection } from "@/components/ui/bento-grid";
 import { PanelCard } from "@/components/ui/panel-card";
 import { useRealtimeConnection } from "@/features/realtime/hooks/use-realtime-connection";
 import { useRealtimeStore } from "@/features/realtime/store/realtime.store";
+import { useThrottledSubscription } from '@/hooks/use-throttled-subscription';
 import { useT } from "@/lib/i18n";
 
 interface SeriesPoint {
@@ -103,8 +104,8 @@ function EmptyState(): JSX.Element {
 export function RealtimeSseChartsSection(): JSX.Element {
   const t = useT();
   const { connectionStatus } = useRealtimeConnection();
-  const kbar = useKbarCurrent("TXFE6");
-  const metric = useMetricLatest("TXFE6");
+  const kbar = useThrottledSubscription((s) => s.kbarCurrentByCode?.['TXFE6'] ?? null, 100);
+  const metric = useThrottledSubscription((s) => s.metricLatestByCode?.['TXFE6'] ?? null, 100);
 
   const closeSeriesRef = useRef<SeriesPoint[]>([]);
   const spreadSeriesRef = useRef<SpreadPoint[]>([]);
