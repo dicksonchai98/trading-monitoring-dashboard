@@ -5,6 +5,7 @@ import {
 } from "@/features/dashboard/api/market-overview";
 import { useOtcSummaryLatest } from "@/features/realtime/hooks/use-otc-summary-latest";
 import { useAuthStore } from "@/lib/store/auth-store";
+import { upsertPoint } from "@/features/dashboard/lib/timeline-helpers";
 
 export interface OtcIndexSeriesPoint {
   time: string;
