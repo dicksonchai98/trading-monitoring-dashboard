@@ -162,7 +162,7 @@ Status: Implementation migrated and committed; focused tests pass.
 - Modify as needed: `use-kbar-timeline.ts`, `use-metric-timeline.ts`, `use-estimated-volume-timeline.ts`, `use-otc-index-series.ts`, `use-participant-amplitude.ts`
 - Tests: update corresponding tests
 
-- [ ] **Steps:** for each hook: write failing test (if required), refactor to use helpers, run tests, commit. Prefer grouping by similarity.
+- [x] **Steps:** for each hook: write failing test (if required), refactor to use helpers, run tests, commit. Prefer grouping by similarity.
 
 Completed so far:
 - [x] `use-otc-index-series.ts` migrated and committed
