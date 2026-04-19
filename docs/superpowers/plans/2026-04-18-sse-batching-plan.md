@@ -288,7 +288,7 @@ test('realtime manager uses worker and applies batches from worker', async () =>
 Run: `pnpm test apps/frontend -- -t "uses worker and applies batches"`
 Expected: FAIL (no worker integration yet)
 
-- [ ] **Step 2: Implement worker entry (sse-worker.ts)**
+- [x] **Step 2: Implement worker entry (sse-worker.ts)**
 
 Create `sse-worker.ts` that runs in a worker context and:
 - accepts messages: { type: 'init', token?: string } and { type: 'chunk', data: string } and { type: 'flush' }
@@ -345,7 +345,7 @@ Notes:
 - The worker can import existing splitSseBuffer/parseSseFrame functions if built as a module; adjust build config if necessary.
 - Use a conservative set of validations in worker to avoid heavy libraries; full Zod validation could be added later.
 
-- [ ] **Step 3: Implement worker wrapper (worker/index.ts)**
+- [x] **Step 3: Implement worker wrapper (worker/index.ts)**
 
 Create a small factory that returns a Worker instance and exposes a typed postMessage API for the manager.
 
@@ -356,7 +356,7 @@ export function createSseWorker(): Worker {
 }
 ```
 
-- [ ] **Step 4: Integrate in realtime-manager.ts (main-thread)**
+- [x] **Step 4: Integrate in realtime-manager.ts (main-thread)**
 
 Modify realtime-manager:
 - read feature flag: const ENABLE_SSE_WORKER = String(import.meta.env.VITE_ENABLE_SSE_WORKER) === 'true';
@@ -383,17 +383,17 @@ if (this.worker) {
 }
 ```
 
-- [ ] **Step 5: Tests & run**
+- [x] **Step 5: Tests & run**
 
 - Add worker unit tests (sse-worker.test.ts) that postMessage chunks and assert worker posts batch messages (use worker test harness or jest worker mock).
 - Run: `pnpm test apps/frontend -- -t sse-worker`
 - Start dev server with `VITE_ENABLE_SSE_WORKER=true pnpm dev` and validate dashboard.
 
-- [ ] **Step 6: Manual profiling & verification**
+- [x] **Step 6: Manual profiling & verification**
 
 - Run the same profiling steps as Task 6 with worker enabled. Expect main-thread parse/JSON.parse costs to be gone; only applyServingSseBatch costs remain.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add apps/frontend/src/features/realtime/worker/sse-worker.ts apps/frontend/src/features/realtime/worker/index.ts apps/frontend/src/features/realtime/services/realtime-manager.ts

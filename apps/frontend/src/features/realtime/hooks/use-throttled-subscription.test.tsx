@@ -12,11 +12,11 @@ describe('useThrottledSubscription', () => {
   beforeEach(() => {
     // ensure baseline
     useRealtimeStore.setState({ __test_value: null });
-    jest.useFakeTimers();
+    vi.useFakeTimers();
   });
 
   afterEach(() => {
-    jest.useRealTimers();
+    vi.useRealTimers();
   });
 
   test('throttles updates to interval', () => {

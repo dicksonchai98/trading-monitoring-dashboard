@@ -2,9 +2,10 @@ import {
   applyServingSseEvent,
   createSpotLatestListMockGenerator,
   parseSseFrame,
-  realtimeManager,
+  RealtimeManager,
   splitSseBuffer,
 } from "@/features/realtime/services/realtime-manager";
+let manager: RealtimeManager;
 import { useRealtimeStore } from "@/features/realtime/store/realtime.store";
 import type { SpotLatestListPayload } from "@/features/realtime/types/realtime.types";
 import { afterEach, vi } from "vitest";
@@ -19,10 +20,11 @@ describe("realtime-manager", () => {
 
   beforeEach(() => {
     useRealtimeStore.getState().resetRealtime();
+    manager = new RealtimeManager();
   });
 
   afterEach(() => {
-    realtimeManager.disconnect();
+    manager.disconnect();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
@@ -74,11 +76,11 @@ describe("realtime-manager", () => {
 
     vi.stubGlobal("fetch", fetchMock);
 
-    realtimeManager.connect("token-a");
+    manager.connect("token-a");
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
-    realtimeManager.disconnect();
-    realtimeManager.connect("token-a");
+    manager.disconnect();
+    manager.connect("token-a");
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
@@ -339,7 +341,7 @@ describe("realtime-manager", () => {
   });
 
   it("applies spot market distribution SSE frames while streaming", async () => {
-    realtimeManager.disconnect();
+    manager.disconnect();
     const sseBody =
       `event: spot_market_distribution_latest\ndata: ${JSON.stringify({
         ts: inSessionSpotTs,
@@ -366,7 +368,7 @@ describe("realtime-manager", () => {
 
     vi.stubGlobal("fetch", fetchMock);
 
-    realtimeManager.connect("token-stream-test");
+    manager.connect("token-stream-test");
 
     await vi.waitFor(() => {
       expect(useRealtimeStore.getState().spotMarketDistributionLatest?.up_count).toBe(7);
