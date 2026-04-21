@@ -1,15 +1,18 @@
 # Trading Monitoring Dashboard
 
 ## Overview
-Trading Monitoring Dashboard 是一個以台指近月期貨監控為核心的全端 Monorepo 專案。系統以 Shioaji 作為行情來源，透過 Redis Streams 串接後端計算與快取，再由 SSE（Server-Sent Events）每秒推送最新快照到前端儀表板。
+
+Trading Monitoring Dashboard 是一個以台指近月期貨監控為核心的全端 Monorepo 專案。系統以 Shioaji 作為行情來源，透過 Redis Streams 串接後端計算與快取，再由 SSE（Server-Sent Events）每秒推送最新快照到前端儀表板。系統功能包含登入注冊服務、角色權限控管、email通知、即時台指籌碼分析儀版表（漲跌家數差比/籌碼强弱/台指振幅/預估量量差比/價差/貢獻點數/現貨溫度計）、市場溫度計、市場熱力圖、盤後籌碼爬蟲服務、盤後籌碼分析服務、audit log監控等等
 
 MVP 目標聚焦於：
+
 - 近月台指期即時監控
 - JWT 驗證與 RBAC（`admin` / `member` / `visitor`）
 - 訂閱流程（Mock Webhook）
 - 可持續擴充的模組化後端架構
 
 ## Demo
+
 本地啟動（建議使用 Docker Compose）：
 
 ```bash
@@ -17,6 +20,7 @@ docker compose up -d redis backend-api backend-ingestor-worker backend-tick-work
 ```
 
 啟動後可使用：
+
 - Frontend: `http://localhost:5173`
 - Backend API: `http://localhost:8000`
 - RedisInsight: `http://localhost:5540`
@@ -24,6 +28,7 @@ docker compose up -d redis backend-api backend-ingestor-worker backend-tick-work
 > 註：實際可用頁面與測試帳號請依 `.env` 與目前資料庫狀態為準。
 
 ## Features
+
 - 即時行情監控：透過 SSE 每 1 秒推送最新快照
 - 市場資料管線：Shioaji -> Redis Streams -> 指標/快照計算 -> Redis/PostgreSQL
 - 角色權限控管：前端路由守衛 + 後端 RBAC 強制驗證
@@ -32,15 +37,18 @@ docker compose up -d redis backend-api backend-ingestor-worker backend-tick-work
 - 模組化工作者：將 ingestion、stream processing、email、analytics 等工作拆分為獨立 worker
 
 ## Tech Stack
+
 - Frontend: React 19 + TypeScript + Vite
 - UI/State: shadcn/ui、Tailwind CSS、React Query、Zod、React Hook Form、Zustand
 - Backend: FastAPI + SQLAlchemy + Alembic
 - Data Layer: PostgreSQL（交易資料）+ Redis（快取/訊息流）
 - Messaging/Realtime: Redis Streams + SSE
-- Infra/DevOps: Docker Compose
+- Infra/DevOps: Docker Compose、AWS
 
 ## Architecture
+
 整體採用 Monorepo + Modular Monolith 後端策略：
+
 - `apps/frontend`：儀表板 UI、路由守衛、SSE client
 - `apps/backend`：API、認證授權、訂閱流程、行情處理與多工 worker
 - `packages/shared`：跨前後端共用契約與設定
@@ -48,6 +56,7 @@ docker compose up -d redis backend-api backend-ingestor-worker backend-tick-work
 - `docs`：PRD、設計稿、實作計畫與流程文件
 
 核心設計原則：
+
 - API 與 Worker 職責分離
 - 後端作為權限與資料正確性的唯一真相來源
 - Redis 承擔即時資料中繼與 latest snapshot 快取
@@ -83,7 +92,108 @@ flowchart LR
     API -->|派發背景任務/事件| Workers
 ```
 
+### MVP Architecture（Current Baseline）
+
+```mermaid
+flowchart LR
+    U[使用者] --> FE[Frontend SPA]
+    FE -->|REST| API[FastAPI API<br/>Auth/RBAC/Subscription/History]
+    FE -->|SSE| API
+
+    API --> R[(Redis<br/>Streams+Cache)]
+    API --> P[(PostgreSQL)]
+
+    S[Shioaji] --> W[Workers]
+    W --> R
+    W --> P
+
+    MP[Mock Payment Provider] -->|Webhook| API
+    API -->|訂閱狀態更新| P
+
+    C[Cron Jobs] --> W
+    C --> API
+```
+
+### Production Architecture（Full）
+
+```mermaid
+flowchart LR
+    U[使用者] --> FE[Frontend SPA<br/>React + Vite]
+    FE -->|REST| G[API Gateway / BFF]
+    FE -->|SSE| RT[Realtime Gateway]
+
+    subgraph APP[FastAPI Services]
+        AUTH[Auth / RBAC]
+        SUB[Subscription / Billing]
+        HIST[History API]
+        ADM[Admin / Audit API]
+        WH[Webhook Ingress]
+        ORCH[Workflow Orchestrator]
+    end
+
+    G --> AUTH
+    G --> SUB
+    G --> HIST
+    G --> ADM
+    RT --> ORCH
+
+    subgraph PIPE[Market Data Pipeline]
+        ING[Ingestion]
+        NORM[Normalizer]
+        ENR[Indicator/Analytics]
+        SNAP[Latest Snapshot Builder]
+    end
+
+    SRC[Shioaji] --> ING --> NORM --> ENR --> SNAP
+
+    subgraph MQ[Event Backbone]
+        RS[(Redis Streams)]
+        RETRY[Retry Workers]
+        DLQ[(DLQ)]
+    end
+
+    NORM --> RS
+    ENR --> RS
+    SNAP --> RS
+    RS --> RETRY --> DLQ
+    ORCH --> RS
+
+    subgraph DATA[Data Layer]
+        RED[(Redis Cache)]
+        PG[(PostgreSQL)]
+        TS[(Timeseries Store 可選)]
+    end
+
+    RS --> RED
+    HIST --> PG
+    SUB --> PG
+    ADM --> PG
+    SNAP --> PG
+    HIST --> TS
+    RT --> RED
+    RT --> PG
+
+    FE -->|Checkout| SUB
+    STRIPE[Stripe] -->|Webhook Events| WH
+    SUB -->|Create Session| STRIPE
+    WH --> SUB
+    WH --> ORCH
+
+    CRON[Cron / Scheduler] --> ORCH
+    CRON --> SUB
+    CRON --> PG
+```
+
+### MVP vs Production
+
+- Billing：MVP 使用 mock webhook；Production 使用 Stripe checkout + webhook 事件流。
+- Realtime：MVP 由單一 API/SSE 路徑推播；Production 拆分 Realtime Gateway 與 orchestrator。
+- Data Pipeline：MVP 聚焦 latest snapshot；Production 加上 retry/DLQ、更完整事件骨幹。
+- Data Query：MVP 以 PostgreSQL 為主；Production 可加入 timeseries store 優化歷史查詢。
+- Operations：MVP 僅必要 cron；Production 增加 reconciliation、cleanup、監控告警與審計深度。
+
 ### Deployment Architecture（Local Docker Compose / EC2）
+
 ```mermaid
 flowchart TB
     User[Browser User]
@@ -124,6 +234,7 @@ flowchart TB
 ```
 
 ## Folder Structure
+
 ```txt
 trading-monitoring-dashboard/
 ├─ apps/
@@ -151,8 +262,10 @@ trading-monitoring-dashboard/
 ```
 
 ## Sequence Flow
+
 此流程描述「即時行情」從使用者進入頁面、前後端建立資料通道，到後端工作者處理資料並回推前端的完整生命週期。  
 重點在於 request/response、SSE 長連線、以及 Redis Streams + snapshot 快取的資料流分工。
+
 ```mermaid
 sequenceDiagram
     autonumber
@@ -192,8 +305,10 @@ sequenceDiagram
 ```
 
 ### Subscription Flow（Mock Webhook）
+
 此流程描述會員送出訂閱後，系統如何先建立 intent，再透過 mock webhook 將狀態推進到 active。  
 重點在於 subscription 狀態轉換與 entitlement/RBAC 的同步更新。
+
 ```mermaid
 sequenceDiagram
     autonumber
@@ -222,8 +337,10 @@ sequenceDiagram
 ```
 
 ### Login + RBAC Guard Flow
+
 此流程描述登入成功後如何取得 JWT 與角色，並在後續呼叫受保護 API 時完成權限驗證。  
 重點在於 `401/403` 的失敗分支與前端 route guard 的對應行為。
+
 ```mermaid
 sequenceDiagram
     autonumber
@@ -251,6 +368,7 @@ sequenceDiagram
 ```
 
 ## Challenges
+
 - 即時性與穩定性平衡：1 秒級推送下，需避免單一連線失敗影響整體
 - 流式處理可靠性：需要 ack/retry/dead-letter 等機制來降低資料遺失風險
 - 權限一致性：前端 UX 與後端 RBAC 必須完全對齊（401/403 行為可預期）
@@ -258,6 +376,7 @@ sequenceDiagram
 - MVP 邊界管理：在功能擴張需求下，維持「近月台指期優先」的交付焦點
 
 ## Roadmap
+
 - 補強歷史資料回補與分析管線（Historical Analytics）
 - 擴充多商品/多市場監控能力
 - 強化管理後台與審計查詢體驗
@@ -265,4 +384,5 @@ sequenceDiagram
 - 完成更多非功能測試（連線數、重連、容錯壓測）與觀測能力
 
 ## Author
+
 - Dickson
