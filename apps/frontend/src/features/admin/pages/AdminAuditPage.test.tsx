@@ -83,6 +83,7 @@ describe("AdminAuditPage", () => {
       expect.objectContaining({
         method: "GET",
         headers: expect.objectContaining({ Authorization: "Bearer admin-token" }),
+        signal: expect.any(AbortSignal),
       }),
     );
   });

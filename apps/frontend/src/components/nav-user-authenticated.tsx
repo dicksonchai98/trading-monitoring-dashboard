@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useShellNavigation } from "@/app/navigation/ShellNavigationContext";
 import { NavUserTrigger, type SidebarUserIdentity } from "@/components/nav-user-trigger";
@@ -16,6 +17,7 @@ import { SidebarMenu, SidebarMenuItem, useSidebar } from "@/components/ui/sideba
 import { logout } from "@/features/auth/api/auth";
 import { SettingsModal, type SettingsSection } from "@/features/settings/components/SettingsModal";
 import { createPortalSession } from "@/features/subscription/api/billing";
+import { isAbortError } from "@/lib/api/client";
 import { useT } from "@/lib/i18n";
 import { useAuthStore } from "@/lib/store/auth-store";
 import {
@@ -35,6 +37,14 @@ export function NavUserAuthenticated({ user }: { user: SidebarUserIdentity }) {
   const [portalLoading, setPortalLoading] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [initialSettingsSection, setInitialSettingsSection] = useState<SettingsSection>("general");
+  const portalControllerRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => {
+      portalControllerRef.current?.abort();
+      portalControllerRef.current = null;
+    };
+  }, []);
 
   function openSettings(section: SettingsSection): void {
     setInitialSettingsSection(section);
@@ -42,12 +52,18 @@ export function NavUserAuthenticated({ user }: { user: SidebarUserIdentity }) {
   }
 
   async function handleOpenPortal(): Promise<void> {
-    if (!token || portalLoading) {
+    if (!token) {
       return;
     }
+    portalControllerRef.current?.abort();
+    const controller = new AbortController();
+    portalControllerRef.current = controller;
     setPortalLoading(true);
     try {
-      const result = await createPortalSession(token);
+      const result = await createPortalSession(token, controller.signal);
+      if (portalControllerRef.current !== controller) {
+        return;
+      }
       toast.success(t("user.portalOpened"));
       const isJsdom =
         typeof window !== "undefined" &&
@@ -56,10 +72,19 @@ export function NavUserAuthenticated({ user }: { user: SidebarUserIdentity }) {
       if (!isJsdom && typeof window !== "undefined" && result.portal_url) {
         window.location.assign(result.portal_url);
       }
-    } catch {
+    } catch (error) {
+      if (isAbortError(error)) {
+        return;
+      }
+      if (portalControllerRef.current !== controller) {
+        return;
+      }
       toast.error(t("user.portalOpenFailed"));
     } finally {
-      setPortalLoading(false);
+      if (portalControllerRef.current === controller) {
+        portalControllerRef.current = null;
+        setPortalLoading(false);
+      }
     }
   }
 
@@ -117,7 +142,7 @@ export function NavUserAuthenticated({ user }: { user: SidebarUserIdentity }) {
                 <Settings2Icon />
                 {t("user.settings")}
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => void handleOpenPortal()} disabled={!token || portalLoading}>
+              <DropdownMenuItem onClick={() => void handleOpenPortal()} disabled={!token}>
                 <CreditCardIcon />
                 {portalLoading ? t("user.openingBillingPortal") : t("user.billingPortal")}
               </DropdownMenuItem>

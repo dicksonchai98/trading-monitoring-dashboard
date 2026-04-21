@@ -101,6 +101,19 @@ describe("EventAnalyticsPage", () => {
         ),
       ).toBe(true);
     });
+
+    expect(
+      fetchMock.mock.calls.some(
+        ([url, init]) =>
+          String(url).includes("/analytics/events/day_up_gt_100/stats") && init?.signal instanceof AbortSignal,
+      ),
+    ).toBe(true);
+    expect(
+      fetchMock.mock.calls.some(
+        ([url, init]) =>
+          String(url).includes("/analytics/events/day_up_gt_100/samples") && init?.signal instanceof AbortSignal,
+      ),
+    ).toBe(true);
   });
 
   it("resets sample page to 1 when filters change", async () => {

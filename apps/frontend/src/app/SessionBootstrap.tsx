@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { refresh } from "@/features/auth/api/auth";
 import { decodeAccessToken, mapTokenRole } from "@/features/auth/lib/token";
 import { getBillingStatus } from "@/features/subscription/api/billing";
+import { isAbortError } from "@/lib/api/client";
 import { mapEntitlement, resolveEntitlementFromBillingStatus } from "@/features/subscription/lib/entitlement";
 import { useAuthStore } from "@/lib/store/auth-store";
 
@@ -12,9 +13,7 @@ interface SessionBootstrapResult {
   entitlement: ReturnType<typeof mapEntitlement>;
 }
 
-let bootstrapInFlight: Promise<SessionBootstrapResult | null> | null = null;
-
-async function resolveSessionBootstrap(): Promise<SessionBootstrapResult | null> {
+async function resolveSessionBootstrap(signal: AbortSignal): Promise<SessionBootstrapResult | null> {
   const refreshed = await refresh();
   const token = refreshed.access_token;
   const payload = decodeAccessToken(token);
@@ -24,14 +23,17 @@ async function resolveSessionBootstrap(): Promise<SessionBootstrapResult | null>
 
   let entitlement = mapEntitlement("none");
   try {
-    const billing = await getBillingStatus(token);
+    const billing = await getBillingStatus(token, signal);
     entitlement = resolveEntitlementFromBillingStatus(billing);
     console.log("[SessionBootstrap] billing status", {
       status: billing.status,
       entitlement_active: billing.entitlement_active,
       entitlement,
     });
-  } catch {
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw error;
+    }
     entitlement = mapEntitlement("none");
     console.log("[SessionBootstrap] billing status failed -> fallback none");
   }
@@ -39,26 +41,18 @@ async function resolveSessionBootstrap(): Promise<SessionBootstrapResult | null>
   return { token, role, entitlement };
 }
 
-function getBootstrapPromise(): Promise<SessionBootstrapResult | null> {
-  if (!bootstrapInFlight) {
-    bootstrapInFlight = resolveSessionBootstrap().finally(() => {
-      bootstrapInFlight = null;
-    });
-  }
-  return bootstrapInFlight;
-}
-
 export function SessionBootstrap({ children }: PropsWithChildren): JSX.Element {
   const { setResolved, setSession, clearSession } = useAuthStore();
 
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
 
     async function bootstrapSession(): Promise<void> {
       console.log("[SessionBootstrap] start");
       setResolved(false);
       try {
-        const result = await getBootstrapPromise();
+        const result = await resolveSessionBootstrap(controller.signal);
 
         if (!cancelled) {
           if (!result) {
@@ -73,6 +67,9 @@ export function SessionBootstrap({ children }: PropsWithChildren): JSX.Element {
           );
         }
       } catch (error) {
+        if (isAbortError(error)) {
+          return;
+        }
         if (!cancelled) {
           const current = useAuthStore.getState();
           const hasActiveSession =
@@ -99,6 +96,7 @@ export function SessionBootstrap({ children }: PropsWithChildren): JSX.Element {
 
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [clearSession, setResolved, setSession]);
 

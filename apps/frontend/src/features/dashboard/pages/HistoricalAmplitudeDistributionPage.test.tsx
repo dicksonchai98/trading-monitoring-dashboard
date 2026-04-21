@@ -125,6 +125,16 @@ describe("HistoricalAmplitudeDistributionPage", () => {
     expect(
       await screen.findByTestId("amplitude-histogram-chart"),
     ).toBeInTheDocument();
+    expect(vi.mocked(getAnalyticsMetrics)).toHaveBeenCalledWith("token", expect.any(AbortSignal));
+    expect(vi.mocked(getDistributionStats)).toHaveBeenCalledWith(
+      "token",
+      {
+        metricId: "day_return",
+        code: "TXFR1",
+        version: "latest",
+      },
+      expect.any(AbortSignal),
+    );
   });
 
   it("shows metric select loading while metrics are still fetching", () => {

@@ -68,7 +68,7 @@ describe("DistributionAnalyticsPage", () => {
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
       expect.stringContaining("/analytics/distributions/day_return?code=TXF&start_date=2026-01-01&end_date=2026-01-31&version=latest"),
-      expect.objectContaining({ method: "GET", credentials: "include" }),
+      expect.objectContaining({ method: "GET", credentials: "include", signal: expect.any(AbortSignal) }),
     );
 
     expect(screen.getByText("Sample Count: 3")).toBeInTheDocument();

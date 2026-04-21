@@ -57,7 +57,7 @@ function CheckoutResultLayout({ kind }: CheckoutResultLayoutProps): JSX.Element 
 
   const checkoutStatusQuery = useQuery({
     queryKey: ["billing", "checkout-session", token, effectiveSessionId],
-    queryFn: () => getCheckoutSessionStatus(token ?? "", effectiveSessionId ?? ""),
+    queryFn: ({ signal }) => getCheckoutSessionStatus(token ?? "", effectiveSessionId ?? "", signal),
     enabled: Boolean(token) && Boolean(effectiveSessionId) && resolved,
     refetchInterval: (query) => {
       if (kind !== "success" || query.state.data?.is_paid) {
@@ -70,7 +70,7 @@ function CheckoutResultLayout({ kind }: CheckoutResultLayoutProps): JSX.Element 
 
   const billingStatusQuery = useQuery({
     queryKey: ["billing", "status", "checkout-result", token, effectiveSessionId, checkoutStatusQuery.data?.is_paid],
-    queryFn: () => getBillingStatus(token ?? ""),
+    queryFn: ({ signal }) => getBillingStatus(token ?? "", signal),
     enabled:
       Boolean(token) &&
       resolved &&

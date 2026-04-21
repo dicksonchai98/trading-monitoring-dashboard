@@ -15,6 +15,10 @@ export class ApiError extends Error {
   }
 }
 
+export function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === "AbortError";
+}
+
 async function parseError(response: Response): Promise<ApiError> {
   const payload = (await response.json().catch(() => null)) as ApiErrorPayload | null;
   const detail = payload?.detail;
@@ -63,6 +67,7 @@ export async function getJson<TResponse>(
     headers: {
       ...options?.headers,
     },
+    signal: options?.signal,
   });
 }
 
@@ -79,5 +84,6 @@ export async function postJson<TResponse, TBody extends object>(
       ...options?.headers,
     },
     body: JSON.stringify(body),
+    signal: options?.signal,
   });
 }
