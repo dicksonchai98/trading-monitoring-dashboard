@@ -68,153 +68,89 @@ flowchart LR
     FE[Frontend SPA<br/>React + Vite]
 
     subgraph Backend[FastAPI Backend]
-        API[API Layer<br/>Auth / RBAC / Subscription / Realtime]
-        Workers[Workers<br/>Ingestor / Tick / BidAsk / Quote / Latest State / Email / Analytics]
+        API[API Layer<br/>Auth / RBAC / Subscription / History / Realtime]
+        RT[Realtime SSE Hub]
+        WH[Billing Webhook Handler]
+        CRON[Cron / Scheduler]
+
+        subgraph Workers[Worker Pipeline]
+            ING[Ingestor Worker]
+            TICK[Tick Worker]
+            BIDASK[BidAsk Worker]
+            QUOTE[Quote Worker]
+            LATEST[Latest State Worker]
+        end
     end
 
     Redis[(Redis<br/>Streams + Cache)]
     Postgres[(PostgreSQL)]
     Source[Shioaji Market Data]
+    Stripe[Stripe]
 
     User -->|瀏覽與操作| FE
     FE -->|REST API| API
     API -->|JSON Response| FE
-    FE -->|SSE 訂閱| API
-    API -->|SSE 推播| FE
+    FE -->|SSE 訂閱| RT
+    RT -->|SSE 推播| FE
 
-    Source -->|Raw Tick/BidAsk/Quote| Workers
-    Workers -->|事件寫入| Redis
-    Workers -->|快照持久化| Postgres
-    Workers -->|更新 latest snapshot| Redis
+    Source -->|Raw Tick/BidAsk/Quote| ING
+    ING -->|事件寫入| Redis
+    Redis -->|stream consume| TICK
+    Redis -->|stream consume| BIDASK
+    Redis -->|stream consume| QUOTE
+    TICK -->|計算/彙整| LATEST
+    BIDASK -->|計算/彙整| LATEST
+    QUOTE -->|計算/彙整| LATEST
+    LATEST -->|latest snapshot| Redis
+    LATEST -->|snapshot persist| Postgres
 
-    API -->|讀取最新快照| Redis
-    API -->|讀寫交易資料| Postgres
-    API -->|派發背景任務/事件| Workers
+    API -->|讀取 latest snapshot| Redis
+    API -->|查詢歷史/交易資料| Postgres
+    API -->|派發背景任務| CRON
+
+    FE -->|建立訂閱/付款| API
+    API -->|create checkout session| Stripe
+    Stripe -->|webhook events| WH
+    WH -->|更新訂閱狀態與權限| Postgres
+    WH -->|派發通知任務| Workers
+
+    CRON -->|排程觸發| Workers
+    CRON -->|資料清理/補償作業| Postgres
+    CRON -->|快取預熱/失效| Redis
 ```
 
-### MVP Architecture（Current Baseline）
-
-```mermaid
-flowchart LR
-    U[使用者] --> FE[Frontend SPA]
-    FE -->|REST| API[FastAPI API<br/>Auth/RBAC/Subscription/History]
-    FE -->|SSE| API
-
-    API --> R[(Redis<br/>Streams+Cache)]
-    API --> P[(PostgreSQL)]
-
-    S[Shioaji] --> W[Workers]
-    W --> R
-    W --> P
-
-    MP[Mock Payment Provider] -->|Webhook| API
-    API -->|訂閱狀態更新| P
-
-    C[Cron Jobs] --> W
-    C --> API
-```
-
-### Production Architecture（Full）
-
-```mermaid
-flowchart LR
-    U[使用者] --> FE[Frontend SPA<br/>React + Vite]
-    FE -->|REST| G[API Gateway / BFF]
-    FE -->|SSE| RT[Realtime Gateway]
-
-    subgraph APP[FastAPI Services]
-        AUTH[Auth / RBAC]
-        SUB[Subscription / Billing]
-        HIST[History API]
-        ADM[Admin / Audit API]
-        WH[Webhook Ingress]
-        ORCH[Workflow Orchestrator]
-    end
-
-    G --> AUTH
-    G --> SUB
-    G --> HIST
-    G --> ADM
-    RT --> ORCH
-
-    subgraph PIPE[Market Data Pipeline]
-        ING[Ingestion]
-        NORM[Normalizer]
-        ENR[Indicator/Analytics]
-        SNAP[Latest Snapshot Builder]
-    end
-
-    SRC[Shioaji] --> ING --> NORM --> ENR --> SNAP
-
-    subgraph MQ[Event Backbone]
-        RS[(Redis Streams)]
-        RETRY[Retry Workers]
-        DLQ[(DLQ)]
-    end
-
-    NORM --> RS
-    ENR --> RS
-    SNAP --> RS
-    RS --> RETRY --> DLQ
-    ORCH --> RS
-
-    subgraph DATA[Data Layer]
-        RED[(Redis Cache)]
-        PG[(PostgreSQL)]
-        TS[(Timeseries Store 可選)]
-    end
-
-    RS --> RED
-    HIST --> PG
-    SUB --> PG
-    ADM --> PG
-    SNAP --> PG
-    HIST --> TS
-    RT --> RED
-    RT --> PG
-
-    FE -->|Checkout| SUB
-    STRIPE[Stripe] -->|Webhook Events| WH
-    SUB -->|Create Session| STRIPE
-    WH --> SUB
-    WH --> ORCH
-
-    CRON[Cron / Scheduler] --> ORCH
-    CRON --> SUB
-    CRON --> PG
-```
-
-### MVP vs Production
-
-- Billing：MVP 使用 mock webhook；Production 使用 Stripe checkout + webhook 事件流。
-- Realtime：MVP 由單一 API/SSE 路徑推播；Production 拆分 Realtime Gateway 與 orchestrator。
-- Data Pipeline：MVP 聚焦 latest snapshot；Production 加上 retry/DLQ、更完整事件骨幹。
-- Data Query：MVP 以 PostgreSQL 為主；Production 可加入 timeseries store 優化歷史查詢。
-- Operations：MVP 僅必要 cron；Production 增加 reconciliation、cleanup、監控告警與審計深度。
-
-### Deployment Architecture（Local Docker Compose / EC2）
+### Deployment Architecture（AWS: CloudFront + S3 + VPC）
 
 ```mermaid
 flowchart TB
     User[Browser User]
 
-    subgraph Host[Docker Host（Local 或 EC2）]
-        Nginx[Nginx / Frontend Container]
-        API[backend-api<br/>FastAPI]
-        Ingestor[backend-ingestor-worker]
-        Tick[backend-tick-worker]
-        BidAsk[backend-bidask-worker]
-        Quote[backend-quote-worker]
-        Latest[backend-latest-state-worker]
-        Redis[(redis)]
-        Pg[(PostgreSQL<br/>host DB 或 container DB)]
+    CloudFront[CloudFront CDN]
+    S3[S3 Bucket<br/>Static SPA]
+
+    subgraph VPC[AWS VPC]
+        subgraph Public[Public Subnet]
+            ALB[Application Load Balancer]
+        end
+
+        subgraph Private[Private Subnet]
+            API[backend-api<br/>FastAPI]
+            Ingestor[backend-ingestor-worker]
+            Tick[backend-tick-worker]
+            BidAsk[backend-bidask-worker]
+            Quote[backend-quote-worker]
+            Latest[backend-latest-state-worker]
+            Redis[(Redis)]
+            Pg[(PostgreSQL / RDS)]
+        end
     end
 
     Source[Shioaji]
 
-    User -->|HTTPS / HTTP| Nginx
-    Nginx -->|/api| API
-    Nginx -->|Static SPA| User
+    User -->|HTTPS| CloudFront
+    CloudFront -->|Static SPA| S3
+    CloudFront -->|/api, /sse| ALB
+    ALB --> API
 
     API --> Redis
     API --> Pg
@@ -367,13 +303,42 @@ sequenceDiagram
     end
 ```
 
-## Challenges
+## Challenges & Solutions
 
-- 即時性與穩定性平衡：1 秒級推送下，需避免單一連線失敗影響整體
-- 流式處理可靠性：需要 ack/retry/dead-letter 等機制來降低資料遺失風險
-- 權限一致性：前端 UX 與後端 RBAC 必須完全對齊（401/403 行為可預期）
-- 多 worker 協作：模組拆分後要維持部署、監控與除錯成本可控
-- MVP 邊界管理：在功能擴張需求下，維持「近月台指期優先」的交付焦點
+### 1) Realtime 資料更新頻率高，前端容易抖動與重算過多
+- Challenge：SSE 每秒推送資料，圖表與狀態同步時容易造成不必要 re-render。
+- What I did：將 realtime 更新做批次處理與 timeline helper 抽象，降低單筆事件直接觸發 UI 更新的頻率。
+- Result：畫面更新更穩定，元件責任更清楚，測試也更容易覆蓋。
+
+### 2) 市場資料管線需要兼顧即時性與一致性
+- Challenge：Tick/BidAsk/Quote 來源與處理節點多，若沒有清楚分層容易造成資料狀態混亂。
+- What I did：採用 Redis Streams 作為事件骨幹，worker 分工處理，並將 latest snapshot 寫入 Redis + PostgreSQL。
+- Result：兼顧即時讀取與持久化，API 可直接讀取快照，歷史查詢走資料庫。
+
+### 3) 權限與訂閱流程在 MVP 與 Production 差異大
+- Challenge：MVP 需要快速交付，但架構又要能銜接 Stripe/webhook 的 production 流程。
+- What I did：在 README 與架構設計中明確拆分 MVP（mock webhook）與 Production（Stripe + webhook ingress + scheduler）。
+- Result：開發與溝通成本降低，團隊能清楚知道目前範圍與後續擴充路徑。
+
+### 4) Worker 與 HTTP API 職責拆分，避免即時資料堵塞 API
+- Challenge：realtime data 與 HTTP API 放在同一處理脈絡時，即使使用 `asyncio.create_task`，在高頻資料下仍可能互相競爭資源並影響回應。
+- What I did：將資料流處理獨立為多個 worker（如 `ingestor`、`tick`、`bidask`、`quote`、`latest-state`），API layer 專注在 request/response。
+- Result：降低 API 被即時資料處理阻塞的風險，整體穩定性更好。
+
+### 5) DB Sink 與 Stream Processing 解耦，降低 I/O 阻塞
+- Challenge：原本 DB sink 與 stream processing 在同一 worker 路徑處理，遇到資料庫寫入延遲時會拖慢消費。
+- What I did：將 DB sink 改為獨立 flush 路徑，並在 async flush 使用 `asyncio.to_thread(...)` 執行批次持久化（tick、bidask 皆已採用）。
+- Result：event loop 被同步寫入阻塞的機率下降，資料流消費更平穩。
+
+### 6) 前端由全量更新改為增量 + 批次，並把 SSE 收集搬到 Web Worker
+- Challenge：早期全量更新 state、未限流 UI 更新，且 SSE 解析/收集在主執行緒，導致卡頓與記憶體偏高。
+- What I did：改為增量更新；SSE 先收集一段時間再批次套用；解析與收集移至 Web Worker；realtime manager 做批次合併後更新 store。
+- Result：主執行緒負擔降低，畫面更新更順，記憶體用量更可控。
+
+### 7) 前端重算控制（`useMemo` / `memo`）
+- Challenge：高頻資料下，衍生資料與圖表容易重複計算與重渲染。
+- What I did：在關鍵計算與元件渲染路徑加入 `useMemo`、`memo` 與節流訂閱策略。
+- Result：減少不必要 render 與運算成本，提升互動流暢度。
 
 ## Roadmap
 
@@ -382,6 +347,11 @@ sequenceDiagram
 - 強化管理後台與審計查詢體驗
 - 依容量需求評估 SSE -> WebSocket 升級策略
 - 完成更多非功能測試（連線數、重連、容錯壓測）與觀測能力
+- 規劃分散式部署（由單一 EC2 拆分 API / Worker / DB）
+- 圖表引擎升級為 Canvas-based 方案（評估 TradingView 類型）
+- 補齊高風險路徑結構化 log，串接 CloudWatch 監控告警
+- 新增夜盤資料處理與展示能力
+- 新增 LINE Bot 行情查詢服務
 
 ## Author
 
