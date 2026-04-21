@@ -1,6 +1,6 @@
 """Add index contribution snapshot tables.
 
-Revision ID: 20260406_01
+Revision ID: 20260406_01_index_contrib
 Revises: 20260323_01
 Create Date: 2026-04-06
 """
@@ -11,7 +11,7 @@ from alembic import op
 import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
-revision = "20260406_01"
+revision = "20260406_01_index_contrib"
 down_revision = "20260323_01"
 branch_labels = None
 depends_on = None

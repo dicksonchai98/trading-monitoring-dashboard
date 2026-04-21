@@ -1,7 +1,7 @@
 """Add tick/bidask/spread extension columns.
 
 Revision ID: 20260406_02
-Revises: 20260406_01
+Revises: 20260406_01_market_summary
 Create Date: 2026-04-06
 """
 
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = "20260406_02"
-down_revision = "20260406_01"
+down_revision = "20260406_01_market_summary"
 branch_labels = None
 depends_on = None
 
