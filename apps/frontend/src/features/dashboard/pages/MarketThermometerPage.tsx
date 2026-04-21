@@ -1,5 +1,5 @@
 import type { JSX } from "react";
-import { useMemo } from "react";
+import { useMemo, useEffect, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
 import { BentoGridSection } from "@/components/ui/bento-grid";
 import { PageLayout } from "@/components/ui/page-layout";
@@ -12,6 +12,7 @@ import {
 } from "@/features/dashboard/lib/market-thermometer-sectors";
 import { useSpotLatestList } from "@/features/realtime/hooks/use-spot-latest-list";
 import { useT } from "@/lib/i18n";
+import { toast } from "sonner";
 
 interface SpotPanelData {
   symbol: string;
@@ -167,6 +168,17 @@ function resolvePanelToneByStrength(
 export function MarketThermometerPage(): JSX.Element {
   const t = useT();
   const spotLatestList = useSpotLatestList();
+  const hasSpotLatestList = spotLatestList !== null;
+
+  const closedToastRef = useRef<string | null>(null);
+  useEffect(() => {
+    const now = new Date();
+    const hhmm = now.getHours() * 100 + now.getMinutes();
+    if ((hhmm < 845 || hhmm > 1345) && closedToastRef.current !== "/market-thermometer") {
+      toast(t("guard.realtime.closed"), { icon: "⚠️", duration: 7000 });
+      closedToastRef.current = "/market-thermometer";
+    }
+  }, [t]);
 
   const marketStrengthPct =
     typeof spotLatestList?.market_strength_pct === "number" &&
@@ -280,26 +292,33 @@ export function MarketThermometerPage(): JSX.Element {
       actions={
         <Badge variant="success">{t("dashboard.thermometer.connected")}</Badge>
       }
-      bodyClassName="space-y-[var(--section-gap)]"
+      bodyClassName="flex flex-col gap-[var(--section-gap)]"
     >
       <BentoGridSection
         tooltip={
           "此页功能为展示个股及族群强弱\n深红=当日新高\n浅红=当日偏强\n深绿=当日偏弱\n浅绿=当日偏弱"
         }
         title={t("dashboard.thermometer.sectionTitle")}
-        gridClassName="h-full auto-rows-fr lg:grid-cols-12"
+        gridClassName="auto-rows-auto items-start lg:h-full lg:auto-rows-fr lg:grid-cols-12"
       >
-        <div className="space-y-2 lg:col-span-10">
+        <div className="order-last self-start flex flex-col gap-2 lg:order-none lg:col-span-10">
           <div
-            className="grid grid-cols-10 gap-2"
+            className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-10"
             data-testid="market-heat-grid"
           >
-            {panels.length === 0 ? (
+            {!hasSpotLatestList ? (
               <div
-                className="col-span-10 rounded-md border border-border bg-card p-4 text-sm text-muted-foreground"
+                className="col-span-full rounded-md border border-border bg-card p-3 text-xs text-muted-foreground sm:p-4 sm:text-sm"
                 data-testid="market-heat-empty"
               >
                 {t("dashboard.thermometer.waiting")}
+              </div>
+            ) : panels.length === 0 ? (
+              <div
+                className="col-span-full rounded-md border border-border bg-card p-3 text-xs text-muted-foreground sm:p-4 sm:text-sm"
+                data-testid="market-heat-empty"
+              >
+                {t("dashboard.thermometer.noSymbols")}
               </div>
             ) : (
               panels.map((panel) => {
@@ -311,20 +330,20 @@ export function MarketThermometerPage(): JSX.Element {
                 return (
                   <div
                     key={panel.symbol}
-                    className={`col-span-1 rounded-md border border-border p-2 ${tone.cardClassName}`}
+                    className={`col-span-1 rounded-md border border-border p-1.5 sm:p-2 ${tone.cardClassName}`}
                     style={tone.cardStyle}
                     data-testid="market-heat-stock-panel"
                   >
                     <div className="flex flex-col items-start">
-                      <p className="text-xs font-medium text-foreground">
+                      <p className="text-[10px] font-medium text-foreground sm:text-xs">
                         {panel.symbol}
                       </p>
                     </div>
-                    <p className="mt-1 text-lg font-semibold tracking-tight text-foreground">
+                    <p className="mt-1 text-base font-semibold tracking-tight text-foreground sm:text-lg">
                       {formatLastPrice(panel.price)}
                     </p>
                     <div
-                      className={`mt-1 flex flex-col gap-0.5 text-xs ${tone.accentClassName}`}
+                      className={`mt-1 flex flex-col gap-0.5 text-[10px] sm:text-xs ${tone.accentClassName}`}
                     >
                       <span>{formatSigned(panel.priceChg)}</span>
                       <span>{formatSigned(panel.pctChg, "%")}</span>
@@ -336,19 +355,20 @@ export function MarketThermometerPage(): JSX.Element {
           </div>
         </div>
 
-        <div className="space-y-2 lg:col-span-2">
+        <div className="order-first self-start grid grid-cols-2 gap-2 lg:order-none lg:col-span-2 lg:grid-cols-1">
           <StrengthGaugePanelCard
             title={MARKET_THERMOMETER_SECTOR_LABEL.weighted}
             note={t("dashboard.thermometer.note.weighted")}
             strength={sectorStrengthByType.weighted}
             span={12}
             units={1}
+            panelStyle={{ minHeight: "11rem" }}
             panelTestId="market-thermometer-weighted-strength-panel"
             gaugeTestId="market-thermometer-weighted-strength-gauge"
             strengthTestId="market-thermometer-weighted-strength-value"
             gaugeWidth={220}
             gaugeHeight={124}
-            gaugeContainerClassName="mx-auto w-full max-w-[220px]"
+            gaugeContainerClassName="mx-auto w-full max-w-[180px] sm:max-w-[220px]"
           />
           <StrengthGaugePanelCard
             title={MARKET_THERMOMETER_SECTOR_LABEL.financial}
@@ -356,12 +376,13 @@ export function MarketThermometerPage(): JSX.Element {
             strength={sectorStrengthByType.financial}
             span={12}
             units={1}
+            panelStyle={{ minHeight: "11rem" }}
             panelTestId="market-thermometer-financial-strength-panel"
             gaugeTestId="market-thermometer-financial-strength-gauge"
             strengthTestId="market-thermometer-financial-strength-value"
             gaugeWidth={220}
             gaugeHeight={124}
-            gaugeContainerClassName="mx-auto w-full max-w-[220px]"
+            gaugeContainerClassName="mx-auto w-full max-w-[180px] sm:max-w-[220px]"
           />
           <StrengthGaugePanelCard
             title={MARKET_THERMOMETER_SECTOR_LABEL.tech}
@@ -369,25 +390,27 @@ export function MarketThermometerPage(): JSX.Element {
             strength={sectorStrengthByType.tech}
             span={12}
             units={1}
+            panelStyle={{ minHeight: "11rem" }}
             panelTestId="market-thermometer-tech-strength-panel"
             gaugeTestId="market-thermometer-tech-strength-gauge"
             strengthTestId="market-thermometer-tech-strength-value"
             gaugeWidth={220}
             gaugeHeight={124}
-            gaugeContainerClassName="mx-auto w-full max-w-[220px]"
+            gaugeContainerClassName="mx-auto w-full max-w-[180px] sm:max-w-[220px]"
           />
           <PanelCard
             title={t("dashboard.thermometer.meter.title")}
             note={t("dashboard.thermometer.meter.note")}
             span={12}
-            units={2}
+            units={1}
+            style={{ minHeight: "11rem" }}
           >
             <div className="mt-[var(--panel-gap)] flex h-full min-h-[130px] flex-col items-center justify-center text-center">
-              <p className="text-xs text-muted-foreground">
+              <p className="text-[10px] text-muted-foreground sm:text-xs">
                 {t("dashboard.thermometer.meter.formula")}
               </p>
               <p
-                className="mt-2 text-4xl font-semibold tracking-tight text-foreground"
+                className="mt-2 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl"
                 data-testid="market-thermometer-strength-score"
               >
                 {marketStrengthPct === null
@@ -395,7 +418,7 @@ export function MarketThermometerPage(): JSX.Element {
                   : `${formatSigned(marketStrengthPct)}%`}
               </p>
               <p
-                className="mt-1 text-xs text-muted-foreground"
+                className="mt-1 text-[10px] text-muted-foreground sm:text-xs"
                 data-testid="market-thermometer-strength-count"
               >
                 {marketStrengthCount > 0

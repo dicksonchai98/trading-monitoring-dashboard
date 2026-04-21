@@ -399,7 +399,7 @@ class IndexContributionRunner:
         # Build treemap structure: group symbols by sector
         sectors_dict: dict[str, list[dict[str, Any]]] = {}
         for symbol_data in self.engine.symbol_state.values():
-            sector = str(symbol_data.get("sector", "other"))
+            sector = str(symbol_data.get("sector", "other")).strip().lower() or "other"
             if sector not in sectors_dict:
                 sectors_dict[sector] = []
 

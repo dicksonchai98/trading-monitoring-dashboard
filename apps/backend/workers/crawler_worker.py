@@ -12,6 +12,7 @@ from app.modules.market_crawler.jobs.single_date_job import SingleDateCrawlerJob
 SINGLE_DATE_JOB = "crawler-single-date"
 RANGE_BACKFILL_JOB = "crawler-backfill"
 CRAWLER_WORKER_TYPE = "market_crawler"
+TAIFEX_INSTITUTION_DATASET = "taifex_institution_open_interest_daily"
 
 
 def build_crawler_worker_runtime(queue: RedisBatchQueue | None = None) -> QueueWorkerRuntime:

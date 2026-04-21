@@ -1,5 +1,5 @@
-import { useNavigate } from "react-router-dom";
 import { useState } from "react";
+import { useShellNavigation } from "@/app/navigation/ShellNavigationContext";
 import { NavUserTrigger, type SidebarUserIdentity } from "@/components/nav-user-trigger";
 import {
   DropdownMenu,
@@ -17,7 +17,7 @@ import { LogInIcon, Settings2Icon, SparklesIcon } from "lucide-react";
 
 export function NavUserGuest({ user }: { user: SidebarUserIdentity }) {
   const t = useT();
-  const navigate = useNavigate();
+  const { navigateWithTransition } = useShellNavigation();
   const { isMobile } = useSidebar();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [initialSettingsSection, setInitialSettingsSection] = useState<SettingsSection>("general");
@@ -53,7 +53,7 @@ export function NavUserGuest({ user }: { user: SidebarUserIdentity }) {
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => navigate("/subscription")}>
+            <DropdownMenuItem onClick={() => navigateWithTransition("/subscription")}>
               <SparklesIcon />
               {t("user.upgradeToPro")}
             </DropdownMenuItem>
@@ -63,7 +63,7 @@ export function NavUserGuest({ user }: { user: SidebarUserIdentity }) {
               {t("user.settings")}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => navigate("/login")}>
+            <DropdownMenuItem onClick={() => navigateWithTransition("/login")}>
               <LogInIcon />
               {t("nav.login")}
             </DropdownMenuItem>

@@ -7,7 +7,11 @@ import { PageSkeleton } from "@/components/ui/page-skeleton";
 import { SidebarInset, SidebarProvider, SidebarSeparator, SidebarTrigger } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
+import { ShellNavigationProvider, useShellNavigation } from "@/app/navigation/ShellNavigationContext";
+import { prefetchDashboardRouteData } from "@/features/dashboard/lib/dashboard-route-prefetch";
 import { useI18n, type TranslationKey } from "@/lib/i18n";
+import { queryClient } from "@/lib/query/client";
+import { useAuthStore } from "@/lib/store/auth-store";
 
 const COLOR_MODE_STORAGE_KEY = "ui.color.mode";
 
@@ -36,26 +40,35 @@ const BREADCRUMB_LABEL_KEYS: Record<string, TranslationKey> = {
   dashboard: "shell.breadcrumb.dashboard",
   "historical-data-analysis": "shell.breadcrumb.historicalDataAnalysis",
   "market-thermometer": "shell.breadcrumb.marketThermometer",
+  "industry-contribution-heatmap":
+    "shell.breadcrumb.industryContributionHeatmap",
   "historical-data-loader": "shell.breadcrumb.historicalDataLoader",
   "historical-amplitude-distribution": "shell.breadcrumb.amplitudeDistribution",
+  "options-positioning": "shell.breadcrumb.optionsPositioning",
+  "options-add-close": "shell.breadcrumb.optionsAddClose",
   subscription: "shell.breadcrumb.subscription",
   admin: "shell.breadcrumb.admin",
   audit: "shell.breadcrumb.auditLog",
   settings: "shell.breadcrumb.settings",
 };
 
-export function AppShell(): JSX.Element {
+function AppShellContent(): JSX.Element {
   const { locale, setLocale, t } = useI18n();
   const location = useLocation();
-  const [routeLoading, setRouteLoading] = useState(true);
+  const { createLinkClickHandler, isRouteLoading } = useShellNavigation();
+  const token = useAuthStore((state) => state.token);
+  const role = useAuthStore((state) => state.role);
+  const resolved = useAuthStore((state) => state.resolved);
   const [colorMode, setColorMode] = useState<ColorMode>(readInitialColorMode);
   const segments = location.pathname.split("/").filter(Boolean);
 
-  useEffect(() => {
-    setRouteLoading(true);
-    const timerId = window.setTimeout(() => setRouteLoading(false), 260);
-    return () => window.clearTimeout(timerId);
-  }, [location.pathname]);
+  function prefetchDashboard(): Promise<void> {
+    return prefetchDashboardRouteData(queryClient, {
+      resolved,
+      token,
+      role,
+    });
+  }
 
   useEffect(() => {
     applyColorModeToDocument(colorMode);
@@ -109,7 +122,16 @@ export function AppShell(): JSX.Element {
               <BreadcrumbList>
                 <BreadcrumbItem>
                   <BreadcrumbLink asChild>
-                    <Link to="/dashboard">{t("app.brand")}</Link>
+                    <Link
+                      to="/dashboard"
+                      onClick={createLinkClickHandler(
+                        "/dashboard",
+                        undefined,
+                        prefetchDashboard,
+                      )}
+                    >
+                      {t("app.brand")}
+                    </Link>
                   </BreadcrumbLink>
                 </BreadcrumbItem>
                 {segments.map((segment, index) => {
@@ -124,7 +146,9 @@ export function AppShell(): JSX.Element {
                           <BreadcrumbPage>{label}</BreadcrumbPage>
                         ) : (
                           <BreadcrumbLink asChild>
-                            <Link to={href}>{label}</Link>
+                            <Link to={href} onClick={createLinkClickHandler(href)}>
+                              {label}
+                            </Link>
                           </BreadcrumbLink>
                         )}
                       </BreadcrumbItem>
@@ -141,10 +165,18 @@ export function AppShell(): JSX.Element {
             {renderHeaderActions("h-8 w-8")}
           </header>
           <div className="min-h-screen min-w-0 bg-background p-[var(--shell-padding)]">
-            {routeLoading ? <PageSkeleton className="px-0 py-0" /> : <Outlet />}
+            {isRouteLoading ? <PageSkeleton className="px-0 py-0" /> : <Outlet />}
           </div>
         </SidebarInset>
       </SidebarProvider>
     </TooltipProvider>
+  );
+}
+
+export function AppShell(): JSX.Element {
+  return (
+    <ShellNavigationProvider>
+      <AppShellContent />
+    </ShellNavigationProvider>
   );
 }

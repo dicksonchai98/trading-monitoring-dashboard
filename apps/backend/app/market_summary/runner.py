@@ -419,7 +419,11 @@ class MarketSummaryRunner:
     def _load_previous_day_estimated_cache(self, trade_date: date, code: str) -> dict[int, float]:
         from app.models.market_summary_1m import MarketSummary1mModel
 
-        with self._session_factory() as session:
+        context_or_session = self._session_factory()
+        if context_or_session is None:
+            return {}
+
+        def _query_rows(session: Any) -> list[tuple[Any, Any]]:
             previous_trade_date = session.execute(
                 select(MarketSummary1mModel.trade_date)
                 .where(MarketSummary1mModel.market_code == code)
@@ -428,9 +432,8 @@ class MarketSummaryRunner:
                 .limit(1)
             ).scalar_one_or_none()
             if previous_trade_date is None:
-                return {}
-
-            rows = session.execute(
+                return []
+            return session.execute(
                 select(
                     MarketSummary1mModel.minute_ts,
                     MarketSummary1mModel.estimated_turnover,
@@ -438,6 +441,18 @@ class MarketSummaryRunner:
                 .where(MarketSummary1mModel.market_code == code)
                 .where(MarketSummary1mModel.trade_date == previous_trade_date)
             ).all()
+
+        if hasattr(context_or_session, "__enter__"):
+            with context_or_session as session:
+                rows = _query_rows(session)
+        else:
+            session = context_or_session
+            try:
+                rows = _query_rows(session)
+            finally:
+                close = getattr(session, "close", None)
+                if callable(close):
+                    close()
 
         result: dict[int, float] = {}
         for minute_ts, estimated_turnover in rows:

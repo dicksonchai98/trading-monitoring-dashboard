@@ -286,6 +286,4 @@ def validate_stripe_settings() -> None:
     if not settings.secret_key.startswith("sk_"):
         raise RuntimeError("invalid STRIPE_SECRET_KEY: expected key starting with 'sk_'")
     if not settings.webhook_secret.startswith("whsec_"):
-        raise RuntimeError(
-            "invalid STRIPE_WEBHOOK_SECRET: expected key starting with 'whsec_'"
-        )
+        raise RuntimeError("invalid STRIPE_WEBHOOK_SECRET: expected key starting with 'whsec_'")

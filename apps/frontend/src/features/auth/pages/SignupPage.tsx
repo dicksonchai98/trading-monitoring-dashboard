@@ -8,7 +8,8 @@ import { SignupForm } from "@/components/signup-form";
 import { sendEmailOtp } from "@/features/auth/api/auth";
 import { AuthSplitPageSkeleton } from "@/features/auth/components/AuthSplitPageSkeleton";
 import { formatAuthError } from "@/features/auth/lib/auth-page-shared";
-import { registerSchema, type RegisterFormValues } from "@/features/auth/validation/auth-schema";
+import { useT } from "@/lib/i18n";
+import { createRegisterSchema, type RegisterFormValues } from "@/features/auth/validation/auth-schema";
 import { useAuthStore } from "@/lib/store/auth-store";
 
 interface SignupVerifyPageState {
@@ -18,8 +19,9 @@ interface SignupVerifyPageState {
 export function SignupPage(): JSX.Element {
   const navigate = useNavigate();
   const { role, resolved } = useAuthStore();
+  const t = useT();
   const form = useForm<RegisterFormValues>({
-    resolver: zodResolver(registerSchema),
+    resolver: zodResolver(createRegisterSchema(t)),
     defaultValues: { user_id: "", email: "", password: "", confirmPassword: "" },
   });
 
@@ -56,7 +58,7 @@ export function SignupPage(): JSX.Element {
             emailError={form.formState.errors.email?.message}
             passwordError={form.formState.errors.password?.message}
             confirmPasswordError={form.formState.errors.confirmPassword?.message}
-            errorMessage={formatAuthError(sendOtpMutation.error instanceof Error ? sendOtpMutation.error.message : undefined)}
+            errorMessage={formatAuthError(t, sendOtpMutation.error instanceof Error ? sendOtpMutation.error.message : undefined)}
             isPending={sendOtpMutation.isPending}
             onUserIdChange={(value) => form.setValue("user_id", value, { shouldDirty: true, shouldValidate: true })}
             onEmailChange={(value) => form.setValue("email", value, { shouldDirty: true, shouldValidate: true })}

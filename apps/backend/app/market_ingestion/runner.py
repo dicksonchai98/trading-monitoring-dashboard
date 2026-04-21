@@ -28,10 +28,10 @@ from app.market_ingestion.shioaji_subscription import (
     resolve_contract,
     resolve_market_contract,
     subscribe_market_topic,
-    subscribe_spot_ticks,
+    subscribe_spot_ticks_resilient,
     subscribe_topics,
 )
-from app.market_ingestion.spot_symbols import load_and_validate_spot_symbols
+from app.market_ingestion.spot_symbols import classify_spot_symbols, load_spot_symbols_from_file
 from app.market_ingestion.stream_keys import build_stream_key
 from app.market_ingestion.writer import RedisWriter
 from app.services.metrics import Metrics
@@ -428,11 +428,7 @@ class MarketIngestionRunner:
 
     def _load_spot_symbols(self) -> list[str]:
         try:
-            symbols = load_and_validate_spot_symbols(
-                path=self._spot_symbols_file,
-                expected_count=self._spot_symbols_expected_count,
-            )
-            return symbols
+            parsed_symbols = load_spot_symbols_from_file(self._spot_symbols_file)
         except Exception as err:
             if self._spot_required:
                 raise RuntimeError(f"spot symbol registry validation failed: {err}") from err
@@ -444,22 +440,80 @@ class MarketIngestionRunner:
                 err,
             )
             return []
+        classified = classify_spot_symbols(parsed_symbols)
+        valid_symbols = classified.valid_symbols
+        if len(parsed_symbols) != self._spot_symbols_expected_count:
+            logger.warning(
+                "spot symbol registry count mismatch file=%s expected=%s actual=%s valid=%s",
+                self._spot_symbols_file,
+                self._spot_symbols_expected_count,
+                len(parsed_symbols),
+                len(valid_symbols),
+            )
+        if classified.invalid_symbols or classified.duplicate_symbols:
+            logger.warning(
+                "spot symbol registry sanitized file=%s valid=%s invalid=%s duplicates=%s",
+                self._spot_symbols_file,
+                len(valid_symbols),
+                classified.invalid_symbols[:10],
+                classified.duplicate_symbols[:10],
+            )
+        if valid_symbols:
+            return valid_symbols
+        if self._spot_required:
+            raise RuntimeError(
+                "spot symbol registry validation failed: no valid symbols after sanitization"
+            )
+        logger.warning(
+            "spot ingestion disabled due to invalid symbol registry file=%s expected=%s valid=0",
+            self._spot_symbols_file,
+            self._spot_symbols_expected_count,
+        )
+        return []
 
     def _subscribe_spot_symbols(self) -> None:
         self._spot_symbols = self._load_spot_symbols()
         self._spot_enabled = bool(self._spot_symbols)
         if not self._spot_enabled:
             return
-        try:
-            subscribed = subscribe_spot_ticks(self._client.api, self._spot_symbols)
-        except Exception as err:
+        result = subscribe_spot_ticks_resilient(self._client.api, self._spot_symbols)
+        self._spot_symbols = result.subscribed_symbols
+        self._spot_enabled = bool(self._spot_symbols)
+        if result.failed_symbols:
+            logger.warning(
+                "spot subscription skipped unresolved symbols count=%s symbols=%s",
+                len(result.failed_symbols),
+                result.failed_symbols[:10],
+            )
+        if not self._spot_enabled:
             if self._spot_required:
-                raise RuntimeError(f"spot subscription failed: {err}") from err
-            logger.warning("spot ingestion disabled due to subscribe error=%s", err)
-            self._spot_enabled = False
+                raise RuntimeError(
+                    "spot subscription failed: no valid spot contracts resolved "
+                    f"symbols={result.failed_symbols[:10]}"
+                )
+            logger.warning("spot ingestion disabled due to subscribe error=no valid spot contracts")
             self._spot_symbols = []
             return
-        logger.info("ingestor subscribed spot symbols count=%s", subscribed)
+        logger.info("ingestor subscribed spot symbols count=%s", len(self._spot_symbols))
+
+    def _resubscribe_spot_symbols(self) -> None:
+        if not self._spot_symbols:
+            self._spot_enabled = False
+            return
+        result = subscribe_spot_ticks_resilient(self._client.api, self._spot_symbols)
+        self._spot_symbols = result.subscribed_symbols
+        self._spot_enabled = bool(self._spot_symbols)
+        if result.failed_symbols:
+            logger.warning(
+                "spot resubscribe skipped unresolved symbols count=%s symbols=%s",
+                len(result.failed_symbols),
+                result.failed_symbols[:10],
+            )
+        if not self._spot_enabled and self._spot_required:
+            raise RuntimeError(
+                "spot resubscribe failed: no valid spot contracts resolved "
+                f"symbols={result.failed_symbols[:10]}"
+            )
 
     async def _login_and_subscribe(self) -> None:
         self._client.login()
@@ -470,8 +524,13 @@ class MarketIngestionRunner:
             self._market_contract = resolve_market_contract(self._client.api, self._market_code)
             subscribe_market_topic(self._client.api, self._market_contract)
         if self._otc_enabled:
-            self._otc_contract = resolve_market_contract(self._client.api, self._otc_code)
-            subscribe_market_topic(self._client.api, self._otc_contract)
+            try:
+                self._otc_contract = resolve_market_contract(self._client.api, self._otc_code)
+                subscribe_market_topic(self._client.api, self._otc_contract)
+            except Exception:
+                logger.warning("ingestor OTC subscription disabled: unable to resolve contract")
+                self._otc_enabled = False
+                self._otc_contract = None
         self._subscribe_spot_symbols()
         logger.info(
             "ingestor subscribed code=%s quote_types=%s",
@@ -487,10 +546,15 @@ class MarketIngestionRunner:
             self._market_contract = resolve_market_contract(self._client.api, self._market_code)
             subscribe_market_topic(self._client.api, self._market_contract)
         if self._otc_enabled:
-            self._otc_contract = resolve_market_contract(self._client.api, self._otc_code)
-            subscribe_market_topic(self._client.api, self._otc_contract)
+            try:
+                self._otc_contract = resolve_market_contract(self._client.api, self._otc_code)
+                subscribe_market_topic(self._client.api, self._otc_contract)
+            except Exception:
+                logger.warning("ingestor OTC resubscribe disabled: unable to resolve contract")
+                self._otc_enabled = False
+                self._otc_contract = None
         if self._spot_enabled:
-            subscribe_spot_ticks(self._client.api, self._spot_symbols)
+            self._resubscribe_spot_symbols()
         logger.info(
             "ingestor resubscribed code=%s quote_types=%s",
             INGESTOR_CODE,

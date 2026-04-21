@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import math
 import time
 from collections.abc import Callable
 from contextlib import suppress
@@ -16,6 +17,8 @@ from app.services.metrics import Metrics
 logger = logging.getLogger(__name__)
 TZ_OFFSET_SECONDS = 8 * 3600
 STRONG_MOVE_THRESHOLD_PCT = 0.8
+SPOT_MARKET_CODE = "SPOT_MARKET"
+SPOT_MARKET_DISTRIBUTION_BIN_WIDTH = 1
 
 
 def _resolve_strength_state(
@@ -89,6 +92,87 @@ def parse_event_ts(event_ts: str) -> datetime | None:
 def trade_date_from_event_ts(event_ts: datetime) -> str:
     epoch = event_ts.timestamp() + TZ_OFFSET_SECONDS
     return datetime.utcfromtimestamp(epoch).strftime("%Y-%m-%d")
+
+
+def _format_pct_bound(value: int) -> str:
+    return "0" if value == 0 else str(value)
+
+
+def _build_bucket_label(lower_bound: int) -> str:
+    upper_bound = lower_bound + SPOT_MARKET_DISTRIBUTION_BIN_WIDTH
+    return f"{_format_pct_bound(lower_bound)}%~{_format_pct_bound(upper_bound)}%"
+
+
+def _coerce_pct_change(value: Any) -> float | None:
+    pct = _coerce_float(value)
+    if pct is None or not math.isfinite(pct):
+        return None
+    return pct
+
+
+def _build_spot_market_distribution(
+    latest_state: dict[str, dict[str, Any]],
+) -> tuple[dict[str, Any], dict[str, Any]] | None:
+    up_count = 0
+    down_count = 0
+    flat_count = 0
+    total_count = 0
+    bucket_counts: dict[int, int] = {}
+    min_bucket: int | None = None
+    max_bucket: int | None = None
+
+    for state in latest_state.values():
+        pct_chg = _coerce_pct_change(state.get("pct_chg"))
+        if pct_chg is None:
+            continue
+        total_count += 1
+        if pct_chg > 0:
+            up_count += 1
+        elif pct_chg < 0:
+            down_count += 1
+        else:
+            flat_count += 1
+        bucket = int(math.floor(pct_chg))
+        bucket_counts[bucket] = bucket_counts.get(bucket, 0) + 1
+        min_bucket = bucket if min_bucket is None else min(min_bucket, bucket)
+        max_bucket = bucket if max_bucket is None else max(max_bucket, bucket)
+
+    buckets: list[dict[str, Any]] = []
+    if min_bucket is not None and max_bucket is not None:
+        for lower_bound in range(min_bucket, max_bucket + 1):
+            buckets.append(
+                {
+                    "label": _build_bucket_label(lower_bound),
+                    "lower_pct": lower_bound,
+                    "upper_pct": lower_bound + SPOT_MARKET_DISTRIBUTION_BIN_WIDTH,
+                    "count": bucket_counts.get(lower_bound, 0),
+                }
+            )
+
+    trend_index = None
+    if total_count > 0:
+        trend_index = round((up_count - down_count) / total_count, 6)
+
+    ts_ms = int(datetime.now(tz=timezone.utc).timestamp() * 1000)
+    latest_payload = {
+        "ts": ts_ms,
+        "up_count": up_count,
+        "down_count": down_count,
+        "flat_count": flat_count,
+        "total_count": total_count,
+        "trend_index": trend_index,
+        "bucket_width_pct": SPOT_MARKET_DISTRIBUTION_BIN_WIDTH,
+        "distribution_buckets": buckets,
+    }
+    series_payload = {
+        "ts": ts_ms,
+        "up_count": up_count,
+        "down_count": down_count,
+        "flat_count": flat_count,
+        "total_count": total_count,
+        "trend_index": trend_index,
+    }
+    return latest_payload, series_payload
 
 
 class LatestStateRunner:
@@ -392,6 +476,28 @@ class LatestStateRunner:
                 else:
                     self._redis.set(key, value)
                     self._redis.expire(key, self._state_ttl_seconds)
+            distribution = _build_spot_market_distribution(self._latest_state)
+            if distribution is not None:
+                latest_payload, series_payload = distribution
+                latest_key = f"{self._env}:state:{SPOT_MARKET_CODE}:spot_distribution:latest"
+                series_key = f"{self._env}:state:{SPOT_MARKET_CODE}:spot_distribution:zset"
+                latest_value = json.dumps(latest_payload, ensure_ascii=True)
+                series_value = json.dumps(series_payload, ensure_ascii=True)
+                can_pipe_zadd = pipe is not None and hasattr(pipe, "zadd")
+                if pipe is not None:
+                    pipe.set(latest_key, latest_value)
+                    pipe.expire(latest_key, self._state_ttl_seconds)
+                    if can_pipe_zadd:
+                        pipe.zadd(series_key, {series_value: latest_payload["ts"]})
+                        pipe.expire(series_key, self._state_ttl_seconds)
+                else:
+                    self._redis.set(latest_key, latest_value)
+                    self._redis.expire(latest_key, self._state_ttl_seconds)
+                if not can_pipe_zadd:
+                    redis_zadd = getattr(self._redis, "zadd", None)
+                    if callable(redis_zadd):
+                        redis_zadd(series_key, {series_value: latest_payload["ts"]})
+                        self._redis.expire(series_key, self._state_ttl_seconds)
             if pipe is not None:
                 pipe.execute()
             for symbol in to_flush:

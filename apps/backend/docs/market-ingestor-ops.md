@@ -26,8 +26,17 @@ Based on Context7 source `/llmstxt/sinotrade_github_io_llms-full_txt`, the start
 - `SHIOAJI_API_KEY`
 - `SHIOAJI_SECRET_KEY`
 - `REDIS_URL`
-- `INGESTOR_ENABLED=true`
 - `INGESTOR_ENV` (`dev` or `prod`)
+
+## Runtime ownership
+
+- `backend-api`: HTTP API only and does not bootstrap ingestion.
+- `backend-ingestor-worker`: owns Shioaji login/subscription/reconnect and Redis stream writes.
+
+## Start commands
+
+- Local worker run: `python -m workers.ingestor_worker`
+- Compose run: `docker compose up -d redis backend-api backend-ingestor-worker`
 
 ## Redis stream contract
 

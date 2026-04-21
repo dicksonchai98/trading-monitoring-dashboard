@@ -8,11 +8,13 @@ export const StickyBanner = ({
   children,
   hideOnScroll = false,
   onClose,
+  closeLabel = "Close sticky banner",
 }: {
   className?: string;
   children: React.ReactNode;
   hideOnScroll?: boolean;
   onClose?: () => void;
+  closeLabel?: string;
 }) => {
   const [open, setOpen] = useState(true);
   const { scrollY } = useScroll();
@@ -52,7 +54,7 @@ export const StickyBanner = ({
         animate={{
           scale: 1,
         }}
-        aria-label="Close sticky banner"
+        aria-label={closeLabel}
         className="absolute top-1/2 right-2 -translate-y-1/2 cursor-pointer"
         onClick={() => {
           setOpen(false);

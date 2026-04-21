@@ -70,6 +70,9 @@ def test_tick_bidask_spread_extension_migration_file_exists() -> None:
 
 def test_bidask_event_second_identity_migration_file_exists() -> None:
     path = Path("alembic/versions/20260407_01_add_bidask_event_second_identity.py")
+    assert path.exists()
+
+
 def test_kbar_analytics_migration_file_exists() -> None:
     path = Path("alembic/versions/20260406_01_add_kbar_analytics_tables.py")
     assert path.exists()

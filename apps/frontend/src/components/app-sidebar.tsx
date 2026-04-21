@@ -85,6 +85,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         items: [
           { title: t("nav.overview"), url: "/dashboard" },
           { title: t("nav.marketThermometer"), url: "/market-thermometer" },
+          {
+            title: t("nav.industryContributionHeatmap"),
+            url: "/industry-contribution-heatmap",
+          },
         ],
       },
       {
@@ -102,6 +106,15 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           },
         ],
       },
+      {
+        title: t("nav.comingSoon"),
+        url: "/options-positioning",
+        icon: <BarChart3Icon />,
+        items: [
+          { title: t("nav.optionsPositioning"), url: "/options-positioning" },
+          { title: t("nav.optionsAddClose"), url: "/options-add-close" },
+        ],
+      },
     ],
     [role, t],
   );
@@ -114,7 +127,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               url: "/admin/audit",
               icon: <ShieldCheckIcon />,
             },
-          ]
+        ]
         : [],
     [role, t],
   );
@@ -127,12 +140,16 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
     <Sidebar role="complementary" collapsible="icon" {...props}>
       <SidebarHeader>
-        <TeamSwitcher teams={teams} />
+        <TeamSwitcher teams={teams} disableDropdown />
       </SidebarHeader>
       <SidebarContent>
         <NavMain items={navMain} pathname={location.pathname} />
         {utilities.length > 0 ? (
-          <NavProjects projects={utilities} pathname={location.pathname} />
+          <NavProjects
+            label={t("nav.utilities")}
+            projects={utilities}
+            pathname={location.pathname}
+          />
         ) : null}
       </SidebarContent>
       <SidebarFooter>

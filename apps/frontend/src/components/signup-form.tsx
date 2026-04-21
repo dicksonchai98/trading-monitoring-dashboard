@@ -218,6 +218,7 @@ export function SignupForm(props: SignupFormProps): JSX.Element {
             id="signup-user-id"
             className="h-10 rounded-xl"
             value={props.userId}
+            placeholder={t("auth.placeholder.userIdRule")}
             onChange={(event) => props.onUserIdChange(event.target.value)}
             aria-invalid={Boolean(props.userIdError)}
             disabled={props.isPending}
@@ -236,6 +237,7 @@ export function SignupForm(props: SignupFormProps): JSX.Element {
             type="email"
             className="h-10 rounded-xl"
             value={props.email}
+            placeholder={t("auth.placeholder.email")}
             onChange={(event) => props.onEmailChange(event.target.value)}
             aria-invalid={Boolean(props.emailError)}
             disabled={props.isPending}
@@ -255,6 +257,7 @@ export function SignupForm(props: SignupFormProps): JSX.Element {
               type={showPassword ? "text" : "password"}
               className="h-10 rounded-xl pr-10"
               value={props.password}
+              placeholder={t("auth.placeholder.registerPasswordRule")}
               onChange={(event) => props.onPasswordChange(event.target.value)}
               aria-invalid={Boolean(props.passwordError)}
               disabled={props.isPending}
@@ -288,6 +291,7 @@ export function SignupForm(props: SignupFormProps): JSX.Element {
               type={showConfirmPassword ? "text" : "password"}
               className="h-10 rounded-xl pr-10"
               value={props.confirmPassword}
+              placeholder={t("auth.placeholder.confirmPassword")}
               onChange={(event) =>
                 props.onConfirmPasswordChange(event.target.value)
               }

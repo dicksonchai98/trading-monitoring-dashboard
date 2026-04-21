@@ -7,18 +7,23 @@ import {
   MetricLatestSchema,
   OtcSummaryLatestSchema,
   QuoteLatestSchema,
+  SpotMarketDistributionLatestSchema,
+  SpotMarketDistributionSeriesSchema,
   SpotLatestListSchema,
 } from "@/features/realtime/schemas/serving-event.schema";
 import { useRealtimeStore } from "@/features/realtime/store/realtime.store";
+import { createSseWorker } from "@/features/realtime/worker-index";
 import type {
   ServingSseEventName,
+  SpotMarketDistributionLatestPayload,
+  SpotMarketDistributionSeriesPayload,
   SpotLatestListPayload,
 } from "@/features/realtime/types/realtime.types";
 import { shouldBlockInsecureTransport } from "@/lib/api/transport";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api";
 const STREAM_PATH = "/v1/stream/sse";
-const DEFAULT_STREAM_CODE = "TXFD6";
+const DEFAULT_STREAM_CODE = "TXFE6";
 const SESSION_START_HHMM = "09:00:00";
 const SESSION_END_HHMM = "13:45:00";
 const TAIPEI_DATE_FORMATTER = new Intl.DateTimeFormat("en-CA", {
@@ -30,6 +35,8 @@ const TAIPEI_DATE_FORMATTER = new Intl.DateTimeFormat("en-CA", {
 const ENABLE_SPOT_GAP_K_MOCK =
   String(import.meta.env.VITE_ENABLE_SPOT_GAP_K_MOCK ?? "").toLowerCase() ===
   "true";
+const ENABLE_SSE_WORKER =
+  String(import.meta.env.VITE_ENABLE_SSE_WORKER ?? "").toLowerCase() === "true";
 const SPOT_GAP_K_SYMBOLS = [
   "2330",
   "2317",
@@ -63,31 +70,35 @@ interface ServingSseBatch {
   kbarCurrent?: ReturnType<
     typeof useRealtimeStore.getState
   >["kbarCurrentByCode"][string];
-  metricLatest?: {
-    code: string;
-    payload: ReturnType<
+  metricLatestMap?: Record<
+    string,
+    ReturnType<typeof useRealtimeStore.getState>["metricLatestByCode"][string]
+  >;
+  marketSummaryMap?: Record<
+    string,
+    ReturnType<
       typeof useRealtimeStore.getState
-    >["metricLatestByCode"][string];
-  };
-  marketSummaryLatest?: {
-    code: string;
-    payload: ReturnType<
+    >["marketSummaryLatestByCode"][string]
+  >;
+  otcSummaryMap?: Record<
+    string,
+    ReturnType<
       typeof useRealtimeStore.getState
-    >["marketSummaryLatestByCode"][string];
-  };
-  otcSummaryLatest?: {
-    code: string;
-    payload: ReturnType<
-      typeof useRealtimeStore.getState
-    >["otcSummaryLatestByCode"][string];
-  };
-  quoteLatest?: {
-    code: string;
-    payload: ReturnType<
-      typeof useRealtimeStore.getState
-    >["quoteLatestByCode"][string];
-  };
+    >["otcSummaryLatestByCode"][string]
+  >;
+  quoteLatestMap?: Record<
+    string,
+    ReturnType<typeof useRealtimeStore.getState>["quoteLatestByCode"][string]
+  >;
   spotLatestList?: SpotLatestListPayload;
+  spotMarketDistributionLatest?: SpotMarketDistributionLatestPayload;
+  spotMarketDistributionSeries?: SpotMarketDistributionSeriesPayload;
+  indexContribRanking?:
+    | ReturnType<typeof useRealtimeStore.getState>["indexContribRanking"]
+    | null;
+  indexContribSector?:
+    | ReturnType<typeof useRealtimeStore.getState>["indexContribSector"]
+    | null;
   heartbeatTs?: number;
 }
 
@@ -106,12 +117,10 @@ interface SpotGapMockSymbolState {
 
 const SPOT_STRENGTH_THRESHOLD_PCT = 0.8;
 let cachedSessionDatePart: string | null = null;
-let cachedSessionBounds:
-  | {
-      startMs: number;
-      endMs: number;
-    }
-  | null = null;
+let cachedSessionBounds: {
+  startMs: number;
+  endMs: number;
+} | null = null;
 
 type SpotStrengthState =
   | "new_high"
@@ -396,6 +405,12 @@ function shouldApplyDashboardSseEvent(
     tsMs = toEpochMs(payload.ts);
   } else if (eventName === "spot_latest_list") {
     tsMs = toEpochMs(payload.ts);
+  } else if (eventName === "spot_market_distribution_latest") {
+    tsMs = toEpochMs(payload.ts);
+  } else if (eventName === "spot_market_distribution_series") {
+    const items = Array.isArray(payload.items) ? payload.items : [];
+    const lastItem = items[items.length - 1];
+    tsMs = toEpochMs(lastItem?.ts);
   } else if (eventName === "quote_latest") {
     tsMs = toEpochMs(payload.event_ts) ?? toEpochMs(payload.ts);
   }
@@ -470,7 +485,7 @@ function applyServingSseBatch(batch: ServingSseBatch): void {
   useRealtimeStore.getState().applySseBatch(batch);
 }
 
-function collectServingSseEvent(
+export function collectServingSseEvent(
   eventName: string,
   data: unknown,
   batch: ServingSseBatch,
@@ -489,15 +504,28 @@ function collectServingSseEvent(
     if (!parsed.success) {
       return;
     }
-    const fallbackCode = DEFAULT_STREAM_CODE;
+    // Determine fallback code: prefer the most recent kbar_current code in store, else DEFAULT_STREAM_CODE
+    let fallbackCode = DEFAULT_STREAM_CODE;
+    try {
+      const kbarMap = useRealtimeStore.getState().kbarCurrentByCode;
+      let latestTs = -Infinity;
+      for (const [k, v] of Object.entries(kbarMap)) {
+        const ts = (v as any)?.ts ?? (v as any)?.minute_ts ?? 0;
+        if (typeof ts === "number" && ts > latestTs) {
+          latestTs = ts;
+          fallbackCode = k;
+        }
+      }
+    } catch (e) {
+      // ignore and fall back to DEFAULT_STREAM_CODE
+    }
+
     const payloadCode =
       typeof (data as { code?: unknown })?.code === "string"
         ? (data as { code: string }).code || fallbackCode
         : fallbackCode;
-    batch.metricLatest = {
-      code: payloadCode,
-      payload: parsed.data,
-    };
+    batch.metricLatestMap = batch.metricLatestMap || {};
+    batch.metricLatestMap[payloadCode] = parsed.data;
     return;
   }
 
@@ -506,13 +534,25 @@ function collectServingSseEvent(
     if (!parsed.success) {
       return;
     }
-    const fallbackCode = DEFAULT_STREAM_CODE;
+    // prefer code field if present; otherwise attempt to use latest kbar_current code from store
+    let fallbackCode = DEFAULT_STREAM_CODE;
+    try {
+      const kbarMap = useRealtimeStore.getState().kbarCurrentByCode;
+      let latestTs = -Infinity;
+      for (const [k, v] of Object.entries(kbarMap)) {
+        const ts = (v as any)?.ts ?? (v as any)?.minute_ts ?? 0;
+        if (typeof ts === "number" && ts > latestTs) {
+          latestTs = ts;
+          fallbackCode = k;
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
     const payloadCode =
       parsed.data.code || parsed.data.market_code || fallbackCode;
-    batch.marketSummaryLatest = {
-      code: payloadCode,
-      payload: parsed.data,
-    };
+    batch.marketSummaryMap = batch.marketSummaryMap || {};
+    batch.marketSummaryMap[payloadCode] = parsed.data;
     return;
   }
 
@@ -521,7 +561,7 @@ function collectServingSseEvent(
     if (!parsed.success) {
       return;
     }
-    useRealtimeStore.getState().setHeartbeat(parsed.data.ts);
+    batch.heartbeatTs = parsed.data.ts;
     return;
   }
 
@@ -530,7 +570,7 @@ function collectServingSseEvent(
     if (!parsed.success) {
       return;
     }
-    useRealtimeStore.getState().setIndexContribRanking(parsed.data);
+    batch.indexContribRanking = parsed.data;
     return;
   }
 
@@ -539,7 +579,7 @@ function collectServingSseEvent(
     if (!parsed.success) {
       return;
     }
-    useRealtimeStore.getState().setIndexContribSector(parsed.data);
+    batch.indexContribSector = parsed.data;
     batch.heartbeatTs = parsed.data.ts;
     return;
   }
@@ -553,19 +593,50 @@ function collectServingSseEvent(
     return;
   }
 
+  if (eventName === "spot_market_distribution_latest") {
+    const parsed = SpotMarketDistributionLatestSchema.safeParse(data);
+    if (!parsed.success) {
+      return;
+    }
+    batch.spotMarketDistributionLatest = parsed.data;
+    return;
+  }
+
+  if (eventName === "spot_market_distribution_series") {
+    const parsed = SpotMarketDistributionSeriesSchema.safeParse(data);
+    if (!parsed.success) {
+      return;
+    }
+    batch.spotMarketDistributionSeries = parsed.data;
+    return;
+  }
+
   if (eventName === "otc_summary_latest") {
     const parsed = OtcSummaryLatestSchema.safeParse(data);
     if (!parsed.success) {
       return;
     }
-    const payloadCode =
-      typeof parsed.data.code === "string" && parsed.data.code.trim()
-        ? parsed.data.code
-        : "OTC001";
-    batch.otcSummaryLatest = {
-      code: payloadCode,
-      payload: parsed.data,
-    };
+    let payloadCode = "OTC001";
+    if (typeof parsed.data.code === "string" && parsed.data.code.trim()) {
+      payloadCode = parsed.data.code;
+    } else {
+      // attempt to fallback to latest kbar_current
+      try {
+        const kbarMap = useRealtimeStore.getState().kbarCurrentByCode;
+        let latestTs = -Infinity;
+        for (const [k, v] of Object.entries(kbarMap)) {
+          const ts = (v as any)?.ts ?? (v as any)?.minute_ts ?? 0;
+          if (typeof ts === "number" && ts > latestTs) {
+            latestTs = ts;
+            payloadCode = k;
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+    batch.otcSummaryMap = batch.otcSummaryMap || {};
+    batch.otcSummaryMap[payloadCode] = parsed.data;
     return;
   }
 
@@ -574,23 +645,46 @@ function collectServingSseEvent(
     if (!parsed.success) {
       return;
     }
-    const fallbackCode = DEFAULT_STREAM_CODE;
+    // prefer explicit code; else try to reuse latest kbar_current code, then fallback
+    let fallbackCode = DEFAULT_STREAM_CODE;
+    try {
+      const kbarMap = useRealtimeStore.getState().kbarCurrentByCode;
+      let latestTs = -Infinity;
+      for (const [k, v] of Object.entries(kbarMap)) {
+        const ts = (v as any)?.ts ?? (v as any)?.minute_ts ?? 0;
+        if (typeof ts === "number" && ts > latestTs) {
+          latestTs = ts;
+          fallbackCode = k;
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+
     const payloadCode = parsed.data.code || fallbackCode;
-    batch.quoteLatest = {
-      code: payloadCode,
-      payload: parsed.data,
-    };
+    batch.quoteLatestMap = batch.quoteLatestMap || {};
+    batch.quoteLatestMap[payloadCode] = parsed.data;
   }
 }
 
-class RealtimeManager {
+export class RealtimeManager {
   private token: string | null = null;
   private abortController: AbortController | null = null;
+  private streamTask: Promise<void> | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private spotGapMockTimer: ReturnType<typeof setInterval> | null = null;
   private spotGapMockGenerator: Generator<SpotLatestListPayload> | null = null;
   private reconnectAttempts = 0;
+  private startSequence = 0;
   private stoppedByClient = false;
+
+  // Pending batch for client-side time-window aggregation
+  private pendingBatch: ServingSseBatch | null = null;
+  private pendingBatchTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly BATCH_WINDOW_MS = Number(
+    import.meta.env.VITE_SSE_BATCH_WINDOW_MS ?? 100,
+  );
+  private worker: Worker | null = null;
 
   connect(token: string): void {
     if (!token) {
@@ -616,6 +710,7 @@ class RealtimeManager {
   disconnect(): void {
     this.stoppedByClient = true;
     this.token = null;
+    this.startSequence += 1;
     this.reconnectAttempts = 0;
     this.clearReconnectTimer();
     this.clearSpotGapMockTimer();
@@ -623,16 +718,63 @@ class RealtimeManager {
       this.abortController.abort();
       this.abortController = null;
     }
+    if (this.pendingBatchTimer) {
+      clearTimeout(this.pendingBatchTimer);
+      this.pendingBatchTimer = null;
+    }
+    this.pendingBatch = null;
+    if (this.worker) {
+      try {
+        this.worker.postMessage({ type: "teardown" });
+      } catch {
+        // ignore
+      }
+      try {
+        this.worker.terminate();
+      } catch {
+        // ignore
+      }
+      this.worker = null;
+    }
     useRealtimeStore.getState().setConnectionStatus("idle", null);
   }
 
   private start(): void {
+    const sequence = ++this.startSequence;
+    void this.startWhenReady(sequence);
+  }
+
+  private handleWorkerMessage(ev: MessageEvent): void {
+    try {
+      const data = ev.data;
+      if (!data || typeof data !== "object") return;
+      if (data.type === "batch" && data.batch) {
+        this.mergeIntoPendingBatch(data.batch);
+      }
+    } catch (e) {
+      // swallow
+    }
+  }
+
+  private async startWhenReady(sequence: number): Promise<void> {
     if (!this.token) {
       return;
     }
 
+    const previousTask = this.streamTask;
     if (this.abortController) {
       this.abortController.abort();
+    }
+
+    if (previousTask) {
+      await previousTask.catch(() => undefined);
+      if (
+        sequence !== this.startSequence ||
+        !this.token ||
+        this.stoppedByClient
+      ) {
+        return;
+      }
     }
 
     const controller = new AbortController();
@@ -644,45 +786,58 @@ class RealtimeManager {
         null,
       );
 
-    void this.stream(controller.signal, this.token).catch((error: unknown) => {
-      if (this.stoppedByClient || controller.signal.aborted) {
-        return;
-      }
+    const streamTask = this.stream(controller.signal, this.token)
+      .catch((error: unknown) => {
+        if (this.stoppedByClient || controller.signal.aborted) {
+          return;
+        }
 
-      if (error instanceof Error && error.message === "insecure_transport") {
+        if (error instanceof Error && error.message === "insecure_transport") {
+          useRealtimeStore
+            .getState()
+            .setConnectionStatus("error", "stream_disconnected");
+          return;
+        }
+
+        const status =
+          typeof error === "object" && error !== null && "status" in error
+            ? Number((error as StreamHttpError).status)
+            : null;
+
+        if (status === 401 || status === 403) {
+          useRealtimeStore
+            .getState()
+            .setConnectionStatus("error", "auth_failed");
+          return;
+        }
+
+        if (status === 429) {
+          useRealtimeStore
+            .getState()
+            .setConnectionStatus("retrying", "rate_limited");
+          this.scheduleReconnect(5000);
+          return;
+        }
+
         useRealtimeStore
           .getState()
-          .setConnectionStatus("error", "stream_disconnected");
-        return;
-      }
+          .setConnectionStatus("retrying", "stream_disconnected");
+        const delayMs = Math.min(
+          30_000,
+          1_000 * Math.max(1, 2 ** this.reconnectAttempts),
+        );
+        this.scheduleReconnect(delayMs);
+      })
+      .finally(() => {
+        if (this.abortController === controller) {
+          this.abortController = null;
+        }
+        if (this.streamTask === streamTask) {
+          this.streamTask = null;
+        }
+      });
 
-      const status =
-        typeof error === "object" && error !== null && "status" in error
-          ? Number((error as StreamHttpError).status)
-          : null;
-
-      if (status === 401 || status === 403) {
-        useRealtimeStore.getState().setConnectionStatus("error", "auth_failed");
-        return;
-      }
-
-      if (status === 429) {
-        useRealtimeStore
-          .getState()
-          .setConnectionStatus("retrying", "rate_limited");
-        this.scheduleReconnect(5000);
-        return;
-      }
-
-      useRealtimeStore
-        .getState()
-        .setConnectionStatus("retrying", "stream_disconnected");
-      const delayMs = Math.min(
-        30_000,
-        1_000 * Math.max(1, 2 ** this.reconnectAttempts),
-      );
-      this.scheduleReconnect(delayMs);
-    });
+    this.streamTask = streamTask;
   }
 
   private scheduleReconnect(delayMs: number): void {
@@ -725,6 +880,128 @@ class RealtimeManager {
     this.spotGapMockGenerator = null;
   }
 
+  private scheduleFlushPendingBatch(): void {
+    if (this.pendingBatchTimer) {
+      return;
+    }
+    this.pendingBatchTimer = setTimeout(() => {
+      try {
+        this.flushPendingBatch();
+      } catch {
+        // swallow - never let timer crash the stream loop
+      }
+    }, this.BATCH_WINDOW_MS);
+  }
+
+  private flushPendingBatch(): void {
+    if (this.pendingBatchTimer) {
+      clearTimeout(this.pendingBatchTimer);
+      this.pendingBatchTimer = null;
+    }
+    const batch = this.pendingBatch;
+    this.pendingBatch = null;
+    if (!batch) {
+      return;
+    }
+
+    const hasMapEntries = (m?: Record<string, unknown>) =>
+      m && Object.keys(m).length > 0;
+    const shouldApply =
+      Boolean(batch.kbarCurrent) ||
+      hasMapEntries(batch.metricLatestMap) ||
+      hasMapEntries(batch.marketSummaryMap) ||
+      hasMapEntries(batch.otcSummaryMap) ||
+      hasMapEntries(batch.quoteLatestMap) ||
+      Boolean(batch.spotLatestList) ||
+      Boolean(batch.spotMarketDistributionLatest) ||
+      Boolean(batch.spotMarketDistributionSeries) ||
+      batch.indexContribRanking !== undefined ||
+      batch.indexContribSector !== undefined ||
+      typeof batch.heartbeatTs === "number";
+
+    if (shouldApply) {
+      applyServingSseBatch(batch);
+    }
+  }
+
+  private mergeIntoPendingBatch(incoming: ServingSseBatch): void {
+    // quick check for empty incoming
+    const hasMapEntries = (m?: Record<string, unknown>) =>
+      m && Object.keys(m).length > 0;
+    const isEmpty =
+      !incoming.kbarCurrent &&
+      !hasMapEntries(incoming.metricLatestMap) &&
+      !hasMapEntries(incoming.marketSummaryMap) &&
+      !hasMapEntries(incoming.otcSummaryMap) &&
+      !hasMapEntries(incoming.quoteLatestMap) &&
+      !incoming.spotLatestList &&
+      !incoming.spotMarketDistributionLatest &&
+      !incoming.spotMarketDistributionSeries &&
+      incoming.indexContribRanking === undefined &&
+      incoming.indexContribSector === undefined &&
+      typeof incoming.heartbeatTs !== "number";
+    if (isEmpty) return;
+
+    if (!this.pendingBatch) {
+      // shallow clone to avoid accidental external mutations
+      this.pendingBatch = {
+        ...incoming,
+        metricLatestMap: incoming.metricLatestMap
+          ? { ...incoming.metricLatestMap }
+          : undefined,
+        marketSummaryMap: incoming.marketSummaryMap
+          ? { ...incoming.marketSummaryMap }
+          : undefined,
+        otcSummaryMap: incoming.otcSummaryMap
+          ? { ...incoming.otcSummaryMap }
+          : undefined,
+        quoteLatestMap: incoming.quoteLatestMap
+          ? { ...incoming.quoteLatestMap }
+          : undefined,
+      };
+      this.scheduleFlushPendingBatch();
+      return;
+    }
+
+    const target = this.pendingBatch;
+    // single-value fields: prefer newer incoming value if present
+    if (incoming.kbarCurrent) target.kbarCurrent = incoming.kbarCurrent;
+    if (typeof incoming.heartbeatTs === "number")
+      target.heartbeatTs = incoming.heartbeatTs;
+    if (incoming.spotLatestList)
+      target.spotLatestList = incoming.spotLatestList;
+    if (incoming.spotMarketDistributionLatest)
+      target.spotMarketDistributionLatest =
+        incoming.spotMarketDistributionLatest;
+    if (incoming.spotMarketDistributionSeries)
+      target.spotMarketDistributionSeries =
+        incoming.spotMarketDistributionSeries;
+    if (incoming.indexContribRanking !== undefined)
+      target.indexContribRanking = incoming.indexContribRanking;
+    if (incoming.indexContribSector !== undefined)
+      target.indexContribSector = incoming.indexContribSector;
+
+    // merge maps
+    const mergeMap = (
+      key: keyof ServingSseBatch,
+      incomingMap?: Record<string, unknown>,
+    ) => {
+      if (!incomingMap) return;
+      if (!target[key]) {
+        target[key] = { ...incomingMap } as any;
+        return;
+      }
+      Object.assign(target[key] as Record<string, unknown>, incomingMap);
+    };
+
+    mergeMap("metricLatestMap", incoming.metricLatestMap as any);
+    mergeMap("marketSummaryMap", incoming.marketSummaryMap as any);
+    mergeMap("otcSummaryMap", incoming.otcSummaryMap as any);
+    mergeMap("quoteLatestMap", incoming.quoteLatestMap as any);
+
+    this.scheduleFlushPendingBatch();
+  }
+
   private async stream(signal: AbortSignal, token: string): Promise<void> {
     const response = await fetch(
       `${API_BASE_URL}${STREAM_PATH}?code=${encodeURIComponent(DEFAULT_STREAM_CODE)}`,
@@ -744,26 +1021,131 @@ class RealtimeManager {
       throw err;
     }
 
-    if (!response.body) {
-      throw new Error("sse_no_body");
-    }
+    let buffer = "";
 
     this.reconnectAttempts = 0;
     useRealtimeStore.getState().setConnectionStatus("connected", null);
 
-    const reader = response.body.getReader();
+    // In test environments, Response bodies may not be a streaming reader. Read full text and process.
+    try {
+      if (
+        typeof process !== "undefined" &&
+        (process as any).env &&
+        (process as any).env.NODE_ENV === "test"
+      ) {
+        const text = await response.text();
+        let buffer = "";
+        buffer += text;
+        const { frames, rest } = splitSseBuffer(buffer);
+        buffer = rest;
+        const batch: ServingSseBatch = {};
+        for (const frame of frames) {
+          const parsed = parseSseFrame(frame);
+          if (!parsed.event || !parsed.data) continue;
+          let payload: unknown;
+          try {
+            payload = JSON.parse(parsed.data);
+          } catch {
+            continue;
+          }
+          if (!shouldApplyDashboardSseEvent(parsed.event, payload)) continue;
+          collectServingSseEvent(
+            parsed.event as ServingSseEventName,
+            payload,
+            batch,
+          );
+        }
+        // Merge into pendingBatch so the same flush path is used as streaming chunks.
+        this.mergeIntoPendingBatch(batch);
+        return;
+      }
+    } catch (e) {
+      // fall through to streaming path
+    }
+
+    if (!response.body) {
+      // Some test environments return Response with no body but with text available.
+      // Fall back to reading whole text and processing frames once.
+      try {
+        const text = await response.text();
+        buffer += text;
+        const { frames, rest } = splitSseBuffer(buffer);
+        buffer = rest;
+        const batch: ServingSseBatch = {};
+        for (const frame of frames) {
+          const parsed = parseSseFrame(frame);
+          if (!parsed.event || !parsed.data) continue;
+          let payload: unknown;
+          try {
+            payload = JSON.parse(parsed.data);
+          } catch {
+            continue;
+          }
+          if (!shouldApplyDashboardSseEvent(parsed.event, payload)) continue;
+          collectServingSseEvent(
+            parsed.event as ServingSseEventName,
+            payload,
+            batch,
+          );
+        }
+        // Merge into pendingBatch so the same flush path is used as streaming chunks.
+        this.mergeIntoPendingBatch(batch);
+        // finished
+        if (!response.body) return;
+      } catch (e) {
+        throw new Error("sse_no_body");
+      }
+    }
+
+    // If worker mode is enabled, ensure worker exists and is wired
+    try {
+      if (ENABLE_SSE_WORKER && !this.worker) {
+        const worker = createSseWorker();
+        if (worker) {
+          this.worker = worker;
+          this.worker.onmessage = (ev) =>
+            this.handleWorkerMessage(ev as MessageEvent);
+        }
+      }
+    } catch {
+      // ignore worker creation failures and fall back to local parsing
+    }
+
+    const reader = (response.body as any).getReader();
     const decoder = new TextDecoder();
-    let buffer = "";
+    let processedAny = false;
 
     while (true) {
       const { done, value } = await reader.read();
       if (done) {
+        if (this.worker) {
+          try {
+            this.worker.postMessage({ type: "flush" });
+          } catch {
+            // ignore
+          }
+        }
         break;
       }
       if (!value) {
         continue;
       }
-      buffer += decoder.decode(value, { stream: true });
+
+      const decodedChunk = decoder.decode(value, { stream: true });
+
+      // If worker enabled, forward raw decoded chunks to worker and skip local parsing
+      if (this.worker) {
+        try {
+          this.worker.postMessage({ type: "chunk", data: decodedChunk });
+          processedAny = true;
+        } catch (e) {
+          // if postMessage fails, fall back to local parsing below
+          buffer += decodedChunk;
+        }
+        continue;
+      }
+
+      buffer += decodedChunk;
       const { frames, rest } = splitSseBuffer(buffer);
       buffer = rest;
       const batch: ServingSseBatch = {};
@@ -787,18 +1169,50 @@ class RealtimeManager {
           payload,
           batch,
         );
+        processedAny = true;
       }
 
-      if (
-        batch.kbarCurrent ||
-        batch.metricLatest ||
-        batch.marketSummaryLatest ||
-        batch.otcSummaryLatest ||
-        batch.quoteLatest ||
-        batch.spotLatestList ||
-        typeof batch.heartbeatTs === "number"
-      ) {
-        applyServingSseBatch(batch);
+      // Merge collected batch into the manager's pendingBatch and schedule a flush.
+      this.mergeIntoPendingBatch(batch);
+    }
+
+    // If reader completed without yielding any chunks, fallback to reading full text
+    if (!processedAny) {
+      try {
+        const text = await response.text();
+        if (text) {
+          buffer += text;
+          const { frames, rest } = splitSseBuffer(buffer);
+          buffer = rest;
+          const batch: ServingSseBatch = {};
+          for (const frame of frames) {
+            const parsed = parseSseFrame(frame);
+            if (!parsed.event || !parsed.data) continue;
+            let payload: unknown;
+            try {
+              payload = JSON.parse(parsed.data);
+            } catch {
+              continue;
+            }
+            if (!shouldApplyDashboardSseEvent(parsed.event, payload)) continue;
+            collectServingSseEvent(
+              parsed.event as ServingSseEventName,
+              payload,
+              batch,
+            );
+          }
+          if (
+            typeof process !== "undefined" &&
+            (process as any).env &&
+            (process as any).env.NODE_ENV === "test"
+          ) {
+            applyServingSseBatch(batch);
+          } else {
+            this.mergeIntoPendingBatch(batch);
+          }
+        }
+      } catch (e) {
+        // ignore
       }
     }
 

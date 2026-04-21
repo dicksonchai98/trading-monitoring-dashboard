@@ -8,6 +8,8 @@ import type {
   MetricLatestSchema,
   OtcSummaryLatestSchema,
   QuoteLatestSchema,
+  SpotMarketDistributionLatestSchema,
+  SpotMarketDistributionSeriesSchema,
   SpotLatestListSchema,
 } from "@/features/realtime/schemas/serving-event.schema";
 
@@ -22,6 +24,12 @@ export type HeartbeatPayload = z.infer<typeof HeartbeatSchema>;
 export type IndexContributionRankingPayload = z.infer<typeof IndexContributionRankingSchema>;
 export type IndexContributionSectorPayload = z.infer<typeof IndexContributionSectorSchema>;
 export type SpotLatestListPayload = z.infer<typeof SpotLatestListSchema>;
+export type SpotMarketDistributionLatestPayload = z.infer<
+  typeof SpotMarketDistributionLatestSchema
+>;
+export type SpotMarketDistributionSeriesPayload = z.infer<
+  typeof SpotMarketDistributionSeriesSchema
+>;
 
 export type ServingSseEventName =
   | "kbar_current"
@@ -32,4 +40,6 @@ export type ServingSseEventName =
   | "otc_summary_latest"
   | "quote_latest"
   | "spot_latest_list"
+  | "spot_market_distribution_latest"
+  | "spot_market_distribution_series"
   | "heartbeat";

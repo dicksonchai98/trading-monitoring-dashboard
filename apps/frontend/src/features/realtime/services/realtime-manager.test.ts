@@ -2,9 +2,13 @@ import {
   applyServingSseEvent,
   createSpotLatestListMockGenerator,
   parseSseFrame,
+  RealtimeManager,
   splitSseBuffer,
 } from "@/features/realtime/services/realtime-manager";
+let manager: RealtimeManager;
 import { useRealtimeStore } from "@/features/realtime/store/realtime.store";
+import type { SpotLatestListPayload } from "@/features/realtime/types/realtime.types";
+import { afterEach, vi } from "vitest";
 
 describe("realtime-manager", () => {
   const inSessionMinuteTs = Date.parse("2026-04-09T10:00:00+08:00");
@@ -16,6 +20,13 @@ describe("realtime-manager", () => {
 
   beforeEach(() => {
     useRealtimeStore.getState().resetRealtime();
+    manager = new RealtimeManager();
+  });
+
+  afterEach(() => {
+    manager.disconnect();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it("splits SSE buffers by frame boundary and preserves tail rest", () => {
@@ -50,6 +61,35 @@ describe("realtime-manager", () => {
     const parsed = parseSseFrame('event: metric_latest\r\ndata: {"bid":1}\r\ndata: {"ask":2}');
     expect(parsed.event).toBe("metric_latest");
     expect(parsed.data).toBe('{"bid":1}\n{"ask":2}');
+  });
+
+  it("waits for an aborted SSE request to settle before reconnecting", async () => {
+    let rejectFirstRequest: ((reason?: unknown) => void) | undefined;
+    const firstRequest = new Promise<Response>((_resolve, reject) => {
+      rejectFirstRequest = reject;
+    });
+    const secondRequest = new Promise<Response>(() => {});
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockImplementationOnce(() => firstRequest)
+      .mockImplementationOnce(() => secondRequest);
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    manager.connect("token-a");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    manager.disconnect();
+    manager.connect("token-a");
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    if (rejectFirstRequest) {
+      rejectFirstRequest(new DOMException("The operation was aborted.", "AbortError"));
+    }
+    await vi.waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
   });
 
   it("writes validated kbar and heartbeat events into realtime store", () => {
@@ -262,6 +302,80 @@ describe("realtime-manager", () => {
     expect(state.spotLatestList?.sector_strength?.weighted).toBe(65);
   });
 
+  it("writes spot market distribution events into realtime store", () => {
+    applyServingSseEvent("spot_market_distribution_latest", {
+      ts: inSessionSpotTs,
+      up_count: 7,
+      down_count: 3,
+      flat_count: 2,
+      total_count: 12,
+      trend_index: 0.3333333333,
+      bucket_width_pct: 1,
+      distribution_buckets: [
+        { label: "< -1%", lower_pct: -100, upper_pct: -1, count: 3 },
+        { label: "0%", lower_pct: -1, upper_pct: 1, count: 2 },
+        { label: "+1%", lower_pct: 1, upper_pct: 2, count: 4 },
+      ],
+    });
+    applyServingSseEvent("spot_market_distribution_latest", {
+      ts: inSessionSpotTs + 1000,
+      up_count: 8,
+      down_count: 2,
+      flat_count: 2,
+      total_count: 12,
+      trend_index: 0.4166666667,
+      bucket_width_pct: 1,
+      distribution_buckets: [
+        { label: "< -1%", lower_pct: -100, upper_pct: -1, count: 2 },
+        { label: "0%", lower_pct: -1, upper_pct: 1, count: 2 },
+        { label: "+1%", lower_pct: 1, upper_pct: 2, count: 5 },
+      ],
+    });
+
+    const state = useRealtimeStore.getState();
+    expect(state.spotMarketDistributionLatest?.up_count).toBe(8);
+    expect(state.spotMarketDistributionLatest?.distribution_buckets).toHaveLength(3);
+    expect(state.spotMarketDistributionSeries?.items).toHaveLength(2);
+    expect(state.spotMarketDistributionSeries?.items[0]?.trend_index).toBe(0.3333333333);
+    expect(state.spotMarketDistributionSeries?.items[1]?.trend_index).toBe(0.4166666667);
+  });
+
+  it("applies spot market distribution SSE frames while streaming", async () => {
+    manager.disconnect();
+    const sseBody =
+      `event: spot_market_distribution_latest\ndata: ${JSON.stringify({
+        ts: inSessionSpotTs,
+        up_count: 7,
+        down_count: 3,
+        flat_count: 2,
+        total_count: 12,
+        trend_index: 0.3333333333,
+        bucket_width_pct: 1,
+        distribution_buckets: [
+          { label: "< -1%", lower_pct: -100, upper_pct: -1, count: 3 },
+          { label: "0%", lower_pct: -1, upper_pct: 1, count: 2 },
+          { label: "+1%", lower_pct: 1, upper_pct: 2, count: 4 },
+        ],
+      })}\n\n`;
+
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(sseBody, {
+        headers: {
+          "Content-Type": "text/event-stream",
+        },
+      }),
+    );
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    manager.connect("token-stream-test");
+
+    await vi.waitFor(() => {
+      expect(useRealtimeStore.getState().spotMarketDistributionLatest?.up_count).toBe(7);
+      expect(useRealtimeStore.getState().spotMarketDistributionSeries?.items).toHaveLength(1);
+    });
+  });
+
   it("spot latest list mock generator emits six gap symbols every second", () => {
     const startTs = Date.parse("2026-04-09T10:00:00+08:00");
     const generator = createSpotLatestListMockGenerator(startTs);
@@ -270,7 +384,7 @@ describe("realtime-manager", () => {
     const second = generator.next().value;
 
     expect(first?.items).toHaveLength(6);
-    expect(first?.items.map((item) => item.symbol)).toEqual([
+    expect(first?.items.map((item: SpotLatestListPayload["items"][number]) => item.symbol)).toEqual([
       "2330",
       "2317",
       "2454",
@@ -284,7 +398,12 @@ describe("realtime-manager", () => {
     expect(first?.market_strength_count).toBe(6);
     expect(first?.sector_strength).toBeDefined();
     expect(typeof first?.items[0]?.strength_pct).toBe("number");
-    expect(first?.items.some((item) => typeof item.strength_pct !== "number")).toBe(false);
+    expect(
+      first?.items.some(
+        (item: SpotLatestListPayload["items"][number]) =>
+          typeof item.strength_pct !== "number",
+      ),
+    ).toBe(false);
     expect(first?.market_strength_breakdown).toBeDefined();
     expect(second?.ts).toBe(startTs + 1000);
     expect(second?.items[0]?.last_price).not.toBe(first?.items[0]?.last_price);

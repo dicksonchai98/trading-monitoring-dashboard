@@ -7,10 +7,13 @@ import type {
   MetricTodayResponse,
   OtcSummaryResponse,
   OrderFlowBaselineResponse,
+  SpotMarketDistributionBaselineResponse,
+  SpotMarketDistributionLatestResponse,
+  SpotMarketDistributionTodayResponse,
   QuoteTodayResponse,
 } from "@/features/dashboard/api/types";
 
-export const DEFAULT_ORDER_FLOW_CODE = "TXFD6";
+export const DEFAULT_ORDER_FLOW_CODE = "TXFE6";
 export const DEFAULT_OTC_CODE = "OTC001";
 const SESSION_OPEN_HOUR = 9;
 const SESSION_CLOSE_HOUR = 13;
@@ -20,7 +23,10 @@ const OTC_SESSION_OPEN_MINUTE = 45;
 const OTC_SESSION_CLOSE_HOUR = 13;
 const OTC_SESSION_CLOSE_MINUTE = 44;
 
-async function resolveOrFallbackOnNotFound<T>(requestPromise: Promise<T>, fallback: T): Promise<T> {
+async function resolveOrFallbackOnNotFound<T, F>(
+  requestPromise: Promise<T>,
+  fallback: F,
+): Promise<T | F> {
   try {
     return await requestPromise;
   } catch (error: unknown) {
@@ -53,7 +59,7 @@ function resolveSessionRangeMs(tsMs: number): { fromMs: number; toMs: number } {
   return { fromMs, toMs: Math.min(tsMs, sessionCloseMs) };
 }
 
-function resolveTodayRangeMs(): { fromMs: number; toMs: number } {
+export function resolveTodayRangeMs(): { fromMs: number; toMs: number } {
   return resolveSessionRangeMs(Date.now());
 }
 
@@ -63,7 +69,10 @@ function resolveYesterdayRangeMs(): { fromMs: number; toMs: number } {
   const todayRange = resolveSessionRangeMs(nowMs);
   const yesterdayRange = resolveSessionRangeMs(yesterdayMs);
   const elapsedMs = Math.max(0, todayRange.toMs - todayRange.fromMs);
-  const yesterdayToMs = Math.min(yesterdayRange.fromMs + elapsedMs, yesterdayRange.toMs);
+  const yesterdayToMs = Math.min(
+    yesterdayRange.fromMs + elapsedMs,
+    yesterdayRange.toMs,
+  );
 
   return {
     fromMs: yesterdayRange.fromMs,
@@ -74,12 +83,14 @@ function resolveYesterdayRangeMs(): { fromMs: number; toMs: number } {
 export async function getEstimatedVolumeBaseline(
   token: string,
   code: string = DEFAULT_ORDER_FLOW_CODE,
+  signal?: AbortSignal,
 ): Promise<EstimatedVolumeBaselineResponse> {
   const headers = {
     Authorization: `Bearer ${token}`,
   };
   const { fromMs: todayFromMs, toMs: todayToMs } = resolveTodayRangeMs();
-  const { fromMs: yesterdayFromMs, toMs: yesterdayToMs } = resolveYesterdayRangeMs();
+  const { fromMs: yesterdayFromMs, toMs: yesterdayToMs } =
+    resolveYesterdayRangeMs();
   const todayQuery = `code=${encodeURIComponent(code)}&from_ms=${todayFromMs}&to_ms=${todayToMs}`;
   const yesterdayQuery = `code=${encodeURIComponent(code)}&from_ms=${yesterdayFromMs}&to_ms=${yesterdayToMs}`;
 
@@ -87,13 +98,18 @@ export async function getEstimatedVolumeBaseline(
     resolveOrFallbackOnNotFound(
       getJson<MarketSummaryResponse>(`/v1/market-summary/today?${todayQuery}`, {
         headers,
+        signal,
       }),
       [],
     ),
     resolveOrFallbackOnNotFound(
-      getJson<MarketSummaryResponse>(`/v1/market-summary/history?${yesterdayQuery}`, {
-        headers,
-      }),
+      getJson<MarketSummaryResponse>(
+        `/v1/market-summary/history?${yesterdayQuery}`,
+        {
+          headers,
+          signal,
+        },
+      ),
       [],
     ),
   ]);
@@ -108,19 +124,25 @@ export async function getDailyAmplitudeHistory(
   token: string,
   code: string = DEFAULT_ORDER_FLOW_CODE,
   n: number = 19,
+  signal?: AbortSignal,
 ): Promise<DailyAmplitudeResponse> {
   const headers = {
     Authorization: `Bearer ${token}`,
   };
   const query = `code=${encodeURIComponent(code)}&n=${n}`;
-  return getJson<DailyAmplitudeResponse>(`/v1/kbar/1m/daily-amplitude?${query}`, {
-    headers,
-  });
+  return getJson<DailyAmplitudeResponse>(
+    `/v1/kbar/1m/daily-amplitude?${query}`,
+    {
+      headers,
+      signal,
+    },
+  );
 }
 
 export async function getOrderFlowBaseline(
   token: string,
   code: string = DEFAULT_ORDER_FLOW_CODE,
+  signal?: AbortSignal,
 ): Promise<OrderFlowBaselineResponse> {
   const headers = {
     Authorization: `Bearer ${token}`,
@@ -132,12 +154,14 @@ export async function getOrderFlowBaseline(
     resolveOrFallbackOnNotFound(
       getJson<KbarTodayResponse>(`/v1/kbar/1m/today?${query}`, {
         headers,
+        signal,
       }),
       [],
     ),
     resolveOrFallbackOnNotFound(
       getJson<MetricTodayResponse>(`/v1/metric/bidask/today?${query}`, {
         headers,
+        signal,
       }),
       [],
     ),
@@ -152,6 +176,7 @@ export async function getOrderFlowBaseline(
 export async function getQuoteToday(
   token: string,
   code: string = DEFAULT_ORDER_FLOW_CODE,
+  signal?: AbortSignal,
 ): Promise<QuoteTodayResponse> {
   const headers = {
     Authorization: `Bearer ${token}`,
@@ -160,12 +185,14 @@ export async function getQuoteToday(
   const query = `code=${encodeURIComponent(code)}&from_ms=${fromMs}&to_ms=${toMs}`;
   return getJson<QuoteTodayResponse>(`/v1/quote/today?${query}`, {
     headers,
+    signal,
   });
 }
 
 export async function getOtcSummaryToday(
   token: string,
   code: string = DEFAULT_OTC_CODE,
+  signal?: AbortSignal,
 ): Promise<OtcSummaryResponse> {
   const headers = {
     Authorization: `Bearer ${token}`,
@@ -184,5 +211,45 @@ export async function getOtcSummaryToday(
   const query = `code=${encodeURIComponent(code)}&from_ms=${fromMs}&to_ms=${toMs}`;
   return getJson<OtcSummaryResponse>(`/v1/otc-summary/today?${query}`, {
     headers,
+    signal,
   });
+}
+
+export async function getSpotMarketDistributionBaseline(
+  token: string,
+  signal?: AbortSignal,
+): Promise<SpotMarketDistributionBaselineResponse> {
+  const headers = {
+    Authorization: `Bearer ${token}`,
+  };
+  const { fromMs, toMs } = resolveTodayRangeMs();
+  const todayQuery = `from_ms=${fromMs}&to_ms=${toMs}`;
+
+  const [latest, today] = await Promise.all([
+    resolveOrFallbackOnNotFound(
+      getJson<SpotMarketDistributionLatestResponse>(
+        "/v1/spot/market-distribution/latest",
+        {
+          headers,
+          signal,
+        },
+      ),
+      null,
+    ),
+    resolveOrFallbackOnNotFound(
+      getJson<SpotMarketDistributionTodayResponse>(
+        `/v1/spot/market-distribution/today?${todayQuery}`,
+        {
+          headers,
+          signal,
+        },
+      ),
+      [],
+    ),
+  ]);
+
+  return {
+    latest,
+    today,
+  };
 }

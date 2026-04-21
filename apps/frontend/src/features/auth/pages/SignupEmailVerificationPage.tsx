@@ -3,9 +3,9 @@ import type { JSX } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import GlobeDemo from "@/components/globe-demo";
 import { SignupForm } from "@/components/signup-form";
 import { PageSkeleton } from "@/components/ui/page-skeleton";
-import { Typography } from "@/components/ui/typography";
 import { register, sendEmailOtp, verifyEmailOtp } from "@/features/auth/api/auth";
 import { applyAuthenticatedSession, formatAuthError, getRedirectTarget } from "@/features/auth/lib/auth-page-shared";
 import type { RegisterFormValues } from "@/features/auth/validation/auth-schema";
@@ -57,9 +57,10 @@ export function SignupEmailVerificationPage(): JSX.Element {
   const registerMutation = useMutation({
     mutationFn: register,
     onSuccess: async (data) => {
-      await applyAuthenticatedSession({ token: data.access_token, source: "register", setSession });
+      await applyAuthenticatedSession({ token: data.access_token, source: "register", setSession, t });
       navigate(redirectTarget, { replace: true });
     },
+
   });
 
   const verifyMutation = useMutation({
@@ -110,9 +111,9 @@ export function SignupEmailVerificationPage(): JSX.Element {
 
   const errorMessage =
     localError ??
-    formatAuthError(registerMutation.error instanceof Error ? registerMutation.error.message : undefined) ??
-    formatAuthError(verifyMutation.error instanceof Error ? verifyMutation.error.message : undefined) ??
-    formatAuthError(resendMutation.error instanceof Error ? resendMutation.error.message : undefined);
+    formatAuthError(t, registerMutation.error instanceof Error ? registerMutation.error.message : undefined) ??
+    formatAuthError(t, verifyMutation.error instanceof Error ? verifyMutation.error.message : undefined) ??
+    formatAuthError(t, resendMutation.error instanceof Error ? resendMutation.error.message : undefined);
 
   return (
     <div className="grid min-h-screen w-full bg-white md:grid-cols-2">
@@ -145,26 +146,8 @@ export function SignupEmailVerificationPage(): JSX.Element {
         />
         </div>
       </section>
-      <section className="relative hidden md:block">
-        <div className="absolute inset-0">
-          <img
-            src="https://images.unsplash.com/photo-1559526324-593bc073d938?auto=format&fit=crop&w=1800&q=80"
-            alt={t("auth.hero.coverAlt")}
-            className="h-full w-full object-cover"
-          />
-        </div>
-        <div className="absolute inset-0 bg-black/25" />
-        <div className="absolute bottom-10 left-10 right-10 text-white">
-          <Typography as="p" variant="meta" className="text-white/80">
-            {t("app.console")}
-          </Typography>
-          <Typography as="h2" variant="h2" className="mt-3 text-white">
-            {t("auth.hero.verify.title")}
-          </Typography>
-          <Typography as="p" variant="body" className="mt-3 max-w-md text-white/90">
-            {t("auth.hero.verify.desc")}
-          </Typography>
-        </div>
+      <section className="relative min-h-[560px] overflow-hidden bg-black">
+        <GlobeDemo />
       </section>
     </div>
   );

@@ -251,6 +251,9 @@ class KbarAnalyticsService:
                     sample.next_day_category = category
                     sample.computed_at = _utcnow()
 
+        # SessionLocal uses autoflush=False; flush samples before aggregate queries.
+        self.session.flush()
+
         generated_stats = 0
         for event_id in events:
             matched_rows = list(

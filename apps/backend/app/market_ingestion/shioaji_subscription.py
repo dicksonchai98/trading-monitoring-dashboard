@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from contextlib import suppress
+from dataclasses import dataclass
 from typing import Any
 
 
@@ -171,6 +172,12 @@ def resolve_stock_contract(api: Any, symbol: str) -> Any:
     )
 
 
+@dataclass(frozen=True)
+class SpotTickSubscriptionResult:
+    subscribed_symbols: list[str]
+    failed_symbols: list[str]
+
+
 def subscribe_spot_ticks(api: Any, symbols: Iterable[str]) -> int:
     quote = api.quote
     subscribed = 0
@@ -179,6 +186,24 @@ def subscribe_spot_ticks(api: Any, symbols: Iterable[str]) -> int:
         quote.subscribe(contract, quote_type=_quote_type("tick"), version=_quote_version_v1())
         subscribed += 1
     return subscribed
+
+
+def subscribe_spot_ticks_resilient(api: Any, symbols: Iterable[str]) -> SpotTickSubscriptionResult:
+    quote = api.quote
+    subscribed_symbols: list[str] = []
+    failed_symbols: list[str] = []
+    for symbol in symbols:
+        try:
+            contract = resolve_stock_contract(api, symbol)
+            quote.subscribe(contract, quote_type=_quote_type("tick"), version=_quote_version_v1())
+        except Exception:
+            failed_symbols.append(symbol)
+            continue
+        subscribed_symbols.append(symbol)
+    return SpotTickSubscriptionResult(
+        subscribed_symbols=subscribed_symbols,
+        failed_symbols=failed_symbols,
+    )
 
 
 def subscribe_market_topic(api: Any, contract: Any) -> None:

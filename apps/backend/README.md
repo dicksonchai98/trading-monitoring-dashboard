@@ -41,7 +41,8 @@ Runbook:
 
 ## Market Ingestor (Shioaji -> Redis Streams)
 
-- Enable with `INGESTOR_ENABLED=true`
+- Dedicated process entrypoint: `python -m workers.ingestor_worker`
+- In docker-compose, ingestion runs in `backend-ingestor-worker` (not `backend-api`)
 - Required credentials: `SHIOAJI_API_KEY`, `SHIOAJI_SECRET_KEY`
 - Stream naming: `{env}:stream:{quote_type}:{code}` (for example `dev:stream:tick:MTX`)
 - Ordering guarantee: per stream key only (no cross-stream global ordering)
@@ -77,6 +78,7 @@ Runbook:
 
 - Dedicated process entrypoint: `python -m workers.stream_processing_worker`
 - Split process entrypoints:
+  - `python -m workers.ingestor_worker`
   - `python -m workers.stream_processing_tick_worker`
   - `python -m workers.stream_processing_bidask_worker`
   - `python -m workers.quote_worker`
@@ -86,6 +88,7 @@ Runbook:
 - API process should not run aggregator loops; set `AGGREGATOR_ENABLED=false` for API service.
 - In docker-compose:
   - `backend-api` serves HTTP only.
+  - `backend-ingestor-worker` runs market ingestion from Shioaji into Redis streams.
   - `backend-stream-worker` keeps compatibility for combined stream processing.
   - `backend-tick-worker` runs Tick processing.
   - `backend-bidask-worker` runs BidAsk processing.
@@ -94,7 +97,7 @@ Runbook:
   - `backend-otc-summary-worker` runs OTC summary processing for `OTC001`.
 
 Quick runbook:
-- Start (split workers): `docker compose up -d redis backend-api backend-tick-worker backend-bidask-worker backend-latest-state-worker backend-quote-worker`
+- Start (split workers): `docker compose up -d redis backend-api backend-ingestor-worker backend-tick-worker backend-bidask-worker backend-latest-state-worker backend-quote-worker`
 - Check status: `docker compose ps`
 - Restart one worker: `docker compose restart backend-tick-worker`
 - Stop one worker without API impact: `docker compose stop backend-bidask-worker`

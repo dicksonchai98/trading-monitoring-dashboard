@@ -1,4 +1,11 @@
-import { memo, useEffect, useMemo, useState, type CSSProperties, type JSX } from "react";
+import {
+  memo,
+  useEffect,
+  useMemo,
+  useState,
+  type CSSProperties,
+  type JSX,
+} from "react";
 import type { PieProps, PieSectorDataItem } from "recharts";
 import {
   Area,
@@ -343,11 +350,7 @@ export function MetricNeedleChart({
           >
             <PieChart width={geometry.width} height={geometry.height}>
               <HalfPie data={chartData} />
-              <HalfPie
-                data={needleLayerData}
-                activeIndex={0}
-                activeShape={Needle}
-              />
+              <HalfPie {...({ data: needleLayerData, activeIndex: 0, activeShape: Needle } as any)} />
               <Tooltip defaultIndex={0} content={() => null} active />
             </PieChart>
           </div>
@@ -403,6 +406,26 @@ function OtcIndexLinePanel({ title }: { title: string }): JSX.Element {
   const { locale, t } = useI18n();
   const { series } = useOtcIndexSeries();
   const chartData = series;
+  // compute y domain & downsample to avoid cramped rendering
+  const values = chartData.map((p) => p.value);
+  const yMin = values.length > 0 ? Math.min(...values) : 0;
+  const yMax = values.length > 0 ? Math.max(...values) : 1;
+  const range = Math.max(yMax - yMin, 0);
+  const padding = Math.max(range * 0.03, 0.2);
+  const yDomain: [number, number] = [yMin - padding, yMax + padding];
+
+  const MAX_POINTS = 120;
+  let displayData = chartData;
+  if (chartData.length > MAX_POINTS) {
+    const step = Math.ceil(chartData.length / MAX_POINTS);
+    displayData = chartData.filter((_, i) => i % step === 0);
+    if (
+      displayData[displayData.length - 1]?.minuteTs !==
+      chartData[chartData.length - 1]?.minuteTs
+    ) {
+      displayData.push(chartData[chartData.length - 1]);
+    }
+  }
   const xTicks =
     chartData.length > 0
       ? [
@@ -432,7 +455,7 @@ function OtcIndexLinePanel({ title }: { title: string }): JSX.Element {
         <div className="h-full min-h-[120px] w-full" data-testid="panel-chart">
           <ResponsiveContainer width="100%" height="100%" minWidth={0}>
             <AreaChart
-              data={chartData}
+              data={displayData}
               margin={{ top: 8, right: 8, bottom: 2, left: -8 }}
             >
               <XAxis
@@ -449,20 +472,26 @@ function OtcIndexLinePanel({ title }: { title: string }): JSX.Element {
                 axisLine={false}
                 tickLine={false}
                 tick={false}
-                domain={["dataMin - 0.2", "dataMax + 0.2"]}
+                domain={yDomain}
                 width={0}
               />
               <Tooltip
-                formatter={(value) => [Number(value).toFixed(2), t("dashboard.metrics.otc.title")]}
+                formatter={(value) => [
+                  Number(value).toFixed(2),
+                  t("dashboard.metrics.otc.title"),
+                ]}
                 labelFormatter={(label) =>
-                  new Date(Number(label)).toLocaleString(locale === "zh-TW" ? "zh-TW" : "en-US", {
-                    hour12: false,
-                    month: "2-digit",
-                    day: "2-digit",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                    timeZone: "Asia/Taipei",
-                  })
+                  new Date(Number(label)).toLocaleString(
+                    locale === "zh-TW" ? "zh-TW" : "en-US",
+                    {
+                      hour12: false,
+                      month: "2-digit",
+                      day: "2-digit",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      timeZone: "Asia/Taipei",
+                    },
+                  )
                 }
                 contentStyle={{
                   backgroundColor: "rgba(15, 23, 42, 0.94)",
@@ -489,7 +518,7 @@ function OtcIndexLinePanel({ title }: { title: string }): JSX.Element {
                 isAnimationActive={false}
                 stroke="#ef4444"
                 strokeWidth={1.8}
-                type="linear"
+                type="monotone"
               />
             </AreaChart>
           </ResponsiveContainer>
@@ -605,85 +634,81 @@ const GapKlinePanelChart = memo(function GapKlinePanelChart(): JSX.Element {
     [sessionOpenBySymbol, spotBySymbol],
   );
 
-  const {
-    bodyWidth,
-    paddedMax,
-    paddedMin,
-    plotHeight,
-    plotWidth,
-    step,
-  } = useMemo(() => {
-    const plotWidth = GAP_CHART_WIDTH - GAP_CHART_MARGIN.left - GAP_CHART_MARGIN.right;
-    const plotHeight = GAP_CHART_HEIGHT - GAP_CHART_MARGIN.top - GAP_CHART_MARGIN.bottom;
-    const validRows = gapKlineData.filter(
-      (item) =>
-        item.high > 0 &&
-        Number.isFinite(item.open) &&
-        Number.isFinite(item.high) &&
-        Number.isFinite(item.low) &&
-        Number.isFinite(item.close),
-    );
-    const validPctRows = validRows
-      .map((item) => {
-        if (item.open === 0) {
-          return null;
-        }
-        const basePrice =
-          item.referencePrice > 0 && Number.isFinite(item.referencePrice)
-            ? item.referencePrice
-            : item.open;
-        return {
-          openPct: ((item.open - basePrice) / basePrice) * 100,
-          highPct: ((item.high - basePrice) / basePrice) * 100,
-          lowPct: ((item.low - basePrice) / basePrice) * 100,
-          closePct: ((item.close - basePrice) / basePrice) * 100,
-        };
-      })
-      .filter(
-        (
-          item,
-        ): item is {
-          openPct: number;
-          highPct: number;
-          lowPct: number;
-          closePct: number;
-        } =>
-          item !== null &&
-          Number.isFinite(item.openPct) &&
-          Number.isFinite(item.highPct) &&
-          Number.isFinite(item.lowPct) &&
-          Number.isFinite(item.closePct),
+  const { bodyWidth, paddedMax, paddedMin, plotHeight, plotWidth, step } =
+    useMemo(() => {
+      const plotWidth =
+        GAP_CHART_WIDTH - GAP_CHART_MARGIN.left - GAP_CHART_MARGIN.right;
+      const plotHeight =
+        GAP_CHART_HEIGHT - GAP_CHART_MARGIN.top - GAP_CHART_MARGIN.bottom;
+      const validRows = gapKlineData.filter(
+        (item) =>
+          item.high > 0 &&
+          Number.isFinite(item.open) &&
+          Number.isFinite(item.high) &&
+          Number.isFinite(item.low) &&
+          Number.isFinite(item.close),
       );
-    const baseMin =
-      validPctRows.length > 0
-        ? Math.min(
-            ...validPctRows.flatMap((item) => [
-              item.lowPct,
-              item.openPct,
-              item.closePct,
-              0,
-            ]),
-          )
-        : -1;
-    const baseMax =
-      validPctRows.length > 0
-        ? Math.max(
-            ...validPctRows.flatMap((item) => [
-              item.highPct,
-              item.openPct,
-              item.closePct,
-              0,
-            ]),
-          )
-        : 1;
-    const range = Math.max(baseMax - baseMin, 0.8);
-    const paddedMin = baseMin - range * 0.12;
-    const paddedMax = baseMax + range * 0.12;
-    const step = plotWidth / gapKlineData.length;
-    const bodyWidth = Math.min(34, step * 0.56);
+      const validPctRows = validRows
+        .map((item) => {
+          if (item.open === 0) {
+            return null;
+          }
+          const basePrice =
+            item.referencePrice > 0 && Number.isFinite(item.referencePrice)
+              ? item.referencePrice
+              : item.open;
+          return {
+            openPct: ((item.open - basePrice) / basePrice) * 100,
+            highPct: ((item.high - basePrice) / basePrice) * 100,
+            lowPct: ((item.low - basePrice) / basePrice) * 100,
+            closePct: ((item.close - basePrice) / basePrice) * 100,
+          };
+        })
+        .filter(
+          (
+            item,
+          ): item is {
+            openPct: number;
+            highPct: number;
+            lowPct: number;
+            closePct: number;
+          } =>
+            item !== null &&
+            Number.isFinite(item.openPct) &&
+            Number.isFinite(item.highPct) &&
+            Number.isFinite(item.lowPct) &&
+            Number.isFinite(item.closePct),
+        );
+      const baseMin =
+        validPctRows.length > 0
+          ? Math.min(
+              ...validPctRows.flatMap((item) => [
+                item.lowPct,
+                item.openPct,
+                item.closePct,
+                0,
+              ]),
+            )
+          : -1;
+      const baseMax =
+        validPctRows.length > 0
+          ? Math.max(
+              ...validPctRows.flatMap((item) => [
+                item.highPct,
+                item.openPct,
+                item.closePct,
+                0,
+              ]),
+            )
+          : 1;
+      const range = Math.max(baseMax - baseMin, 0.8);
+      const paddedMin = baseMin - range * 0.12;
+      const paddedMax = baseMax + range * 0.12;
+      const step = plotWidth / gapKlineData.length;
+      const bodyWidth = Math.min(34, step * 0.56);
 
-    return { bodyWidth, paddedMax, paddedMin, plotHeight, plotWidth, step };
-  }, [gapKlineData]);
+      return { bodyWidth, paddedMax, paddedMin, plotHeight, plotWidth, step };
+    }, [gapKlineData]);
 
   const yScale = (price: number): number =>
     GAP_CHART_MARGIN.top +
@@ -827,10 +852,10 @@ export function DashboardMetricPanels(): JSX.Element {
   const needlePanels = getMetricConfigs(t).filter(
     (panel) => panel.key === "piechart with needle",
   );
-  const kbar = useKbarCurrent("TXFD6");
-  const metric = useMetricLatest("TXFD6");
-  const marketSummary = useMarketSummaryLatest("TXFD6");
-  const quote = useQuoteLatest("TXFD6");
+  const kbar = useKbarCurrent("TXFE6");
+  const metric = useMetricLatest("TXFE6");
+  const marketSummary = useMarketSummaryLatest("TXFE6");
+  const quote = useQuoteLatest("TXFE6");
   const stickyDayAmplitude = useStickyLatestNumber(kbar?.day_amplitude);
   const stickyEstimatedTurnover = useStickyLatestNumber(
     marketSummary?.estimated_turnover,
@@ -848,17 +873,11 @@ export function DashboardMetricPanels(): JSX.Element {
   const coreMetrics = [
     {
       label: t("dashboard.metrics.core.amplitude"),
-      value: formatCoreMetricValue(
-        "amplitude",
-        stickyDayAmplitude,
-      ),
+      value: formatCoreMetricValue("amplitude", stickyDayAmplitude),
     },
     {
       label: t("dashboard.metrics.core.projectedVolume"),
-      value: formatCoreMetricValue(
-        "projectedVolume",
-        stickyEstimatedTurnover,
-      ),
+      value: formatCoreMetricValue("projectedVolume", stickyEstimatedTurnover),
     },
     {
       label: t("dashboard.metrics.core.spread"),

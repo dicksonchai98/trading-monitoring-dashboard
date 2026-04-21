@@ -23,7 +23,7 @@ export function MarketOverviewChartCard({
   title,
   testId,
   span,
-  units,
+  units = 2,
   meta,
   note,
   loading,
@@ -39,7 +39,7 @@ export function MarketOverviewChartCard({
   return (
     <PanelCard
       title={title}
-      span={span}
+      span={span as any}
       units={units}
       meta={meta}
       note={note}

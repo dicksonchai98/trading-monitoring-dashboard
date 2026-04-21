@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { DEFAULT_ORDER_FLOW_CODE } from "@/features/dashboard/api/market-overview";
 import type { MetricTodayPoint } from "@/features/dashboard/api/types";
 import { minuteKeyFromEpochMs } from "@/features/dashboard/lib/market-overview-mapper";
 import { useOrderFlowBaseline } from "@/features/dashboard/hooks/use-order-flow-baseline";
 import { useMetricLatest } from "@/features/realtime/hooks/use-metric-latest";
 import type { MetricLatestPayload } from "@/features/realtime/types/realtime.types";
+import { upsertPoint } from "@/features/dashboard/lib/timeline-helpers";
 
 interface UseMetricTimelineResult {
   chipDeltaByMinuteTs: Record<number, number>;
@@ -82,55 +83,54 @@ function resolveMetricLatestSample(
   };
 }
 
+type InternalPoint = { minuteTs: number; value: number };
+
 export function useMetricTimelineFromBaseline(
   baseline: MetricTimelineBaselineInput,
   code: string = DEFAULT_ORDER_FLOW_CODE,
 ): UseMetricTimelineResult {
   const metricLatest = useMetricLatest(code);
-  const [chipDeltaByMinuteTs, setChipDeltaByMinuteTs] = useState<
-    Record<number, number>
-  >({});
+  const [internalSeries, setInternalSeries] = useState<InternalPoint[]>([]);
+  const indexRef = useRef<Map<number, number>>(new Map());
 
   useEffect(() => {
     const latestMetricByMinute = new Map<number, MinuteMetricSample>();
 
     for (const metric of baseline.metricToday) {
       const sample = toMetricSample(metric);
-      if (!sample) {
-        continue;
-      }
-
+      if (!sample) continue;
       const current = latestMetricByMinute.get(sample.minuteTs);
-      if (!current || sample.ts >= current.ts) {
-        latestMetricByMinute.set(sample.minuteTs, sample);
-      }
+      if (!current || sample.ts >= current.ts) latestMetricByMinute.set(sample.minuteTs, sample);
     }
 
-    const nextMap: Record<number, number> = {};
-    for (const sample of latestMetricByMinute.values()) {
-      nextMap[sample.minuteTs] = sample.value;
-    }
-    setChipDeltaByMinuteTs(nextMap);
+    const series = Array.from(latestMetricByMinute.values())
+      .map((s) => ({ minuteTs: s.minuteTs, value: s.value }))
+      .sort((a, b) => a.minuteTs - b.minuteTs);
+
+    const m = new Map<number, number>();
+    for (let i = 0; i < series.length; ++i) m.set(series[i].minuteTs, i);
+    indexRef.current = m;
+    setInternalSeries(series);
   }, [baseline.metricToday]);
 
   useEffect(() => {
-    if (!baseline.baselineReady) {
-      return;
-    }
+    if (!baseline.baselineReady) return;
     const realtimeSample = resolveMetricLatestSample(metricLatest);
-    if (!realtimeSample) {
-      return;
-    }
-    setChipDeltaByMinuteTs((current) => {
-      if (current[realtimeSample.minuteTs] === realtimeSample.value) {
-        return current;
-      }
-      return {
-        ...current,
-        [realtimeSample.minuteTs]: realtimeSample.value,
-      };
+    if (!realtimeSample) return;
+    const point: InternalPoint = { minuteTs: realtimeSample.minuteTs, value: realtimeSample.value };
+    setInternalSeries((current) => {
+      const { nextSeries, nextIndexMap, didChange } = upsertPoint(current, indexRef.current, point as any);
+      if (!didChange) return current;
+      indexRef.current = nextIndexMap;
+      return nextSeries as InternalPoint[];
     });
   }, [baseline.baselineReady, metricLatest]);
+
+  const chipDeltaByMinuteTs = useMemo(() => {
+    const out: Record<number, number> = {};
+    for (const p of internalSeries) out[p.minuteTs] = p.value;
+    return out;
+  }, [internalSeries]);
 
   return {
     chipDeltaByMinuteTs,
@@ -145,4 +145,3 @@ export function useMetricTimeline(
   const baseline = useOrderFlowBaseline(code);
   return useMetricTimelineFromBaseline(baseline, code);
 }
-

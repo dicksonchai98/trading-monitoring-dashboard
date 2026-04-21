@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
+import logging
+from typing import Any
+
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -15,6 +19,8 @@ from app.services.billing_service import BillingError
 from app.state import billing_service
 
 router = APIRouter(prefix="/billing", tags=["billing"])
+
+logger = logging.getLogger(__name__)
 
 
 class CheckoutRequest(BaseModel):
@@ -167,12 +173,38 @@ def portal_session(principal: Principal = Depends(require_user_or_admin)) -> dic
     return {"portal_url": session.portal_url}
 
 
+@router.get("/checkout-session/{session_id}")
+def checkout_session_status(
+    session_id: str,
+    principal: Principal = Depends(require_user_or_admin),
+) -> dict[str, Any]:
+    try:
+        result = billing_service.get_checkout_session(session_id=session_id)
+    except BillingError as err:
+        if err.code == "session_not_found":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=err.code,
+            ) from err
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="billing_error",
+        ) from err
+    return result
+
+
 @router.post("/webhooks/stripe")
 async def stripe_webhook(
     request: Request,
     stripe_signature: str | None = Header(default=None, alias="Stripe-Signature"),
 ) -> dict[str, str]:
     payload = await request.body()
+    logger.info(
+        "stripe webhook incoming: signature_present=%s payload_len=%d sha256=%s",
+        bool(stripe_signature),
+        len(payload),
+        hashlib.sha256(payload).hexdigest(),
+    )
     try:
         result = billing_service.process_webhook(payload=payload, signature=stripe_signature)
     except BillingError as err:

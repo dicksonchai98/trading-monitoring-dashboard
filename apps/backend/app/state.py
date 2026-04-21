@@ -330,7 +330,9 @@ def build_index_contribution_runner() -> IndexContributionRunner:
             raise RuntimeError(f"weight file not found: {path}")
         payload = json.loads(path.read_text(encoding="utf-8"))
         rows: list[ConstituentMeta] = []
-        for item in payload:
+        # Handle both dict and list formats
+        items = payload.values() if isinstance(payload, dict) else payload
+        for item in items:
             rows.append(
                 ConstituentMeta(
                     symbol=str(item["symbol"]),
@@ -380,6 +382,8 @@ def build_index_contribution_runner() -> IndexContributionRunner:
     )
     logger.info("index-contribution runner created")
     return index_contribution_runner
+
+
 def build_quote_worker_runner() -> QuoteWorkerRunner:
     try:
         import redis

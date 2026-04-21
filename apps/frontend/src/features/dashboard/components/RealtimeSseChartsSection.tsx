@@ -1,5 +1,5 @@
 import type { JSX } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import {
   CartesianGrid,
   Line,
@@ -13,8 +13,10 @@ import { Badge } from "@/components/ui/badge";
 import { BentoGridSection } from "@/components/ui/bento-grid";
 import { PanelCard } from "@/components/ui/panel-card";
 import { useRealtimeConnection } from "@/features/realtime/hooks/use-realtime-connection";
-import { useRealtimeStore } from "@/features/realtime/store/realtime.store";
+import { useThrottledSubscription } from "@/hooks/use-throttled-subscription";
 import { useT } from "@/lib/i18n";
+
+const ACTIVE_CODE = "TXFE6";
 
 interface SeriesPoint {
   ts: number;
@@ -44,18 +46,32 @@ function formatLabel(ts: number): string {
   return `${hh}:${mm}:${ss}`;
 }
 
-function appendPoint<T extends { ts: number }>(
+function appendPointInPlace<T extends { ts: number }>(
   list: T[],
   next: T,
   cap = 40,
-): T[] {
-  if (list.length > 0 && list[list.length - 1]?.ts === next.ts) {
-    const copied = [...list];
-    copied[copied.length - 1] = next;
-    return copied;
+): boolean {
+  const last = list[list.length - 1];
+  if (last && last.ts === next.ts) {
+    // shallow compare keys to avoid unnecessary mutation
+    const nextKeys = Object.keys(next) as (keyof T)[];
+    let same = true;
+    for (const k of nextKeys) {
+      if ((last as any)[k] !== (next as any)[k]) {
+        same = false;
+        break;
+      }
+    }
+    if (same) return false;
+    list[list.length - 1] = next;
+    return true;
   }
-  const merged = [...list, next];
-  return merged.length > cap ? merged.slice(merged.length - cap) : merged;
+  list.push(next);
+  if (list.length > cap) {
+    // remove oldest excess items in-place
+    list.splice(0, list.length - cap);
+  }
+  return true;
 }
 
 function statusBadgeVariant(
@@ -89,12 +105,22 @@ function EmptyState(): JSX.Element {
 export function RealtimeSseChartsSection(): JSX.Element {
   const t = useT();
   const { connectionStatus } = useRealtimeConnection();
-  const kbar = useKbarCurrent("TXFD6");
-  const metric = useMetricLatest("TXFD6");
+  const kbar = useThrottledSubscription(
+    (s) => s.kbarCurrentByCode?.[ACTIVE_CODE] ?? null,
+    100,
+  );
+  const metric = useThrottledSubscription(
+    (s) => s.metricLatestByCode?.[ACTIVE_CODE] ?? null,
+    100,
+  );
 
-  const [closeSeries, setCloseSeries] = useState<SeriesPoint[]>([]);
-  const [spreadSeries, setSpreadSeries] = useState<SpreadPoint[]>([]);
-  const [depthSeries, setDepthSeries] = useState<DepthPoint[]>([]);
+  const closeSeriesRef = useRef<SeriesPoint[]>([]);
+  const spreadSeriesRef = useRef<SpreadPoint[]>([]);
+  const depthSeriesRef = useRef<DepthPoint[]>([]);
+  const [, setTick] = useState(0);
+  function triggerRender() {
+    setTick((t) => t + 1);
+  }
 
   useEffect(() => {
     if (!kbar) {
@@ -109,7 +135,8 @@ export function RealtimeSseChartsSection(): JSX.Element {
       label: formatLabel(ts),
       value: kbar.close,
     };
-    setCloseSeries((current) => appendPoint(current, point));
+    const changed = appendPointInPlace(closeSeriesRef.current, point);
+    if (changed) triggerRender();
   }, [kbar]);
 
   useEffect(() => {
@@ -124,7 +151,8 @@ export function RealtimeSseChartsSection(): JSX.Element {
         spread: metric.spread,
         mid: metric.mid,
       };
-      setSpreadSeries((current) => appendPoint(current, point));
+      const changed = appendPointInPlace(spreadSeriesRef.current, point);
+      if (changed) triggerRender();
     }
     if (
       typeof metric.bid_size === "number" &&
@@ -136,7 +164,8 @@ export function RealtimeSseChartsSection(): JSX.Element {
         bidSize: metric.bid_size,
         askSize: metric.ask_size,
       };
-      setDepthSeries((current) => appendPoint(current, point));
+      const changed = appendPointInPlace(depthSeriesRef.current, point);
+      if (changed) triggerRender();
     }
   }, [metric]);
 
@@ -158,7 +187,7 @@ export function RealtimeSseChartsSection(): JSX.Element {
       }
     >
       <PanelCard
-        title={t("dashboard.sse.close.title", { code: activeCode })}
+        title={t("dashboard.sse.close.title", { code: ACTIVE_CODE })}
         meta={
           latestPrice
             ? t("dashboard.sse.close.latest", { price: latestPrice })
@@ -168,13 +197,13 @@ export function RealtimeSseChartsSection(): JSX.Element {
         units={2}
         data-testid="sse-close-trend-panel"
       >
-        {closeSeries.length === 0 ? (
+        {closeSeriesRef.current.length === 0 ? (
           <EmptyState />
         ) : (
           <div className="h-[220px] w-full" data-testid="sse-close-trend-chart">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart
-                data={closeSeries}
+                data={closeSeriesRef.current}
                 margin={{ top: 8, right: 8, bottom: 0, left: -8 }}
               >
                 <CartesianGrid
@@ -198,7 +227,7 @@ export function RealtimeSseChartsSection(): JSX.Element {
                 <Line
                   dataKey="value"
                   type="monotone"
-                  stroke="hsl(var(--primary))"
+                  stroke="hsl(var(--chart-line))"
                   dot={false}
                   strokeWidth={2}
                   isAnimationActive={false}
@@ -215,13 +244,13 @@ export function RealtimeSseChartsSection(): JSX.Element {
         units={2}
         data-testid="sse-spread-panel"
       >
-        {spreadSeries.length === 0 ? (
+        {spreadSeriesRef.current.length === 0 ? (
           <EmptyState />
         ) : (
           <div className="h-[220px] w-full" data-testid="sse-spread-chart">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart
-                data={spreadSeries}
+                data={spreadSeriesRef.current}
                 margin={{ top: 8, right: 8, bottom: 0, left: -8 }}
               >
                 <CartesianGrid
@@ -270,13 +299,13 @@ export function RealtimeSseChartsSection(): JSX.Element {
         units={2}
         data-testid="sse-depth-panel"
       >
-        {depthSeries.length === 0 ? (
+        {depthSeriesRef.current.length === 0 ? (
           <EmptyState />
         ) : (
           <div className="h-[220px] w-full" data-testid="sse-depth-chart">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart
-                data={depthSeries}
+                data={depthSeriesRef.current}
                 margin={{ top: 8, right: 8, bottom: 0, left: -8 }}
               >
                 <CartesianGrid

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pytest
-
 from app.config import validate_stripe_settings
 from app.services.stripe_provider import StripeProvider
 

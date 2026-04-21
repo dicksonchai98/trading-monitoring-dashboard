@@ -26,6 +26,22 @@ class _FakeRedisByKey:
         return json.dumps(payload, ensure_ascii=True)
 
 
+class _FakeRedisSpotDistribution:
+    def __init__(
+        self, latest_payload: dict[str, object] | None, series_payloads: list[dict[str, object]]
+    ) -> None:
+        self._latest_payload = latest_payload
+        self._series_payloads = series_payloads
+
+    def get(self, _key: str):
+        if self._latest_payload is None:
+            return None
+        return json.dumps(self._latest_payload, ensure_ascii=True)
+
+    def zrangebyscore(self, _key: str, _start: float, _end: float):
+        return [json.dumps(payload, ensure_ascii=True) for payload in self._series_payloads]
+
+
 def test_normalize_spot_latest_converts_updated_at_to_epoch_ms() -> None:
     payload = serving_store.normalize_spot_latest(
         {
@@ -169,3 +185,63 @@ def test_fetch_spot_latest_list_keeps_registry_order_and_null_fallback(monkeypat
             "updated_at": None,
         },
     ]
+
+
+def test_fetch_spot_market_distribution_latest_and_series(monkeypatch) -> None:
+    monkeypatch.setattr(
+        serving_store,
+        "get_serving_redis_client",
+        lambda: _FakeRedisSpotDistribution(
+            {
+                "ts": 1775713500000,
+                "up_count": 5,
+                "down_count": 3,
+                "flat_count": 2,
+                "total_count": 10,
+                "trend_index": 0.2,
+                "bucket_width_pct": 1,
+                "distribution_buckets": [
+                    {"label": "-1%~0%", "lower_pct": -1, "upper_pct": 0, "count": 3},
+                    {"label": "0%~1%", "lower_pct": 0, "upper_pct": 1, "count": 2},
+                    {"label": "1%~2%", "lower_pct": 1, "upper_pct": 2, "count": 5},
+                ],
+            },
+            [
+                {
+                    "ts": 1775713200000,
+                    "up_count": 4,
+                    "down_count": 3,
+                    "flat_count": 3,
+                    "total_count": 10,
+                    "trend_index": 0.1,
+                },
+                {
+                    "ts": 1775713500000,
+                    "up_count": 5,
+                    "down_count": 3,
+                    "flat_count": 2,
+                    "total_count": 10,
+                    "trend_index": 0.2,
+                },
+            ],
+        ),
+    )
+
+    latest = serving_store.fetch_spot_market_distribution_latest()
+    series = serving_store.fetch_spot_market_distribution_today_range()
+    assert latest is not None
+    assert latest["up_count"] == 5
+    assert latest["down_count"] == 3
+    assert latest["trend_index"] == 0.2
+    assert len(latest["distribution_buckets"]) == 3
+    assert series[0]["trend_index"] == 0.1
+    assert series[1]["up_count"] == 5
+
+
+def test_load_spot_symbols_sanitizes_invalid_and_duplicate_entries(monkeypatch, tmp_path) -> None:
+    symbols_file = tmp_path / "symbols.txt"
+    symbols_file.write_text("2330\nBAD\n2317\n2330\n", encoding="utf-8")
+    monkeypatch.setattr(serving_store, "INGESTOR_SPOT_SYMBOLS_FILE", str(symbols_file))
+    monkeypatch.setattr(serving_store, "_SPOT_SYMBOLS_CACHE", {"symbols": None, "ts": 0.0})
+
+    assert serving_store._load_spot_symbols() == ["2330", "2317"]

@@ -31,7 +31,7 @@ describe("UnifiedJobsTable", () => {
     );
 
     const rows = screen.getAllByRole("row");
-    expect(within(rows[1]).getByText("crawler")).toBeInTheDocument();
-    expect(within(rows[2]).getByText("backfill")).toBeInTheDocument();
+    expect(within(rows[1]).getByText("Crawler Jobs")).toBeInTheDocument();
+    expect(within(rows[2]).getByText("Backfill Jobs")).toBeInTheDocument();
   });
 });

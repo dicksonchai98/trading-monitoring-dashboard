@@ -85,3 +85,38 @@ export interface OtcSummaryPoint {
 }
 
 export type OtcSummaryResponse = OtcSummaryPoint[];
+
+export interface SpotMarketDistributionBucket {
+  label: string;
+  lower_pct: number;
+  upper_pct: number;
+  count: number;
+}
+
+export interface SpotMarketDistributionLatestPoint {
+  ts: number;
+  up_count: number;
+  down_count: number;
+  flat_count: number;
+  total_count: number;
+  trend_index?: number | null;
+  bucket_width_pct: number;
+  distribution_buckets: SpotMarketDistributionBucket[];
+}
+
+export interface SpotMarketDistributionSeriesPoint {
+  ts: number;
+  up_count: number;
+  down_count: number;
+  flat_count: number;
+  total_count: number;
+  trend_index?: number | null;
+}
+
+export type SpotMarketDistributionLatestResponse = SpotMarketDistributionLatestPoint;
+export type SpotMarketDistributionTodayResponse = SpotMarketDistributionSeriesPoint[];
+
+export interface SpotMarketDistributionBaselineResponse {
+  latest: SpotMarketDistributionLatestResponse | null;
+  today: SpotMarketDistributionTodayResponse;
+}

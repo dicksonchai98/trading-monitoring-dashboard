@@ -94,24 +94,15 @@ def event_stats(
 
     if event_id == "all":
         if version != "latest":
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail="invalid_version"
-            )
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="invalid_version")
         items = service.get_latest_event_stats_by_code(code=code)
         return {"items": [_to_item(entity) for entity in items]}
 
     if start_date is None or end_date is None:
-        if version != "latest":
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail="missing_required_params"
-            )
-        items = service.get_latest_event_stats_by_code(code=code)
-        matched = next((entity for entity in items if entity.event_id == event_id), None)
-        if matched is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="event_stats_not_found"
-            )
-        return {"items": [_to_item(matched)]}
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="missing_required_params",
+        )
 
     try:
         entity = service.get_event_stats(
@@ -127,7 +118,7 @@ def event_stats(
         ) from err
     if entity is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="event_stats_not_found")
-    return {"items": [_to_item(entity)]}
+    return _to_item(entity)
 
 
 @router.get("/events/{event_id}/samples", response_model=EventSamplesResponse)

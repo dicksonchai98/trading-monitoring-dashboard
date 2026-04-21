@@ -2,6 +2,7 @@ import type { JSX } from "react";
 import { BentoGridSection } from "@/components/ui/bento-grid";
 import { PageLayout } from "@/components/ui/page-layout";
 import { useRealtimeStore } from "@/features/realtime/store/realtime.store";
+import { useI18n, useT, type TranslationKey } from "@/lib/i18n";
 import { ResponsiveContainer, Treemap, type TreemapNode } from "recharts";
 
 const data = [
@@ -73,24 +74,184 @@ const MOCK_INDEX_CONTRIB_RANKING = {
     { rank_no: 5, symbol: "2603", contribution_points: -0.73 },
   ],
 };
-const TREEMAP_PANEL_HEIGHT_CLASS = "h-[520px]";
 
-function CustomizedContent(props: TreemapNode): JSX.Element {
-  const { root, depth, x, y, width, height, index, name } = props;
+const STOCK_NAME_MAP: Record<string, { en: string; zh: string }> = {
+  "1301": { en: "Formosa Plastics", zh: "台塑" },
+  "1303": { en: "Nan Ya Plastics", zh: "南亞" },
+  "2002": { en: "China Steel", zh: "中鋼" },
+  "2207": { en: "Hotai Motor", zh: "和泰車" },
+  "2303": { en: "UMC", zh: "聯電" },
+  "2317": { en: "Hon Hai", zh: "鴻海" },
+  "2330": { en: "TSMC", zh: "台積電" },
+  "2382": { en: "Quanta", zh: "廣達" },
+  "2412": { en: "Chunghwa Telecom", zh: "中華電信" },
+  "2454": { en: "MediaTek", zh: "聯發科" },
+  "2603": { en: "Evergreen Marine", zh: "長榮" },
+  "2615": { en: "Wan Hai", zh: "萬海" },
+  "2881": { en: "Fubon Financial", zh: "富邦金" },
+  "2882": { en: "Cathay Financial", zh: "國泰金" },
+  "2884": { en: "E.Sun Financial", zh: "玉山金" },
+  "2891": { en: "CTBC Financial", zh: "中信金" },
+  "2892": { en: "First Financial", zh: "第一金" },
+  "3035": { en: "Alchip", zh: "智原" },
+  "3045": { en: "Taiwan Mobile", zh: "台灣大" },
+  "3711": { en: "ASE Technology", zh: "日月光投控" },
+};
+
+const TREEMAP_PANEL_HEIGHT_CLASS = "h-[520px]";
+const SECTOR_LABEL_KEYS = {
+  semiconductor: "dashboard.treemap.sector.semiconductor",
+  financial: "dashboard.treemap.sector.financial",
+  traditional: "dashboard.treemap.sector.traditional",
+  other: "dashboard.treemap.sector.other",
+  electronics: "dashboard.treemap.sector.electronics",
+  plastics: "dashboard.treemap.sector.plastics",
+  steel: "dashboard.treemap.sector.steel",
+  shipping: "dashboard.treemap.sector.shipping",
+  telecom: "dashboard.treemap.sector.telecom",
+  automobile: "dashboard.treemap.sector.automobile",
+} satisfies Record<string, TranslationKey>;
+const SECTOR_ID_ALIASES = {
+  semiconductor: "semiconductor",
+  finance: "financial",
+  financial: "financial",
+  traditional: "traditional",
+  other: "other",
+  electronics: "electronics",
+  plastics: "plastics",
+  steel: "steel",
+  shipping: "shipping",
+  telecom: "telecom",
+  automobile: "automobile",
+  electronic: "electronics",
+  autos: "automobile",
+  auto: "automobile",
+  半導體: "semiconductor",
+  半导体: "semiconductor",
+  金融: "financial",
+  傳產: "traditional",
+  传统产业: "traditional",
+  傳統產業: "traditional",
+  其他: "other",
+  電子: "electronics",
+  电子: "electronics",
+  塑膠: "plastics",
+  塑胶: "plastics",
+  鋼鐵: "steel",
+  钢铁: "steel",
+  航運: "shipping",
+  航运: "shipping",
+  電信: "telecom",
+  电信: "telecom",
+  汽車: "automobile",
+  汽车: "automobile",
+} as const;
+
+function getStockName(symbol: string, locale: string): string | null {
+  const stockInfo = STOCK_NAME_MAP[symbol];
+  if (!stockInfo) {
+    return null;
+  }
+  return locale === "zh-TW" ? stockInfo.zh : stockInfo.en;
+}
+
+function formatStockLabel(symbol: string, locale: string): string {
+  const stockName = getStockName(symbol, locale);
+  return stockName ? `${symbol} ${stockName}` : symbol;
+}
+
+function getSectorLabel(sectorId: string, t: ReturnType<typeof useT>): string {
+  const normalizedSectorId =
+    SECTOR_ID_ALIASES[
+      sectorId.trim().toLowerCase() as keyof typeof SECTOR_ID_ALIASES
+    ] ??
+    SECTOR_ID_ALIASES[sectorId.trim() as keyof typeof SECTOR_ID_ALIASES] ??
+    sectorId;
+  const translationKey =
+    SECTOR_LABEL_KEYS[normalizedSectorId as keyof typeof SECTOR_LABEL_KEYS];
+  return translationKey ? t(translationKey) : sectorId;
+}
+
+function CustomizedContent(
+  props: TreemapNode & {
+    stockName?: string | null;
+    sectorLabel?: string | null;
+  },
+): JSX.Element {
+  const {
+    root,
+    depth,
+    x,
+    y,
+    width,
+    height,
+    index,
+    name,
+    stockName,
+    sectorLabel,
+  } = props;
+  const SECTOR_HEADER_HEIGHT = 16;
 
   // contribution_points is directly on props, not in payload
   const contributionPoints = (props as any).contribution_points;
+  const hasSectorRoot =
+    depth === 2 &&
+    root?.depth === 1 &&
+    typeof root.height === "number" &&
+    root.height > SECTOR_HEADER_HEIGHT;
+  const contentScaleY = hasSectorRoot
+    ? (root.height - SECTOR_HEADER_HEIGHT) / root.height
+    : 1;
+  const renderX = x;
+  const renderY = hasSectorRoot
+    ? root.y + SECTOR_HEADER_HEIGHT + (y - root.y) * contentScaleY
+    : y;
+  const renderWidth = width;
+  const renderHeight = hasSectorRoot ? height * contentScaleY : height;
 
-  const showSectorLabel = depth === 1 && width > 80 && height > 28;
-  const showSymbolLabel = depth === 2 && width > 34 && height > 18;
+  const showSectorLabel = depth === 1;
+  const showSymbolLabel = depth === 2 && renderWidth > 34 && renderHeight > 18;
+  const showStockNameLabel =
+    depth === 2 && Boolean(stockName) && renderWidth > 72 && renderHeight > 42;
   const showContributionLabel =
     depth === 2 && showSymbolLabel && typeof contributionPoints === "number";
-  const contributionColor =
-    contributionPoints > 0
-      ? "#ef4444"
-      : contributionPoints < 0
-        ? "#22c55e"
-        : "#94a3b8";
+  const sectorFontSize = Math.max(
+    8,
+    Math.min(10, Math.floor(Math.min(width / 10, height / 2.4))),
+  );
+  const symbolFontSize = Math.max(
+    9,
+    Math.min(13, Math.floor(Math.min(renderWidth / 5, renderHeight / 2.2))),
+  );
+  const stockNameFontSize = Math.max(
+    7,
+    Math.min(10, Math.floor(Math.min(renderWidth / 8, renderHeight / 3.2))),
+  );
+  const contributionFontSize = Math.max(
+    8,
+    Math.min(12, Math.floor(Math.min(renderWidth / 6, renderHeight / 2.8))),
+  );
+  const symbolOffsetY = showContributionLabel
+    ? showStockNameLabel
+      ? -(stockNameFontSize + 4)
+      : -Math.max(6, Math.round(contributionFontSize * 0.75))
+    : showStockNameLabel
+      ? -Math.max(3, Math.round(stockNameFontSize * 0.4))
+      : 4;
+  const stockNameOffsetY = showContributionLabel
+    ? 0
+    : Math.max(8, Math.round(stockNameFontSize * 1.1));
+  const contributionOffsetY = showStockNameLabel
+    ? Math.max(12, stockNameFontSize + 6)
+    : Math.max(10, contributionFontSize);
+  const tileFillColor =
+    depth === 2 && typeof contributionPoints === "number"
+      ? contributionPoints > 0
+        ? "#ef4444"
+        : contributionPoints < 0
+          ? "#22c55e"
+          : "#94a3b8"
+      : null;
   const contributionText =
     typeof contributionPoints !== "number"
       ? "--"
@@ -99,51 +260,73 @@ function CustomizedContent(props: TreemapNode): JSX.Element {
   return (
     <g>
       <rect
-        x={x}
-        y={y}
-        width={width}
-        height={height}
+        x={renderX}
+        y={renderY}
+        width={renderWidth}
+        height={renderHeight}
         style={{
           fill:
-            depth < 2
-              ? COLORS[Math.floor((index / (root?.children?.length ?? 1)) * 6)]
-              : "#ffffff00",
-          stroke: "#fff",
+            depth === 2 && tileFillColor
+              ? tileFillColor
+              : depth === 1
+                ? "transparent"
+                : depth < 2
+                  ? COLORS[
+                      Math.floor((index / (root?.children?.length ?? 1)) * 6)
+                    ]
+                  : "#ffffff",
           strokeWidth: 2 / (depth + 1e-10),
-          strokeOpacity: 1 / (depth + 1e-10),
+          strokeOpacity: 4 / (depth + 1e-10),
         }}
       />
       {showSectorLabel ? (
         <text
-          x={x + width / 2}
-          y={y + height / 2 + 7}
-          textAnchor="middle"
-          fill="#fff"
-          fontSize={14}
+          x={x + 8}
+          y={y + 12}
+          textAnchor="start"
+          fill="black"
+          stroke="none"
+          paintOrder="fill"
+          fontSize={sectorFontSize}
+          fontWeight={300}
         >
-          {name}
+          {sectorLabel ?? name}
         </text>
       ) : null}
       {showSymbolLabel ? (
         <text
-          x={x + width / 2}
-          y={y + height / 2 + (showContributionLabel ? -8 : 4)}
+          x={renderX + renderWidth / 2}
+          y={renderY + renderHeight / 2 + symbolOffsetY}
           textAnchor="middle"
           fill="#f8fafc"
-          fontSize={13}
+          fontSize={symbolFontSize}
           fontWeight={200}
+          stroke="none"
         >
           {name}
         </text>
       ) : null}
+      {showStockNameLabel ? (
+        <text
+          x={renderX + renderWidth / 2}
+          y={renderY + renderHeight / 2 + stockNameOffsetY}
+          textAnchor="middle"
+          fill="#f8fafc"
+          fontSize={stockNameFontSize}
+          fontWeight={200}
+          stroke="none"
+        >
+          {stockName}
+        </text>
+      ) : null}
       {showContributionLabel ? (
         <text
-          x={x + width / 2}
-          y={y + height / 2 + 12}
+          x={renderX + renderWidth / 2}
+          y={renderY + renderHeight / 2 + contributionOffsetY}
           textAnchor="middle"
-          fill={contributionColor}
+          fill="#f8fafc"
           stroke="none"
-          fontSize={12}
+          fontSize={contributionFontSize}
           fontWeight={9000}
         >
           {contributionText}
@@ -154,20 +337,27 @@ function CustomizedContent(props: TreemapNode): JSX.Element {
 }
 
 export function TreemapDemoPage(): JSX.Element {
-  const indexContribRanking = useRealtimeStore((state) => state.indexContribRanking);
-  const indexContribSector = useRealtimeStore((state) => state.indexContribSector);
-  
+  const { locale } = useI18n();
+  const t = useT();
+  const indexContribRanking = useRealtimeStore(
+    (state) => state.indexContribRanking,
+  );
+  const indexContribSector = useRealtimeStore(
+    (state) => state.indexContribSector,
+  );
+
   const topFive = (indexContribRanking?.top ?? []).slice(0, 5);
   const bottomFive = (indexContribRanking?.bottom ?? []).slice(0, 5);
   const displayTopFive =
     topFive.length > 0 ? topFive : MOCK_INDEX_CONTRIB_RANKING.top;
   const displayBottomFive =
     bottomFive.length > 0 ? bottomFive : MOCK_INDEX_CONTRIB_RANKING.bottom;
-  
+
   // Use SSE data if available, otherwise fallback to mock data
-  const treemapData = indexContribSector?.sectors && indexContribSector.sectors.length > 0
-    ? indexContribSector.sectors
-    : data;
+  const treemapData =
+    indexContribSector?.sectors && indexContribSector.sectors.length > 0
+      ? indexContribSector.sectors
+      : data;
 
   const formatContribution = (value: number): string => {
     const sign = value > 0 ? "+" : "";
@@ -176,12 +366,12 @@ export function TreemapDemoPage(): JSX.Element {
 
   return (
     <PageLayout
-      title="Treemap Demo"
+      title={t("dashboard.treemap.title")}
       bodyClassName="space-y-[var(--section-gap)]"
     >
       <BentoGridSection
-        title="Industry Weight Treemap"
-        tooltip="Mock data (20 symbols / 4 sectors)"
+        title={t("dashboard.treemap.sectionTitle")}
+        tooltip={t("dashboard.treemap.sectionTooltip")}
       >
         <div
           className={`lg:col-span-9 rounded-sm p-3 ${TREEMAP_PANEL_HEIGHT_CLASS}`}
@@ -195,10 +385,24 @@ export function TreemapDemoPage(): JSX.Element {
               <Treemap
                 data={treemapData}
                 dataKey="size"
-                aspectRatio={4 / 3}
+                aspectRatio={3 / 4}
                 stroke="#fff"
                 fill="#8884d8"
-                content={CustomizedContent}
+                content={(props) => (
+                  <CustomizedContent
+                    {...props}
+                    stockName={
+                      typeof props.name === "string"
+                        ? getStockName(props.name, locale)
+                        : null
+                    }
+                    sectorLabel={
+                      props.depth === 1 && typeof props.name === "string"
+                        ? getSectorLabel(props.name, t)
+                        : null
+                    }
+                  />
+                )}
                 isAnimationActive={false}
               />
             </ResponsiveContainer>
@@ -210,7 +414,7 @@ export function TreemapDemoPage(): JSX.Element {
         >
           <div className="flex min-h-0 flex-1 flex-col rounded-sm border border-border bg-card p-3">
             <p className="text-sm font-semibold text-foreground">
-              Top Contributors
+              {t("dashboard.treemap.topContributors")}
             </p>
             <div className="mt-2 h-full space-y-2 overflow-y-auto">
               {displayTopFive.map((item) => (
@@ -223,7 +427,7 @@ export function TreemapDemoPage(): JSX.Element {
                       {item.rank_no}
                     </span>
                     <span className="font-medium text-foreground">
-                      {item.symbol}
+                      {formatStockLabel(item.symbol, locale)}
                     </span>
                   </div>
                   <span className="font-medium text-rose-500">
@@ -236,7 +440,7 @@ export function TreemapDemoPage(): JSX.Element {
 
           <div className="flex min-h-0 flex-1 flex-col rounded-sm border border-border bg-card p-3">
             <p className="text-sm font-semibold text-foreground">
-              Bottom Contributors
+              {t("dashboard.treemap.bottomContributors")}
             </p>
             <div className="mt-2 h-full space-y-2 overflow-y-auto">
               {displayBottomFive.map((item) => (
@@ -249,7 +453,7 @@ export function TreemapDemoPage(): JSX.Element {
                       {item.rank_no}
                     </span>
                     <span className="font-medium text-foreground">
-                      {item.symbol}
+                      {formatStockLabel(item.symbol, locale)}
                     </span>
                   </div>
                   <span className="font-medium text-emerald-500">

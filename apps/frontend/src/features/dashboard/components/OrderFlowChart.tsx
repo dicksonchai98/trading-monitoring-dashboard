@@ -63,7 +63,7 @@ export function OrderFlowChart(): JSX.Element {
           <Line
             dataKey="flow"
             dot={false}
-            stroke="hsl(var(--primary))"
+            stroke="hsl(var(--chart-line))"
             strokeWidth={2}
             type="monotone"
           />

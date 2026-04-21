@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
@@ -14,6 +15,8 @@ from app.repositories.user_repository import UserRecord, UserRepository
 from app.services.audit import AuditLog
 from app.services.stripe_provider import StripeProvider
 from app.utils.time import ensure_utc
+
+logger = logging.getLogger(__name__)
 
 
 class BillingError(Exception):
@@ -114,6 +117,22 @@ class BillingService:
             "entitlement_active": subscription.entitlement_active,
         }
 
+    def get_checkout_session(self, *, session_id: str) -> dict[str, Any]:
+        try:
+            session = self._stripe.retrieve_checkout_session(session_id)
+        except ValueError as exc:
+            # treat as not found
+            raise BillingError("session_not_found") from exc
+        except Exception as exc:
+            logger.exception("failed to retrieve checkout session from stripe")
+            raise BillingError("stripe_error") from exc
+        session_id_val = (
+            str(session.get("id", session_id)) if isinstance(session, dict) else session_id
+        )
+        payment_status = str(session.get("payment_status", "")) if isinstance(session, dict) else ""
+        is_paid = payment_status.lower() == "paid"
+        return {"session_id": session_id_val, "payment_status": payment_status, "is_paid": is_paid}
+
     def process_webhook(self, *, payload: bytes, signature: str | None) -> str:
         if not signature:
             raise BillingError("invalid_signature")
@@ -123,8 +142,13 @@ class BillingService:
                 signature=signature,
                 webhook_secret=self._settings.webhook_secret,
             )
-        except Exception as exc:
+        except ValueError as exc:
+            # Provider signals invalid signature via ValueError
             raise BillingError("invalid_signature") from exc
+        except Exception:
+            # Non-signature errors should surface as server errors for visibility
+            logger.exception("stripe webhook construct_event failed")
+            raise
 
         event_id = str(event.get("id", ""))
         event_type = str(event.get("type", ""))

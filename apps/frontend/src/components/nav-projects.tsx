@@ -4,14 +4,17 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from "@/components/ui/sidebar"
 import { Link } from "react-router-dom"
-import { useT } from "@/lib/i18n"
+import { useShellNavigation } from "@/app/navigation/ShellNavigationContext"
 
 export function NavProjects({
+  label,
   projects,
   pathname,
 }: {
+  label: string
   projects: {
     name: string
     url: string
@@ -19,15 +22,26 @@ export function NavProjects({
   }[]
   pathname: string
 }) {
-  const t = useT();
+  const { isMobile, setOpenMobile } = useSidebar();
+  const { createLinkClickHandler } = useShellNavigation();
+
+  function handleMobileNavClick(): void {
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+  }
+
   return (
     <SidebarGroup>
-      <SidebarGroupLabel>{t("nav.utilities")}</SidebarGroupLabel>
+      <SidebarGroupLabel>{label}</SidebarGroupLabel>
       <SidebarMenu>
         {projects.map((item) => (
           <SidebarMenuItem key={item.name}>
             <SidebarMenuButton asChild isActive={pathname === item.url}>
-              <Link to={item.url}>
+              <Link
+                to={item.url}
+                onClick={createLinkClickHandler(item.url, handleMobileNavClick)}
+              >
                 {item.icon}
                 <span>{item.name}</span>
               </Link>

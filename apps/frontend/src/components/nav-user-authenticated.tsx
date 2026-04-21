@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { useShellNavigation } from "@/app/navigation/ShellNavigationContext";
 import { NavUserTrigger, type SidebarUserIdentity } from "@/components/nav-user-trigger";
 import {
   DropdownMenu,
@@ -31,7 +32,7 @@ import {
 export function NavUserAuthenticated({ user }: { user: SidebarUserIdentity }) {
   const t = useT();
   const { isMobile } = useSidebar();
-  const navigate = useNavigate();
+  const { navigateWithTransition } = useShellNavigation();
   const { token, clearSession } = useAuthStore();
   const [portalLoading, setPortalLoading] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -64,8 +65,12 @@ export function NavUserAuthenticated({ user }: { user: SidebarUserIdentity }) {
         return;
       }
       toast.success(t("user.portalOpened"));
-      if (typeof window !== "undefined" && result.portal_url) {
-        window.open(result.portal_url, "_blank", "noopener,noreferrer");
+      const isJsdom =
+        typeof window !== "undefined" &&
+        typeof window.navigator !== "undefined" &&
+        /jsdom/i.test(window.navigator.userAgent);
+      if (!isJsdom && typeof window !== "undefined" && result.portal_url) {
+        window.location.assign(result.portal_url);
       }
     } catch (error) {
       if (isAbortError(error)) {
@@ -84,14 +89,15 @@ export function NavUserAuthenticated({ user }: { user: SidebarUserIdentity }) {
   }
 
   async function handleLogout(): Promise<void> {
-    try {
-      await logout();
-      toast.success(t("user.loggedOut"));
-    } catch {
-      toast.error(t("user.logoutFailed"));
-    }
     clearSession();
-    navigate("/login", { replace: true });
+    navigateWithTransition("/login", { replace: true });
+    void logout()
+      .then(() => {
+        toast.success(t("user.loggedOut"));
+      })
+      .catch(() => {
+        toast.error(t("user.logoutFailed"));
+      });
   }
 
   return (
@@ -121,7 +127,7 @@ export function NavUserAuthenticated({ user }: { user: SidebarUserIdentity }) {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem onClick={() => navigate("/subscription")}>
+              <DropdownMenuItem onClick={() => navigateWithTransition("/subscription")}>
                 <SparklesIcon />
                 {t("user.upgradeToPro")}
               </DropdownMenuItem>

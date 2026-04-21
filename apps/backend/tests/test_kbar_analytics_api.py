@@ -175,6 +175,7 @@ def test_kbar_analytics_endpoints_and_jobs_flow() -> None:
     assert distribution_res.status_code == 200
     assert distribution_res.json()["sample_count"] >= 1
 
+
 def test_kbar_analytics_rejects_unknown_registry_ids() -> None:
     client = TestClient(app)
     auth = _register_and_login(client, "kbar-user2@example.com", "PassKbar234")

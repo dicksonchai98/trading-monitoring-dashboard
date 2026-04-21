@@ -13,9 +13,14 @@ import {
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarMenuSubItem,
+  useSidebar,
 } from "@/components/ui/sidebar"
 import { ChevronRightIcon } from "lucide-react"
+import { useShellNavigation } from "@/app/navigation/ShellNavigationContext"
+import { prefetchDashboardRouteData } from "@/features/dashboard/lib/dashboard-route-prefetch"
 import { useT } from "@/lib/i18n"
+import { queryClient } from "@/lib/query/client"
+import { useAuthStore } from "@/lib/store/auth-store"
 
 export function NavMain({
   items,
@@ -34,6 +39,26 @@ export function NavMain({
   pathname: string
 }) {
   const t = useT();
+  const { isMobile, setOpenMobile } = useSidebar();
+  const { createLinkClickHandler } = useShellNavigation();
+  const token = useAuthStore((state) => state.token);
+  const role = useAuthStore((state) => state.role);
+  const resolved = useAuthStore((state) => state.resolved);
+
+  function handleMobileNavClick(): void {
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+  }
+
+  function prefetchDashboard(): Promise<void> {
+    return prefetchDashboardRouteData(queryClient, {
+      resolved,
+      token,
+      role,
+    });
+  }
+
   return (
     <SidebarGroup>
       <SidebarGroupLabel>{t("nav.monitoring")}</SidebarGroupLabel>
@@ -58,7 +83,26 @@ export function NavMain({
                   {item.items?.map((subItem) => (
                     <SidebarMenuSubItem key={subItem.title}>
                       <SidebarMenuSubButton asChild isActive={pathname === subItem.url}>
-                        <Link to={subItem.url}>
+                        <Link
+                          to={subItem.url}
+                          onMouseEnter={
+                            subItem.url === "/dashboard"
+                              ? () => void prefetchDashboard()
+                              : undefined
+                          }
+                          onFocus={
+                            subItem.url === "/dashboard"
+                              ? () => void prefetchDashboard()
+                              : undefined
+                          }
+                          onClick={createLinkClickHandler(
+                            subItem.url,
+                            handleMobileNavClick,
+                            subItem.url === "/dashboard"
+                              ? prefetchDashboard
+                              : undefined,
+                          )}
+                        >
                           <span>{subItem.title}</span>
                         </Link>
                       </SidebarMenuSubButton>

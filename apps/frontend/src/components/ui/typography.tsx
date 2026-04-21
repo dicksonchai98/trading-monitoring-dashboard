@@ -33,10 +33,12 @@ export function Typography<T extends ElementType = "p">({
   ...props
 }: TypographyProps<T>) {
   const Component = as ?? "p";
+  // Cast the runtime component to any to satisfy TS when spreading polymorphic props.
+  const C = Component as any;
   return (
-    <Component className={cn(typographyVariants[variant], className)} {...props}>
+    <C className={cn(typographyVariants[variant], className)} {...(props as any)}>
       {children}
-    </Component>
+    </C>
   );
 }
 

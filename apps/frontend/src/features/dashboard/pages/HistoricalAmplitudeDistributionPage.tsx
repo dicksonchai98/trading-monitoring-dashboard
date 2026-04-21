@@ -48,7 +48,7 @@ function mapMetricLabel(
   fallbackLabel?: string,
 ): string {
   const key = METRIC_LABEL_KEYS[metricId];
-  return key ? t(key) : fallbackLabel ?? metricId;
+  return key ? t(key) : (fallbackLabel ?? metricId);
 }
 
 function parseBinRange(raw: string): { start: number; end: number } {
@@ -61,7 +61,10 @@ function parseBinRange(raw: string): { start: number; end: number } {
   };
 }
 
-function toHistogramRows(bins: Array<string | number>, counts: number[]): HistogramRow[] {
+function toHistogramRows(
+  bins: Array<string | number>,
+  counts: number[],
+): HistogramRow[] {
   if (bins.length === 0) {
     return [];
   }
@@ -70,8 +73,12 @@ function toHistogramRows(bins: Array<string | number>, counts: number[]): Histog
     if (typeof bins[0] === "number") {
       return bins.filter((edge): edge is number => typeof edge === "number");
     }
-    const stringBins = bins.filter((edge): edge is string => typeof edge === "string");
-    const allNumeric = stringBins.every((edge) => edge.includes("~") === false && Number.isFinite(Number(edge)));
+    const stringBins = bins.filter(
+      (edge): edge is string => typeof edge === "string",
+    );
+    const allNumeric = stringBins.every(
+      (edge) => edge.includes("~") === false && Number.isFinite(Number(edge)),
+    );
     if (!allNumeric) {
       return [];
     }
@@ -97,9 +104,10 @@ function toHistogramRows(bins: Array<string | number>, counts: number[]): Histog
   }
 
   return bins.map((bin, index) => {
-    const { start, end } = parseBinRange(bin);
+    const label = String(bin);
+    const { start, end } = parseBinRange(label);
     return {
-      label: bin,
+      label,
       count: counts[index] ?? 0,
       start,
       end,
@@ -119,28 +127,29 @@ export function HistoricalAmplitudeDistributionPage(): JSX.Element {
     queryFn: ({ signal }) => getAnalyticsMetrics(token, signal),
   });
   const metrics = metricsQuery.data?.metrics ?? [];
+  const firstMetricId = metrics[0]?.id ?? "";
 
   useEffect(() => {
-    if (!metricId && metrics.length > 0) {
-      setMetricId(metrics[0].id);
+    if (!metricId && firstMetricId) {
+      setMetricId(firstMetricId);
     }
-  }, [metricId, metrics]);
+  }, [firstMetricId, metricId]);
 
   const distributionQuery = useQuery({
-    queryKey: [
-      "historical-amplitude-distribution",
-      metricId,
-      code,
-      version,
-    ],
+    queryKey: ["historical-amplitude-distribution", metricId, code, version],
     queryFn: ({ signal }) =>
-      getDistributionStats(token, {
-        metricId,
-        code,
-        version,
-      }, signal),
+      getDistributionStats(
+        token,
+        {
+          metricId,
+          code,
+          version,
+        },
+        signal,
+      ),
     enabled: Boolean(metricId),
   });
+  const isMetricsLoading = metricsQuery.isLoading || metricsQuery.isFetching;
 
   const apiStatus = useMemo(() => {
     const err = distributionQuery.error ?? metricsQuery.error;
@@ -179,6 +188,7 @@ export function HistoricalAmplitudeDistributionPage(): JSX.Element {
         { value: "TXF", label: "TXF" },
       ],
       onValueChange: setCode,
+      triggerTestId: "amplitude-code-trigger",
     },
     {
       id: "amplitude-metric",
@@ -192,8 +202,16 @@ export function HistoricalAmplitudeDistributionPage(): JSX.Element {
               value: metric.id,
               label: mapMetricLabel(metric.id, t, metric.label),
             }))
-          : [{ value: "__none__", label: t("dashboard.amplitude.filter.noMetrics"), disabled: true }],
+          : [
+              {
+                value: "__none__",
+                label: t("dashboard.amplitude.filter.noMetrics"),
+                disabled: true,
+              },
+            ],
+      loading: isMetricsLoading,
       onValueChange: setMetricId,
+      triggerTestId: "amplitude-metric-trigger",
     },
   ];
 
@@ -205,7 +223,10 @@ export function HistoricalAmplitudeDistributionPage(): JSX.Element {
     >
       <FilterLayer fields={filterFields} />
 
-      <BentoGridSection title={t("dashboard.amplitude.sectionTitle")}>
+      <BentoGridSection
+        tooltip={`此页功能显示各种振幅的统计资料`}
+        title={t("dashboard.amplitude.sectionTitle")}
+      >
         <PanelCard
           title={t("dashboard.amplitude.hist.title")}
           span={12}
@@ -221,15 +242,23 @@ export function HistoricalAmplitudeDistributionPage(): JSX.Element {
             apiStatus !== 401 &&
             apiStatus !== 403 ? (
               <ApiStatusAlert
-                message={t("dashboard.amplitude.error.fetch", { status: String(apiStatus) })}
+                message={t("dashboard.amplitude.error.fetch", {
+                  status: String(apiStatus),
+                })}
                 status={apiStatus}
               />
             ) : null}
 
             <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              <Badge variant="success">{t("dashboard.amplitude.upDays")}: {upDays}</Badge>
-              <Badge variant="danger">{t("dashboard.amplitude.downDays")}: {downDays}</Badge>
-              <Badge variant="neutral">{t("dashboard.amplitude.net")}: {upDays - downDays}</Badge>
+              <Badge variant="success">
+                {t("dashboard.amplitude.upDays")}: {upDays}
+              </Badge>
+              <Badge variant="danger">
+                {t("dashboard.amplitude.downDays")}: {downDays}
+              </Badge>
+              <Badge variant="neutral">
+                {t("dashboard.amplitude.net")}: {upDays - downDays}
+              </Badge>
             </div>
 
             {distributionQuery.isLoading ? (
@@ -288,11 +317,15 @@ export function HistoricalAmplitudeDistributionPage(): JSX.Element {
                         color: "hsl(var(--foreground))",
                       }}
                       formatter={(value) => [
-                        t("dashboard.amplitude.tooltip.days", { value: String(Number(value ?? 0)) }),
+                        t("dashboard.amplitude.tooltip.days", {
+                          value: String(Number(value ?? 0)),
+                        }),
                         t("dashboard.amplitude.tooltip.count"),
                       ]}
                       labelFormatter={(label) =>
-                        t("dashboard.amplitude.tooltip.bucket", { label: String(label) })
+                        t("dashboard.amplitude.tooltip.bucket", {
+                          label: String(label),
+                        })
                       }
                     />
                     <Bar dataKey="count">
@@ -316,4 +349,3 @@ export function HistoricalAmplitudeDistributionPage(): JSX.Element {
     </PageLayout>
   );
 }
-

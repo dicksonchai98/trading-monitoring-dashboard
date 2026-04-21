@@ -1,7 +1,14 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import type { JSX } from "react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter, useLocation, useNavigate } from "react-router-dom";
 import { AppShell } from "@/app/layout/AppShell";
+import { prefetchDashboardRouteData } from "@/features/dashboard/lib/dashboard-route-prefetch";
 import { I18nProvider } from "@/lib/i18n";
+import { useAuthStore } from "@/lib/store/auth-store";
+
+vi.mock("@/features/dashboard/lib/dashboard-route-prefetch", () => ({
+  prefetchDashboardRouteData: vi.fn(),
+}));
 
 vi.mock("react-router-dom", async () => {
   const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom");
@@ -13,6 +20,20 @@ vi.mock("react-router-dom", async () => {
 });
 
 describe("AppShell", () => {
+  function NavigationHarness(): JSX.Element {
+    const location = useLocation();
+    const navigate = useNavigate();
+
+    return (
+      <>
+        <button type="button" onClick={() => navigate("/market-thermometer")}>
+          Go to market thermometer
+        </button>
+        <div data-testid="current-path">{location.pathname}</div>
+      </>
+    );
+  }
+
   function renderShell(): void {
     render(
       <I18nProvider>
@@ -25,10 +46,18 @@ describe("AppShell", () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
+    vi.clearAllMocks();
     window.localStorage.clear();
     document.documentElement.removeAttribute("data-color-mode");
     document.documentElement.removeAttribute("lang");
     document.documentElement.classList.remove("dark");
+    useAuthStore.setState({
+      token: "token",
+      role: "member",
+      entitlement: "active",
+      resolved: true,
+      checkoutSessionId: null,
+    });
     Object.defineProperty(window, "matchMedia", {
       writable: true,
       value: vi.fn().mockImplementation((query: string) => ({
@@ -48,6 +77,13 @@ describe("AppShell", () => {
     Object.defineProperty(window, "innerWidth", { configurable: true, writable: true, value: 1024 });
     act(() => {
       window.dispatchEvent(new Event("resize"));
+    });
+    useAuthStore.setState({
+      token: null,
+      role: "visitor",
+      entitlement: "none",
+      resolved: false,
+      checkoutSessionId: null,
     });
     vi.runOnlyPendingTimers();
     vi.useRealTimers();
@@ -75,6 +111,33 @@ describe("AppShell", () => {
 
     expect(screen.getByText("Monitoring")).toBeInTheDocument();
     expect(screen.getByText("Realtime")).toBeInTheDocument();
+    expect(screen.getByText("Coming Soon")).toBeInTheDocument();
+    expect(screen.getByText("Options Positioning")).toBeInTheDocument();
+    expect(screen.getByText("Options Add/Close")).toBeInTheDocument();
+  });
+
+  it("keeps route content visible during client-side navigation", () => {
+    render(
+      <I18nProvider>
+        <MemoryRouter initialEntries={["/dashboard"]}>
+          <NavigationHarness />
+          <AppShell />
+        </MemoryRouter>
+      </I18nProvider>,
+    );
+
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+
+    expect(screen.getByTestId("current-path")).toHaveTextContent("/dashboard");
+    expect(screen.getByTestId("outlet-content")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Go to market thermometer" }));
+
+    expect(screen.getByTestId("current-path")).toHaveTextContent("/market-thermometer");
+    expect(screen.getByTestId("outlet-content")).toBeInTheDocument();
+    expect(screen.queryByTestId("page-skeleton")).not.toBeInTheDocument();
   });
 
   it("shows a mobile trigger button and opens sidebar sheet", () => {
@@ -109,6 +172,27 @@ describe("AppShell", () => {
     expect(document.documentElement.getAttribute("lang")).toBe("zh-TW");
     expect(window.localStorage.getItem("ui.language.preset")).toBe("zh-TW");
     expect(screen.getAllByRole("button", { name: "Switch to English" }).length).toBeGreaterThan(0);
+  });
+
+  it("prefetches dashboard data on hover, focus, and click", async () => {
+    const prefetchMock = vi.mocked(prefetchDashboardRouteData);
+    prefetchMock.mockResolvedValue(undefined);
+
+    renderShell();
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+
+    const dashboardLink = screen.getByRole("link", { name: "Overview" });
+
+    await act(async () => {
+      fireEvent.mouseEnter(dashboardLink);
+      fireEvent.focus(dashboardLink);
+      fireEvent.click(dashboardLink);
+      await Promise.resolve();
+    });
+
+    expect(prefetchMock).toHaveBeenCalled();
   });
 });
 

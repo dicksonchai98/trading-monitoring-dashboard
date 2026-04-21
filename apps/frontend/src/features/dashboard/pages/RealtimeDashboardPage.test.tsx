@@ -1,10 +1,41 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { RealtimeDashboardPage } from "@/features/dashboard/pages/RealtimeDashboardPage";
+import { useSpotMarketDistributionBaseline } from "@/features/dashboard/hooks/use-spot-market-distribution";
 import { useAuthStore } from "@/lib/store/auth-store";
 import { useDashboardUiStore } from "@/lib/store/dashboard-ui-store";
 
+vi.mock("@/features/dashboard/hooks/use-spot-market-distribution", () => ({
+  useSpotMarketDistributionBaseline: vi.fn(() => ({
+    loading: false,
+    error: null,
+  })),
+}));
+
 describe("RealtimeDashboardPage", () => {
+  const useSpotMarketDistributionBaselineMock = vi.mocked(
+    useSpotMarketDistributionBaseline,
+  );
+
+  function renderPage() {
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: {
+          retry: false,
+        },
+      },
+    });
+
+    return render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/dashboard"]}>
+          <RealtimeDashboardPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+  }
+
   beforeEach(() => {
     useAuthStore.setState({
       token: "token",
@@ -13,6 +44,10 @@ describe("RealtimeDashboardPage", () => {
       resolved: true,
     });
     useDashboardUiStore.getState().resetStickyBanner();
+    useSpotMarketDistributionBaselineMock.mockReturnValue({
+      loading: false,
+      error: null,
+    });
   });
 
   it("shows skeleton while auth bootstrap is unresolved", () => {
@@ -23,32 +58,21 @@ describe("RealtimeDashboardPage", () => {
       resolved: false,
     });
 
-    render(
-      <MemoryRouter initialEntries={["/dashboard"]}>
-        <RealtimeDashboardPage />
-      </MemoryRouter>,
-    );
+    renderPage();
 
     expect(screen.getByTestId("page-skeleton")).toBeInTheDocument();
   });
 
   it("renders existing dashboard sections and the new SSE chart section at the bottom", () => {
-    render(
-      <MemoryRouter initialEntries={["/dashboard"]}>
-        <RealtimeDashboardPage />
-      </MemoryRouter>,
-    );
+    renderPage();
 
     expect(screen.getByText("LIVE METRICS")).toBeInTheDocument();
     expect(screen.getByText("MARKET OVERVIEW")).toBeInTheDocument();
     expect(screen.getByText("PARTICIPANT OVERVIEW")).toBeInTheDocument();
 
-    expect(screen.getByTestId("sse-close-trend-panel")).toBeInTheDocument();
-    expect(screen.getByTestId("sse-spread-panel")).toBeInTheDocument();
-    expect(screen.getByTestId("sse-depth-panel")).toBeInTheDocument();
-    expect(screen.getAllByTestId("sse-panel-skeleton").length).toBeGreaterThan(
-      0,
-    );
+    expect(screen.getByTestId("spot-market-distribution-card")).toBeInTheDocument();
+    expect(screen.getByTestId("participant-amplitude-chart")).toBeInTheDocument();
+    expect(screen.getAllByTestId("panel-chart").length).toBeGreaterThan(0);
   });
 
   it("does not render sticky banner for active entitlement users", () => {
@@ -59,11 +83,7 @@ describe("RealtimeDashboardPage", () => {
       resolved: true,
     });
 
-    render(
-      <MemoryRouter initialEntries={["/dashboard"]}>
-        <RealtimeDashboardPage />
-      </MemoryRouter>,
-    );
+    renderPage();
 
     expect(
       screen.queryByText("Unlock Pro insights now - subscribe to Pro."),
@@ -71,11 +91,7 @@ describe("RealtimeDashboardPage", () => {
   });
 
   it("keeps sticky banner dismissed across remounts", () => {
-    const { unmount } = render(
-      <MemoryRouter initialEntries={["/dashboard"]}>
-        <RealtimeDashboardPage />
-      </MemoryRouter>,
-    );
+    const { unmount } = renderPage();
 
     expect(
       screen.getByText("Unlock Pro insights now - subscribe to Pro."),
@@ -89,11 +105,7 @@ describe("RealtimeDashboardPage", () => {
 
     unmount();
 
-    render(
-      <MemoryRouter initialEntries={["/dashboard"]}>
-        <RealtimeDashboardPage />
-      </MemoryRouter>,
-    );
+    renderPage();
 
     expect(
       screen.queryByText("Unlock Pro insights now - subscribe to Pro."),

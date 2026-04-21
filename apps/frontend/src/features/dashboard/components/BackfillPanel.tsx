@@ -13,6 +13,7 @@ import {
 } from "@/features/dashboard/api/historical-backfill";
 import type { UnifiedLoaderJobRecord } from "@/features/dashboard/types/loader-jobs";
 import { ApiError } from "@/lib/api/client";
+import { useT } from "@/lib/i18n";
 
 type DateMode = "single" | "range";
 type LoadStatus = "idle" | "loading" | "success" | "error";
@@ -54,32 +55,37 @@ function toUnifiedJob(
   };
 }
 
-function mapApiError(error: unknown): string {
+function mapApiError(error: unknown, t: ReturnType<typeof useT>): string {
   if (!(error instanceof ApiError)) {
-    return "Load failed. Please retry.";
+    return t("dashboard.loader.error.retry");
   }
   if (error.status === 401) {
-    return "Session expired. Please login again.";
+    return t("dashboard.loader.error.sessionExpired");
   }
   if (error.status === 403) {
-    return "Admin role is required to trigger historical backfill jobs.";
+    return t("dashboard.loader.error.backfillAdminRequired");
   }
   if (error.code === "invalid_date_range") {
-    return "Date range is invalid. Please check start and end date.";
+    return t("dashboard.loader.error.invalidDateRange");
   }
   if (error.code === "invalid_overwrite_mode") {
-    return "Overwrite mode is invalid.";
+    return t("dashboard.loader.error.invalidOverwriteMode");
   }
-  return `Load failed: ${error.code}`;
+  return t("dashboard.loader.error.withCode", { code: error.code });
 }
 
-export function BackfillPanel({ token, onJobsCreated }: BackfillPanelProps): JSX.Element {
+export function BackfillPanel({
+  token,
+  onJobsCreated,
+}: BackfillPanelProps): JSX.Element {
+  const t = useT();
   const [mode, setMode] = useState<DateMode>("single");
   const [singleDate, setSingleDate] = useState("2026-03-17");
   const [rangeStart, setRangeStart] = useState("2026-03-10");
   const [rangeEnd, setRangeEnd] = useState("2026-03-17");
   const [selectedCodes, setSelectedCodes] = useState<string[]>(["TXFR1"]);
-  const [overwriteMode, setOverwriteMode] = useState<HistoricalOverwriteMode>("closed_only");
+  const [overwriteMode, setOverwriteMode] =
+    useState<HistoricalOverwriteMode>("closed_only");
   const [status, setStatus] = useState<LoadStatus>("idle");
   const [errorMessage, setErrorMessage] = useState("");
   const [progress, setProgress] = useState(0);
@@ -92,7 +98,9 @@ export function BackfillPanel({ token, onJobsCreated }: BackfillPanelProps): JSX
       endDate,
       overwriteMode: modeValue,
       token: authToken,
-    }: TriggerBatchInput): Promise<{ unifiedRows: UnifiedLoaderJobRecord[] }> => {
+    }: TriggerBatchInput): Promise<{
+      unifiedRows: UnifiedLoaderJobRecord[];
+    }> => {
       const unifiedRows: UnifiedLoaderJobRecord[] = [];
 
       for (const [index, code] of codes.entries()) {
@@ -112,17 +120,17 @@ export function BackfillPanel({ token, onJobsCreated }: BackfillPanelProps): JSX
 
   function validateInputs(): string | null {
     if (selectedCodes.length === 0) {
-      return "Please select at least one code.";
+      return t("dashboard.loader.error.selectItem");
     }
     if (mode === "single" && !singleDate) {
-      return "Please pick a date for single-day load.";
+      return t("dashboard.loader.error.singleDate");
     }
     if (mode === "range") {
       if (!rangeStart || !rangeEnd) {
-        return "Please provide both start and end date.";
+        return t("dashboard.loader.error.rangeDate");
       }
       if (rangeStart > rangeEnd) {
-        return "Start date must be earlier than or equal to end date.";
+        return t("dashboard.loader.error.rangeOrder");
       }
     }
     return null;
@@ -139,7 +147,7 @@ export function BackfillPanel({ token, onJobsCreated }: BackfillPanelProps): JSX
     }
     if (!token) {
       setStatus("error");
-      setErrorMessage("Please login before triggering backfill jobs.");
+      setErrorMessage(t("dashboard.loader.error.loginRequiredBackfill"));
       setCreatedCount(0);
       setProgress(0);
       return;
@@ -165,23 +173,24 @@ export function BackfillPanel({ token, onJobsCreated }: BackfillPanelProps): JSX
       setStatus("success");
     } catch (error: unknown) {
       setStatus("error");
-      setErrorMessage(mapApiError(error));
+      setErrorMessage(mapApiError(error, t));
       setCreatedCount(0);
       setProgress(0);
     }
   }
 
-  const dateDisplay = mode === "single" ? singleDate : `${rangeStart} ~ ${rangeEnd}`;
+  const dateDisplay =
+    mode === "single" ? singleDate : `${rangeStart} ~ ${rangeEnd}`;
   const filterFields: FilterField[] = [
     {
       id: "backfill-date-mode",
-      label: "Date Mode",
+      label: t("dashboard.loader.modeLegend"),
       type: "select",
       value: mode,
       triggerTestId: "backfill-date-mode",
       options: [
-        { value: "single", label: "Single Date" },
-        { value: "range", label: "Date Range" },
+        { value: "single", label: t("dashboard.loader.mode.single") },
+        { value: "range", label: t("dashboard.loader.mode.range") },
       ],
       onValueChange: (value) => setMode(value as DateMode),
     },
@@ -189,7 +198,7 @@ export function BackfillPanel({ token, onJobsCreated }: BackfillPanelProps): JSX
       ? [
           {
             id: "backfill-single-date",
-            label: "Trading Date",
+            label: t("dashboard.loader.tradingDate"),
             type: "date" as const,
             value: singleDate,
             onValueChange: setSingleDate,
@@ -198,14 +207,14 @@ export function BackfillPanel({ token, onJobsCreated }: BackfillPanelProps): JSX
       : [
           {
             id: "backfill-range-start",
-            label: "From",
+            label: t("dashboard.loader.startDate"),
             type: "date" as const,
             value: rangeStart,
             onValueChange: setRangeStart,
           },
           {
             id: "backfill-range-end",
-            label: "To",
+            label: t("dashboard.loader.endDate"),
             type: "date" as const,
             value: rangeEnd,
             onValueChange: setRangeEnd,
@@ -217,14 +226,16 @@ export function BackfillPanel({ token, onJobsCreated }: BackfillPanelProps): JSX
       className: "flex flex-col gap-1 md:col-span-2",
       render: () => (
         <>
-          <span className="typo-overline text-muted-foreground">Load Items</span>
+          <span className="typo-overline text-muted-foreground">
+            {t("dashboard.loader.itemsLegend")}
+          </span>
           <MultiSelect
             className="w-full"
             dataTestId="backfill-items-select"
             maxCount={2}
             onValueChange={setSelectedCodes}
             options={backfillCodeOptions}
-            placeholder="Select codes..."
+            placeholder={t("dashboard.loader.selectCodes")}
             value={selectedCodes}
           />
         </>
@@ -232,14 +243,18 @@ export function BackfillPanel({ token, onJobsCreated }: BackfillPanelProps): JSX
     },
     {
       id: "backfill-overwrite-mode",
-      label: "Overwrite Mode",
+      label: t("dashboard.loader.overwriteMode"),
       type: "select",
       value: overwriteMode,
       options: [
-        { value: "closed_only", label: "closed_only" },
-        { value: "force", label: "force" },
+        {
+          value: "closed_only",
+          label: t("dashboard.loader.overwriteMode.closedOnly"),
+        },
+        { value: "force", label: t("dashboard.loader.overwriteMode.force") },
       ],
-      onValueChange: (value) => setOverwriteMode(value as HistoricalOverwriteMode),
+      onValueChange: (value) =>
+        setOverwriteMode(value as HistoricalOverwriteMode),
     },
   ];
 
@@ -256,7 +271,9 @@ export function BackfillPanel({ token, onJobsCreated }: BackfillPanelProps): JSX
               disabled={status === "loading" || triggerMutation.isPending}
               onClick={() => void handleLoad()}
             >
-              {status === "loading" || triggerMutation.isPending ? "Loading..." : "Load Backfill"}
+              {status === "loading" || triggerMutation.isPending
+                ? t("dashboard.loader.loading")
+                : t("dashboard.loader.backfill.load")}
             </Button>
             <Button
               disabled={status === "loading" || triggerMutation.isPending}
@@ -268,7 +285,7 @@ export function BackfillPanel({ token, onJobsCreated }: BackfillPanelProps): JSX
               }}
               variant="outline"
             >
-              Reset
+              {t("dashboard.loader.reset")}
             </Button>
           </>
         }
@@ -276,15 +293,28 @@ export function BackfillPanel({ token, onJobsCreated }: BackfillPanelProps): JSX
 
       <div className="space-y-3 text-sm" data-testid="backfill-load-status">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="neutral">Mode: {mode === "single" ? "Single Date" : "Date Range"}</Badge>
-          <Badge variant="info">Date: {dateDisplay}</Badge>
-          <Badge variant="info">Codes: {selectedCodes.length}</Badge>
-          <Badge variant="info">Overwrite: {overwriteMode}</Badge>
+          <Badge variant="neutral">
+            {t("dashboard.loader.status.mode")}:{" "}
+            {mode === "single"
+              ? t("dashboard.loader.mode.single")
+              : t("dashboard.loader.mode.range")}
+          </Badge>
+          <Badge variant="info">
+            {t("dashboard.loader.status.date")}: {dateDisplay}
+          </Badge>
+          <Badge variant="info">
+            {t("dashboard.loader.status.items")}: {selectedCodes.length}
+          </Badge>
+          <Badge variant="info">
+            {t("dashboard.loader.status.overwrite")}: {overwriteMode}
+          </Badge>
         </div>
 
         {status === "loading" ? (
           <div className="space-y-2" data-testid="backfill-loading">
-            <p className="text-muted-foreground">Triggering historical backfill jobs. Please wait...</p>
+            <p className="text-muted-foreground">
+              {t("dashboard.loader.status.loadingHint")}
+            </p>
             <div className="h-2 w-full rounded bg-muted">
               <div
                 className="h-2 rounded bg-primary transition-all"
@@ -300,7 +330,9 @@ export function BackfillPanel({ token, onJobsCreated }: BackfillPanelProps): JSX
 
         {status === "success" ? (
           <div className="rounded-sm border border-[#22c55e]/35 bg-[#22c55e]/10 px-3 py-2 text-[#14532d]">
-            Created {createdCount} backfill job(s) successfully.
+            {t("dashboard.loader.backfill.success", {
+              count: String(createdCount),
+            })}
           </div>
         ) : null}
       </div>

@@ -1,10 +1,10 @@
 "use client";
-import React from "react";
+import { memo } from "react";
 import { motion } from "motion/react";
 import { World } from "@/components/ui/globe";
 import { useT } from "@/lib/i18n";
 
-export default function GlobeDemo() {
+function GlobeDemo() {
   const t = useT();
   const globeConfig = {
     pointSize: 4,
@@ -424,3 +424,5 @@ export default function GlobeDemo() {
     </div>
   );
 }
+
+export default memo(GlobeDemo);

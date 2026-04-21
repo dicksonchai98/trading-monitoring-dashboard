@@ -1,12 +1,12 @@
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   DEFAULT_ORDER_FLOW_CODE,
-  getOrderFlowBaseline,
 } from "@/features/dashboard/api/market-overview";
 import type {
   KbarTodayPoint,
   MetricTodayPoint,
 } from "@/features/dashboard/api/types";
+import { dashboardOrderFlowBaselineQueryOptions } from "@/features/dashboard/lib/dashboard-queries";
 import { useAuthStore } from "@/lib/store/auth-store";
 
 interface UseOrderFlowBaselineResult {
@@ -16,6 +16,9 @@ interface UseOrderFlowBaselineResult {
   error: string | null;
   baselineReady: boolean;
 }
+
+const EMPTY_KBAR_TODAY: KbarTodayPoint[] = [];
+const EMPTY_METRIC_TODAY: MetricTodayPoint[] = [];
 
 function resolveErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message) {
@@ -31,76 +34,23 @@ export function useOrderFlowBaseline(
   const token = useAuthStore((state) => state.token);
   const resolved = useAuthStore((state) => state.resolved);
   const role = useAuthStore((state) => state.role);
-
-  const [kbarToday, setKbarToday] = useState<KbarTodayPoint[]>([]);
-  const [metricToday, setMetricToday] = useState<MetricTodayPoint[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-  const [baselineReady, setBaselineReady] = useState<boolean>(false);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    setBaselineReady(false);
-
-    if (!resolved) {
-      setKbarToday([]);
-      setMetricToday([]);
-      setLoading(true);
-      setError(null);
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    if (!token || role === "visitor") {
-      setKbarToday([]);
-      setMetricToday([]);
-      setLoading(false);
-      setError(null);
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    setKbarToday([]);
-    setMetricToday([]);
-    setLoading(true);
-    setError(null);
-
-    void getOrderFlowBaseline(token, code)
-      .then((result) => {
-        if (cancelled) {
-          return;
-        }
-
-        setKbarToday(result.kbarToday);
-        setMetricToday(result.metricToday);
-        setBaselineReady(true);
-        setLoading(false);
-      })
-      .catch((err: unknown) => {
-        if (cancelled) {
-          return;
-        }
-
-        setKbarToday([]);
-        setMetricToday([]);
-        setError(resolveErrorMessage(err));
-        setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [code, resolved, role, token]);
+  const isEnabled = resolved && Boolean(token) && role !== "visitor";
+  const query = useQuery({
+    ...dashboardOrderFlowBaselineQueryOptions(token ?? "", code),
+    enabled: isEnabled,
+  });
 
   return {
-    kbarToday,
-    metricToday,
-    loading,
-    error,
-    baselineReady,
+    kbarToday:
+      (query.data?.kbarToday as KbarTodayPoint[] | undefined) ??
+      EMPTY_KBAR_TODAY,
+    metricToday:
+      (query.data?.metricToday as MetricTodayPoint[] | undefined) ??
+      EMPTY_METRIC_TODAY,
+    loading: !resolved ? true : query.isLoading,
+    error:
+      isEnabled && query.error ? resolveErrorMessage(query.error) : null,
+    baselineReady: Boolean(query.data),
   };
 }
 

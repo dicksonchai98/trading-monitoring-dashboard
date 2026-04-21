@@ -71,6 +71,9 @@ export function EventAnalyticsPage(): JSX.Element {
       }, signal),
     enabled: Boolean(eventId) && !hasInvalidDateRange,
   });
+  // The API returns EventStatsListResponse (items: EventStatsResponse[]).
+  // Use the first item when consuming single-stat summaries.
+  const stats = statsQuery.data?.items?.[0] ?? null;
 
   const samplesQuery = useQuery({
     queryKey: buildEventSamplesQueryKey({
@@ -141,13 +144,13 @@ export function EventAnalyticsPage(): JSX.Element {
   const sampleItems = samplesQuery.data?.items ?? [];
   const canMoveNext = Boolean(samplesQuery.data && (samplesQuery.data.total > page * pageSize));
   const pieData = [
-    { name: t("analytics.event.up"), value: statsQuery.data?.up_probability ?? 0 },
-    { name: t("analytics.event.down"), value: statsQuery.data?.down_probability ?? 0 },
-    { name: t("analytics.event.flat"), value: statsQuery.data?.flat_probability ?? 0 },
+    { name: t("analytics.event.up"), value: stats?.up_probability ?? 0 },
+    { name: t("analytics.event.down"), value: stats?.down_probability ?? 0 },
+    { name: t("analytics.event.flat"), value: stats?.flat_probability ?? 0 },
   ];
-  const histogramData = (statsQuery.data?.histogram?.bins ?? []).map((bin, index) => ({
+  const histogramData = (stats?.histogram?.bins ?? []).map((bin, index) => ({
     bin,
-    count: statsQuery.data?.histogram?.counts[index] ?? 0,
+    count: stats?.histogram?.counts[index] ?? 0,
   }));
 
   return (
@@ -182,7 +185,7 @@ export function EventAnalyticsPage(): JSX.Element {
         title={t("analytics.summary.title")}
         span={6}
         note={
-          statsQuery.isLoading ? t("analytics.common.loading") : `${t("analytics.event.samples")}: ${statsQuery.data?.sample_count ?? 0}`
+          statsQuery.isLoading ? t("analytics.common.loading") : `${t("analytics.event.samples")}: ${stats?.sample_count ?? 0}`
         }
       >
         {statsQuery.isLoading ? (
@@ -193,11 +196,11 @@ export function EventAnalyticsPage(): JSX.Element {
           </div>
         ) : (
           <div className="space-y-2 text-sm">
-            <Typography as="p" variant="body">{t("analytics.event.up")}: {statsQuery.data?.up_probability ?? 0}</Typography>
-            <Typography as="p" variant="body">{t("analytics.event.down")}: {statsQuery.data?.down_probability ?? 0}</Typography>
-            <Typography as="p" variant="body">{t("analytics.event.flat")}: {statsQuery.data?.flat_probability ?? 0}</Typography>
-            <Typography as="p" variant="body">{t("analytics.event.avgNextDayReturn")}: {statsQuery.data?.avg_next_day_return ?? 0}</Typography>
-            <Typography as="p" variant="body">{t("analytics.event.avgNextDayRange")}: {statsQuery.data?.avg_next_day_range ?? 0}</Typography>
+            <Typography as="p" variant="body">{t("analytics.event.up")}: {stats?.up_probability ?? 0}</Typography>
+            <Typography as="p" variant="body">{t("analytics.event.down")}: {stats?.down_probability ?? 0}</Typography>
+            <Typography as="p" variant="body">{t("analytics.event.flat")}: {stats?.flat_probability ?? 0}</Typography>
+            <Typography as="p" variant="body">{t("analytics.event.avgNextDayReturn")}: {stats?.avg_next_day_return ?? 0}</Typography>
+            <Typography as="p" variant="body">{t("analytics.event.avgNextDayRange")}: {stats?.avg_next_day_range ?? 0}</Typography>
           </div>
         )}
       </PanelCard>

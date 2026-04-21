@@ -1,15 +1,17 @@
-import { useEffect, useRef, useState } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   DEFAULT_ORDER_FLOW_CODE,
-  getEstimatedVolumeBaseline,
 } from "@/features/dashboard/api/market-overview";
 import {
   applyEstimatedVolumeRealtimePatch,
   buildEstimatedVolumeBaseline,
   type EstimatedVolumeSeriesPoint,
 } from "@/features/dashboard/lib/estimated-volume-mapper";
+import { dashboardEstimatedVolumeBaselineQueryOptions } from "@/features/dashboard/lib/dashboard-queries";
 import { useMarketSummaryLatest } from "@/features/realtime/hooks/use-market-summary-latest";
 import { useAuthStore } from "@/lib/store/auth-store";
+import { upsertPoint } from "@/features/dashboard/lib/timeline-helpers";
 
 interface UseEstimatedVolumeTimelineResult {
   series: EstimatedVolumeSeriesPoint[];
@@ -68,113 +70,74 @@ export function useEstimatedVolumeTimeline(): UseEstimatedVolumeTimelineResult {
   const resolved = useAuthStore((state) => state.resolved);
   const role = useAuthStore((state) => state.role);
   const marketSummaryLatest = useMarketSummaryLatest(DEFAULT_ORDER_FLOW_CODE);
+  const isEnabled = resolved && Boolean(token) && role !== "visitor";
+  const baselineQuery = useQuery({
+    ...dashboardEstimatedVolumeBaselineQueryOptions(
+      token ?? "",
+      DEFAULT_ORDER_FLOW_CODE,
+    ),
+    enabled: isEnabled,
+  });
 
-  const [series, setSeries] = useState<EstimatedVolumeSeriesPoint[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-  const [baselineReady, setBaselineReady] = useState<boolean>(false);
-  const yesterdayByMinuteOfDayRef = useRef<Record<number, number>>({});
+  const baseline = useMemo(
+    () =>
+      buildEstimatedVolumeBaseline(
+        baselineQuery.data?.marketSummaryToday ?? [],
+        baselineQuery.data?.marketSummaryYesterday ?? [],
+      ),
+    [baselineQuery.data],
+  );
+
+  const baselineSeries = useMemo(() => baseline.series, [baseline.series]);
+  const [series, setSeries] = useState<EstimatedVolumeSeriesPoint[]>(baselineSeries);
+  const indexRef = useRef<Map<number, number>>(new Map());
+
+  // reset baseline when baseline changes
+  useEffect(() => {
+    setSeries(baselineSeries);
+    const m = new Map<number, number>();
+    for (let i = 0; i < baselineSeries.length; ++i) m.set(baselineSeries[i].minuteTs, i);
+    indexRef.current = m;
+  }, [baselineSeries]);
 
   useEffect(() => {
-    let cancelled = false;
-
-    setBaselineReady(false);
-    yesterdayByMinuteOfDayRef.current = {};
-
-    if (!resolved) {
-      setSeries([]);
-      setLoading(true);
-      setError(null);
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    if (!token || role === "visitor") {
-      setSeries([]);
-      setLoading(false);
-      setError(null);
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    setSeries([]);
-    setLoading(true);
-    setError(null);
-
-    void getEstimatedVolumeBaseline(token, DEFAULT_ORDER_FLOW_CODE)
-      .then(({ marketSummaryToday, marketSummaryYesterday }) => {
-        if (cancelled) {
-          return;
-        }
-
-        const baseline = buildEstimatedVolumeBaseline(
-          marketSummaryToday,
-          marketSummaryYesterday,
-        );
-        yesterdayByMinuteOfDayRef.current = baseline.yesterdayByMinuteOfDay;
-        setSeries(baseline.series);
-        setBaselineReady(true);
-        setLoading(false);
-      })
-      .catch((err: unknown) => {
-        if (cancelled) {
-          return;
-        }
-
-        setSeries([]);
-        setError(resolveErrorMessage(err));
-        setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [resolved, role, token]);
-
-  useEffect(() => {
-    if (!baselineReady || !marketSummaryLatest) {
-      return;
-    }
+    if (!marketSummaryLatest) return;
     if (
       typeof marketSummaryLatest.estimated_turnover !== "number" ||
       !Number.isFinite(marketSummaryLatest.estimated_turnover)
     ) {
       return;
     }
-
     const minuteTs = resolveRealtimeMinuteTs(marketSummaryLatest);
-    if (minuteTs === null) {
-      return;
-    }
+    if (minuteTs === null) return;
     const { sessionStartMs, sessionEndMs } = resolveSessionBoundsMs(Date.now());
-    if (minuteTs < sessionStartMs || minuteTs > sessionEndMs) {
-      return;
-    }
-    const estimatedTurnover = marketSummaryLatest.estimated_turnover;
-    if (typeof estimatedTurnover !== "number" || !Number.isFinite(estimatedTurnover)) {
-      return;
-    }
+    if (minuteTs < sessionStartMs || minuteTs > sessionEndMs) return;
 
-    setSeries((currentSeries) =>
-      applyEstimatedVolumeRealtimePatch(
-        currentSeries,
-        {
-          minuteTs,
-          todayEstimated: estimatedTurnover,
-          yesterdayEstimated: marketSummaryLatest.yesterday_estimated_turnover,
-          estimatedDiff: marketSummaryLatest.estimated_turnover_diff,
-        },
-        yesterdayByMinuteOfDayRef.current,
-      ),
-    );
-  }, [baselineReady, marketSummaryLatest]);
+    const patch = {
+      minuteTs,
+      todayEstimated: marketSummaryLatest.estimated_turnover,
+      yesterdayEstimated: marketSummaryLatest.yesterday_estimated_turnover,
+      estimatedDiff: marketSummaryLatest.estimated_turnover_diff,
+    };
+
+    // construct a full point using existing mapper so formatting matches
+    const point = (applyEstimatedVolumeRealtimePatch([], patch as any, baseline.yesterdayByMinuteOfDay)[0]) as EstimatedVolumeSeriesPoint;
+
+    setSeries((current) => {
+      const { nextSeries, nextIndexMap, didChange } = upsertPoint(current, indexRef.current, point as any);
+      if (!didChange) return current;
+      indexRef.current = nextIndexMap;
+      return nextSeries as EstimatedVolumeSeriesPoint[];
+    });
+  }, [marketSummaryLatest, baseline.yesterdayByMinuteOfDay]);
 
   return {
     series,
-    latest: resolveLatestPoint(series),
-    loading,
-    error,
+    latest: series.length ? series[series.length - 1] : null,
+    loading: !resolved ? true : baselineQuery.isLoading,
+    error:
+      isEnabled && baselineQuery.error
+        ? resolveErrorMessage(baselineQuery.error)
+        : null,
   };
 }

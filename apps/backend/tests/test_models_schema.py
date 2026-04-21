@@ -80,10 +80,6 @@ def test_bidask_metric_1s_model_includes_event_second_identity() -> None:
     assert "uq_bidask_metrics_1s_code_event_second" in constraints
 
 
-def test_quote_feature_1m_model_table_name() -> None:
-    assert QuoteFeature1mModel.__tablename__ == "quote_features_1m"
-
-
 def test_market_summary_1m_model_table_name() -> None:
     assert MarketSummary1mModel.__tablename__ == "market_summary_1m"
 

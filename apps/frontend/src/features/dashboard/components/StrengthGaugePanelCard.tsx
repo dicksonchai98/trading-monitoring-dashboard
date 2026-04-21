@@ -1,4 +1,4 @@
-import type { JSX } from "react";
+import type { CSSProperties, JSX } from "react";
 import { Cell, Pie, PieChart } from "recharts";
 import { PanelCard } from "@/components/ui/panel-card";
 
@@ -17,6 +17,7 @@ interface StrengthGaugePanelCardProps {
   units?: number;
   className?: string;
   contentClassName?: string;
+  panelStyle?: CSSProperties;
   panelTestId?: string;
   gaugeTestId?: string;
   strengthTestId?: string;
@@ -94,6 +95,7 @@ export function StrengthGaugePanelCard({
   units = 1,
   className = "",
   contentClassName = "pt-[var(--panel-gap)]",
+  panelStyle,
   panelTestId = "strength-gauge-panel",
   gaugeTestId = "strength-gauge",
   strengthTestId,
@@ -114,6 +116,7 @@ export function StrengthGaugePanelCard({
       units={units}
       className={className}
       contentClassName={contentClassName}
+      style={panelStyle}
       data-testid={panelTestId}
     >
       <HalfGauge

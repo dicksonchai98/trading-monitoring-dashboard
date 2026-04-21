@@ -26,14 +26,26 @@ export function HistoricalDataAnalysisFilters({
   onCodeChange,
 }: HistoricalDataAnalysisFiltersProps): JSX.Element {
   const t = useT();
-  const eventSelectOptions =
-    eventOptions.length > 0
-      ? eventOptions
+  const hasEventOptions = eventOptions.length > 0;
+  const eventSelectOptions = isEventsLoading && !hasEventOptions
+    ? [
+        {
+          label: t("dashboard.analysis.filter.loadingEvents"),
+          value: "__none__",
+          disabled: true,
+        },
+      ]
+    : hasEventOptions
+      ? [
+          {
+            label: t("dashboard.analysis.event.all"),
+            value: "all",
+          },
+          ...eventOptions,
+        ]
       : [
           {
-            label: isEventsLoading
-              ? t("dashboard.analysis.filter.loadingEvents")
-              : t("dashboard.analysis.filter.noEvents"),
+            label: t("dashboard.analysis.filter.noEvents"),
             value: "__none__",
             disabled: true,
           },
@@ -59,10 +71,12 @@ export function HistoricalDataAnalysisFilters({
       label: t("dashboard.analysis.filter.eventId"),
       ariaLabel: "event_id",
       type: "select",
-      value: eventOptions.length > 0 ? eventId : "__none__",
+      value: hasEventOptions ? eventId : "__none__",
       placeholder: t("dashboard.analysis.filter.eventPlaceholder"),
       options: eventSelectOptions,
+      loading: isEventsLoading,
       onValueChange: onEventIdChange,
+      triggerTestId: "historical-event-id-trigger",
     },
   ];
 

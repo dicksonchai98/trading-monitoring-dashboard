@@ -9,6 +9,7 @@ def test_compose_defines_split_api_and_stream_worker_services() -> None:
 
     assert "backend-api:" in content
     assert "backend-stream-worker:" in content
+    assert "backend-ingestor-worker:" in content
     assert "backend-tick-worker:" in content
     assert "backend-bidask-worker:" in content
     assert "backend-latest-state-worker:" in content
@@ -17,6 +18,7 @@ def test_compose_defines_split_api_and_stream_worker_services() -> None:
     assert "backend-otc-summary-worker:" in content
     assert "command: uvicorn app.main:app --host 0.0.0.0 --port 8000" in content
     assert "command: python -m workers.stream_processing_worker" in content
+    assert "command: python -m workers.ingestor_worker" in content
     assert "command: python -m workers.stream_processing_tick_worker" in content
     assert "command: python -m workers.stream_processing_bidask_worker" in content
     assert "command: python -m workers.latest_state_worker" in content

@@ -1,12 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   DEFAULT_ORDER_FLOW_CODE,
-  getDailyAmplitudeHistory,
-  getOrderFlowBaseline,
 } from "@/features/dashboard/api/market-overview";
 import type { DailyAmplitudePoint, KbarTodayPoint } from "@/features/dashboard/api/types";
+import {
+  dashboardDailyAmplitudeQueryOptions,
+  dashboardOrderFlowBaselineQueryOptions,
+} from "@/features/dashboard/lib/dashboard-queries";
 import { useKbarCurrent } from "@/features/realtime/hooks/use-kbar-current";
 import { useAuthStore } from "@/lib/store/auth-store";
+import { upsertPoint } from "@/features/dashboard/lib/timeline-helpers";
 
 interface ParticipantCandlePoint {
   day: string;
@@ -175,92 +179,73 @@ export function useParticipantAmplitude(
   const resolved = useAuthStore((state) => state.resolved);
   const role = useAuthStore((state) => state.role);
   const kbarCurrent = useKbarCurrent(code);
+  const isEnabled = resolved && Boolean(token) && role !== "visitor";
+  const dailyAmplitudeQuery = useQuery({
+    ...dashboardDailyAmplitudeQueryOptions(token ?? "", code, 19),
+    enabled: isEnabled,
+  });
+  const baselineQuery = useQuery({
+    ...dashboardOrderFlowBaselineQueryOptions(token ?? "", code),
+    enabled: isEnabled,
+  });
 
-  const [closedSeries, setClosedSeries] = useState<ParticipantCandlePoint[]>([]);
-  const [todayRealtimeCandle, setTodayRealtimeCandle] = useState<ParticipantCandlePoint | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const closedSeries = useMemo(() => toClosedSeries(dailyAmplitudeQuery.data ?? []), [dailyAmplitudeQuery.data]);
+  const aggregatedTodayCandle = useMemo(() => aggregateTodayKbar(baselineQuery.data?.kbarToday ?? []), [baselineQuery.data?.kbarToday]);
 
+  // Internal series includes minuteTs for indexing (use tradeDate midnight in Taipei)
+  type InternalPoint = ParticipantCandlePoint & { minuteTs: number };
+  const baselineInternal = useMemo<InternalPoint[]>(() => {
+    const list = closedSeries.map((p) => ({
+      ...p,
+      minuteTs: Date.parse(`${p.tradeDate}T00:00:00+08:00`),
+    }));
+
+    const today = aggregatedTodayCandle
+      ? ({ ...aggregatedTodayCandle, minuteTs: Date.parse(`${aggregatedTodayCandle.tradeDate}T00:00:00+08:00`) } as InternalPoint)
+      : null;
+
+    if (today) {
+      const existingIdx = list.findIndex((x) => x.minuteTs === today.minuteTs);
+      if (existingIdx >= 0) list[existingIdx] = today;
+      else list.push(today);
+    }
+
+    return list.sort((a, b) => a.minuteTs - b.minuteTs);
+  }, [closedSeries, aggregatedTodayCandle]);
+
+  const [internalSeries, setInternalSeries] = useState<InternalPoint[]>(baselineInternal);
+  const indexRef = useRef<Map<number, number>>(new Map());
+
+  // reset baseline when closedSeries changes
   useEffect(() => {
-    let cancelled = false;
-    setClosedSeries([]);
-    setTodayRealtimeCandle(null);
+    setInternalSeries(baselineInternal);
+    const m = new Map<number, number>();
+    for (let i = 0; i < baselineInternal.length; ++i) m.set(baselineInternal[i].minuteTs, i);
+    indexRef.current = m;
+  }, [baselineInternal]);
 
-    if (!resolved) {
-      setLoading(true);
-      setError(null);
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    if (!token || role === "visitor") {
-      setLoading(false);
-      setError(null);
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    setLoading(true);
-    setError(null);
-
-    void Promise.allSettled([
-      getDailyAmplitudeHistory(token, code, 19),
-      getOrderFlowBaseline(token, code),
-    ])
-      .then((results) => {
-        if (cancelled) {
-          return;
-        }
-
-        const [dailyResult, baselineResult] = results;
-        if (dailyResult.status !== "fulfilled") {
-          throw dailyResult.reason;
-        }
-
-        setClosedSeries(toClosedSeries(dailyResult.value));
-        if (baselineResult.status === "fulfilled") {
-          setTodayRealtimeCandle(aggregateTodayKbar(baselineResult.value.kbarToday));
-        } else {
-          setTodayRealtimeCandle(null);
-        }
-        setLoading(false);
-      })
-      .catch((err: unknown) => {
-        if (cancelled) {
-          return;
-        }
-        setError(resolveErrorMessage(err));
-        setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [code, resolved, role, token]);
-
+  // patch realtime today candle
   useEffect(() => {
-    if (!kbarCurrent) {
-      return;
-    }
+    if (!kbarCurrent) return;
+    const patched = patchRealtimeTodayCandle(aggregatedTodayCandle, kbarCurrent as any);
+    const minuteTs = Date.parse(`${patched.tradeDate}T00:00:00+08:00`);
+    const point: InternalPoint = { ...patched, minuteTs };
 
-    setTodayRealtimeCandle((current) => patchRealtimeTodayCandle(current, kbarCurrent));
-  }, [kbarCurrent]);
+    setInternalSeries((current) => {
+      const { nextSeries, nextIndexMap, didChange } = upsertPoint(current, indexRef.current, point as any);
+      if (!didChange) return current;
+      indexRef.current = nextIndexMap;
+      return nextSeries as InternalPoint[];
+    });
+  }, [kbarCurrent, aggregatedTodayCandle]);
 
+  const series = useMemo<ParticipantCandlePoint[]>(() => internalSeries.map(({ minuteTs, ...rest }) => rest), [internalSeries]);
   const summary = useMemo(() => computeSummary(closedSeries), [closedSeries]);
-
-  const series = useMemo(() => {
-    if (todayRealtimeCandle) {
-      return [...closedSeries, todayRealtimeCandle];
-    }
-    return closedSeries;
-  }, [closedSeries, todayRealtimeCandle]);
 
   return {
     summary,
     series,
-    loading,
-    error,
+    loading: !resolved ? true : dailyAmplitudeQuery.isLoading || baselineQuery.isLoading,
+    error: isEnabled && dailyAmplitudeQuery.error ? resolveErrorMessage(dailyAmplitudeQuery.error) : null,
   };
 }

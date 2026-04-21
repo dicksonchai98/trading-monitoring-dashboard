@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   DEFAULT_OTC_CODE,
   getOtcSummaryToday,
 } from "@/features/dashboard/api/market-overview";
 import { useOtcSummaryLatest } from "@/features/realtime/hooks/use-otc-summary-latest";
 import { useAuthStore } from "@/lib/store/auth-store";
+import { upsertPoint } from "@/features/dashboard/lib/timeline-helpers";
 
 export interface OtcIndexSeriesPoint {
   time: string;
@@ -80,89 +81,41 @@ export function useOtcIndexSeries(): UseOtcIndexSeriesResult {
   const role = useAuthStore((state) => state.role);
   const otcLatest = useOtcSummaryLatest(DEFAULT_OTC_CODE);
   const [series, setSeries] = useState<OtcIndexSeriesPoint[]>([]);
+  const indexRef = useRef<Map<number, number>>(new Map());
 
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
     if (!resolved || !token || role === "visitor") {
       setSeries([]);
+      indexRef.current = new Map();
       return () => {
         cancelled = true;
+        controller.abort();
       };
     }
-    void getOtcSummaryToday(token, DEFAULT_OTC_CODE)
+    void getOtcSummaryToday(token, DEFAULT_OTC_CODE, controller.signal)
       .then((rows) => {
         if (cancelled) {
           return;
         }
-        setSeries(toSeries(rows));
+        const built = toSeries(rows);
+        setSeries(built);
+        const m = new Map<number, number>();
+        for (let i = 0; i < built.length; ++i) m.set(built[i].minuteTs, i);
+        indexRef.current = m;
       })
       .catch(() => {
         if (!cancelled) {
           setSeries([]);
+          indexRef.current = new Map();
         }
       });
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [resolved, role, token]);
 
-  useEffect(() => {
-    if (
-      !otcLatest ||
-      typeof otcLatest.index_value !== "number" ||
-      !Number.isFinite(otcLatest.index_value)
-    ) {
-      return;
-    }
-    const minuteTs = resolveMinuteTs(otcLatest);
-    if (minuteTs === null) {
-      return;
-    }
-    const latestValue = otcLatest.index_value as number;
-    setSeries((current) => {
-      if (current.length === 0) {
-        return current;
-      }
-      const base = current[0]?.value;
-      if (typeof base !== "number" || !Number.isFinite(base)) {
-        return current;
-      }
-      const change = Number((latestValue - base).toFixed(2));
-      const nextPoint: OtcIndexSeriesPoint = {
-        time: formatTime(minuteTs),
-        minuteTs,
-        value: latestValue,
-        change,
-        upChange: change >= 0 ? change : null,
-        downChange: change < 0 ? change : null,
-      };
-      const existingIndex = current.findIndex(
-        (point) => point.minuteTs === minuteTs,
-      );
-      if (existingIndex >= 0) {
-        const existingPoint = current[existingIndex];
-        if (existingPoint && existingPoint.value === latestValue) {
-          return current;
-        }
-        const next = [...current];
-        next[existingIndex] = nextPoint;
-        return next;
-      }
-      const tail = current[current.length - 1];
-      if (tail && minuteTs > tail.minuteTs) {
-        return [...current, nextPoint];
-      }
-      const insertIndex = current.findIndex((point) => point.minuteTs > minuteTs);
-      if (insertIndex === -1) {
-        return [...current, nextPoint];
-      }
-      return [
-        ...current.slice(0, insertIndex),
-        nextPoint,
-        ...current.slice(insertIndex),
-      ];
-    });
-  }, [otcLatest]);
-
-  return { series };
+  useEffect(() => {    if (      !otcLatest ||      typeof otcLatest.index_value !== "number" ||      !Number.isFinite(otcLatest.index_value)    ) {      return;    }    const minuteTs = resolveMinuteTs(otcLatest);    if (minuteTs === null) {      return;    }    const latestValue = otcLatest.index_value as number;    setSeries((current) => {      if (current.length === 0) return current;      const base = current[0]?.value;      if (typeof base !== "number" || !Number.isFinite(base)) return current;      const change = Number((latestValue - base).toFixed(2));      const nextPoint: OtcIndexSeriesPoint = {        time: formatTime(minuteTs),        minuteTs,        value: latestValue,        change,        upChange: change >= 0 ? change : null,        downChange: change < 0 ? change : null,      };      const { nextSeries, nextIndexMap, didChange } = upsertPoint(current, indexRef.current, nextPoint as any);      if (!didChange) return current;      indexRef.current = nextIndexMap;      return nextSeries as OtcIndexSeriesPoint[];    });  }, [otcLatest]);  return { series };
 }

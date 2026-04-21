@@ -1,12 +1,22 @@
-import type { ReactNode } from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
-import { toast } from "sonner";
 import { NavUserAuthenticated } from "@/components/nav-user-authenticated";
 import { SidebarProvider } from "@/components/ui/sidebar";
+import { logout } from "@/features/auth/api/auth";
 import { createPortalSession } from "@/features/subscription/api/billing";
-import { I18nProvider } from "@/lib/i18n";
 import { useAuthStore } from "@/lib/store/auth-store";
+
+const navigateMock = vi.fn();
+
+vi.mock("react-router-dom", async () => {
+  const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom");
+
+  return {
+    ...actual,
+    useNavigate: () => navigateMock,
+  };
+});
 
 vi.mock("@/components/ui/dropdown-menu", () => ({
   DropdownMenu: ({ children }: { children: ReactNode }) => <div>{children}</div>,
@@ -24,7 +34,7 @@ vi.mock("@/components/ui/dropdown-menu", () => ({
     onClick?: () => void;
     disabled?: boolean;
   }) => (
-    <button type="button" role="menuitem" onClick={onClick} disabled={disabled}>
+    <button type="button" onClick={onClick} disabled={disabled}>
       {children}
     </button>
   ),
@@ -32,6 +42,10 @@ vi.mock("@/components/ui/dropdown-menu", () => ({
 
 vi.mock("@/features/subscription/api/billing", () => ({
   createPortalSession: vi.fn(),
+}));
+
+vi.mock("@/features/auth/api/auth", () => ({
+  logout: vi.fn(),
 }));
 
 vi.mock("sonner", () => ({
@@ -42,14 +56,9 @@ vi.mock("sonner", () => ({
 }));
 
 describe("NavUserAuthenticated", () => {
-  const createPortalSessionMock = vi.mocked(createPortalSession);
-  const toastSuccessMock = vi.mocked(toast.success);
-  const toastErrorMock = vi.mocked(toast.error);
+  const originalWindowOpen = window.open;
 
   beforeEach(() => {
-    createPortalSessionMock.mockReset();
-    toastSuccessMock.mockReset();
-    toastErrorMock.mockReset();
     Object.defineProperty(window, "matchMedia", {
       writable: true,
       value: vi.fn().mockImplementation((query: string) => ({
@@ -63,82 +72,86 @@ describe("NavUserAuthenticated", () => {
         dispatchEvent: vi.fn(),
       })),
     });
+
     useAuthStore.setState({
-      token: "token-123",
+      token: "token",
       role: "member",
-      entitlement: "none",
+      entitlement: "active",
       resolved: true,
       checkoutSessionId: null,
     });
-    vi.spyOn(window, "open").mockImplementation(() => null);
   });
 
   afterEach(() => {
+    window.open = originalWindowOpen;
+    navigateMock.mockReset();
     vi.restoreAllMocks();
+    vi.clearAllMocks();
   });
 
-  function renderComponent(): void {
+  it("does not open a new tab when opening the billing portal", async () => {
+    let resolvePortal: ((value: { portal_url: string }) => void) | undefined;
+    vi.mocked(createPortalSession).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolvePortal = resolve;
+        }),
+    );
+    const openSpy = vi.fn();
+    window.open = openSpy;
+
     render(
-      <I18nProvider>
-        <MemoryRouter>
-          <SidebarProvider>
-            <NavUserAuthenticated
-              user={{
-                name: "Test User",
-                email: "test@example.com",
-                avatar: "",
-              }}
-            />
-          </SidebarProvider>
-        </MemoryRouter>
-      </I18nProvider>,
-    );
-  }
-
-  function openUserMenu(): void {
-    const trigger = screen.getByRole("button", { name: /test user/i });
-    fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false });
-  }
-
-  it("aborts the previous portal request and does not toast an abort error", async () => {
-    let firstSignal: AbortSignal | undefined;
-
-    createPortalSessionMock
-      .mockImplementationOnce(
-        (_token, signal) =>
-          new Promise((_, reject) => {
-            firstSignal = signal;
-            signal?.addEventListener("abort", () => {
-              reject(new DOMException("The operation was aborted.", "AbortError"));
-            });
-          }),
-      )
-      .mockResolvedValueOnce({
-        portal_url: "https://billing.example.com/portal",
-      });
-
-    renderComponent();
-
-    openUserMenu();
-    fireEvent.click(await screen.findByRole("menuitem", { name: /billing portal/i }));
-
-    await waitFor(() => expect(createPortalSessionMock).toHaveBeenCalledTimes(1));
-
-    openUserMenu();
-    fireEvent.click(await screen.findByRole("menuitem", { name: /billing portal/i }));
-
-    await waitFor(() => expect(createPortalSessionMock).toHaveBeenCalledTimes(2));
-    await waitFor(() =>
-      expect(window.open).toHaveBeenCalledWith(
-        "https://billing.example.com/portal",
-        "_blank",
-        "noopener,noreferrer",
-      ),
+      <MemoryRouter>
+        <SidebarProvider>
+          <NavUserAuthenticated
+            user={{ name: "User", email: "user@example.com", avatar: "" }}
+          />
+        </SidebarProvider>
+      </MemoryRouter>,
     );
 
-    expect(firstSignal).toBeInstanceOf(AbortSignal);
-    expect(firstSignal?.aborted).toBe(true);
-    expect(toastErrorMock).not.toHaveBeenCalled();
-    expect(toastSuccessMock).toHaveBeenCalledTimes(1);
+    fireEvent.click(await screen.findByText("Billing Portal"));
+
+    await waitFor(() => {
+      expect(createPortalSession).toHaveBeenCalledWith("token");
+    });
+    expect(openSpy).not.toHaveBeenCalled();
+
+    resolvePortal?.({ portal_url: "https://billing.example.com/session" });
+
+    await waitFor(() => {
+      expect(createPortalSession).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("clears session and navigates to login before logout request resolves", async () => {
+    let resolveLogout: (() => void) | undefined;
+    vi.mocked(logout).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveLogout = () => resolve({});
+        }),
+    );
+
+    render(
+      <MemoryRouter>
+        <SidebarProvider>
+          <NavUserAuthenticated
+            user={{ name: "User", email: "user@example.com", avatar: "" }}
+          />
+        </SidebarProvider>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(await screen.findByText("Log out"));
+
+    await waitFor(() => {
+      expect(logout).toHaveBeenCalledTimes(1);
+    });
+    expect(useAuthStore.getState().token).toBeNull();
+    expect(useAuthStore.getState().role).toBe("visitor");
+    expect(navigateMock).toHaveBeenCalledWith("/login", { replace: true });
+
+    resolveLogout?.();
   });
 });

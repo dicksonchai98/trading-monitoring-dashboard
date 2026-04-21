@@ -12,9 +12,7 @@ def _register_and_login(
 ) -> dict[str, str]:
     send_res = client.post("/auth/email/send-otp", json={"email": email})
     assert send_res.status_code == 202
-    verify_res = client.post(
-        "/auth/email/verify-otp", json={"email": email, "otp_code": "123456"}
-    )
+    verify_res = client.post("/auth/email/verify-otp", json={"email": email, "otp_code": "123456"})
     assert verify_res.status_code == 200
     register_res = client.post(
         "/auth/register",

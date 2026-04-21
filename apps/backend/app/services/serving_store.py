@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from datetime import time as dt_time
@@ -16,12 +17,16 @@ from app.config import (
     INGESTOR_CODE,
     INGESTOR_SPOT_SYMBOLS_EXPECTED_COUNT,
     INGESTOR_SPOT_SYMBOLS_FILE,
+    LATEST_STATE_ENV,
     SERVING_DEFAULT_CODE,
     SERVING_DEFAULT_KBAR_MINUTES,
     SERVING_DEFAULT_METRIC_SECONDS,
     SERVING_ENV,
 )
-from app.market_ingestion.spot_symbols import load_and_validate_spot_symbols
+from app.market_ingestion.spot_symbols import (
+    classify_spot_symbols,
+    load_spot_symbols_from_file,
+)
 from app.models.kbar_1m import Kbar1mModel
 from app.models.market_summary_1m import MarketSummary1mModel
 from app.models.quote_feature_1m import QuoteFeature1mModel
@@ -31,10 +36,12 @@ from app.stream_processing.runner import build_state_key, trade_date_for
 TZ_TAIPEI = ZoneInfo("Asia/Taipei")
 DAY_SESSION_START = dt_time(8, 45)
 DAY_SESSION_END = dt_time(13, 45)
+SPOT_MARKET_CODE = "SPOT_MARKET"
 _DEFAULT_CODE_CACHE: dict[str, object] = {"code": None, "ts": 0.0}
 _DEFAULT_CODE_TTL_SECONDS = 10.0
 _SPOT_SYMBOLS_CACHE: dict[str, object] = {"symbols": None, "ts": 0.0}
 _SPOT_SYMBOLS_TTL_SECONDS = 10.0
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -79,8 +86,7 @@ def resolve_default_code(requested_code: str | None) -> str:
         return requested_code
     if SERVING_DEFAULT_CODE:
         return SERVING_DEFAULT_CODE
-    discovered = _discover_code_from_streams()
-    return discovered or INGESTOR_CODE
+    return INGESTOR_CODE
 
 
 def _discover_code_from_streams() -> str | None:
@@ -377,74 +383,86 @@ def fetch_metric_today_range(code: str, time_range: TimeRange) -> list[dict[str,
 
 
 def fetch_index_contrib_ranking_latest(index_code: str, limit: int = 20) -> dict[str, Any] | None:
+    """Fetch ranking for SERVING_ENV first, fallback to LATEST_STATE_ENV for compatibility."""
     redis_client = get_serving_redis_client()
-    trade_date = trade_date_for(datetime.now(tz=TZ_TAIPEI))
-    top_key = f"{SERVING_ENV}:state:index_contrib:{index_code}:{trade_date.isoformat()}:ranking:top"
-    bottom_key = (
-        f"{SERVING_ENV}:state:index_contrib:{index_code}:{trade_date.isoformat()}:ranking:bottom"
-    )
-    top_entries = redis_client.zrevrange(top_key, 0, max(limit - 1, 0), withscores=True)
-    bottom_entries = redis_client.zrange(bottom_key, 0, max(limit - 1, 0), withscores=True)
-    if not top_entries and not bottom_entries:
-        return None
-    top: list[dict[str, Any]] = []
-    bottom: list[dict[str, Any]] = []
-    for idx, (member, score) in enumerate(top_entries or [], start=1):
-        symbol = member.decode("utf-8") if isinstance(member, bytes) else str(member)
-        top.append(
-            {"rank_no": idx, "symbol": symbol, "contribution_points": float(score)},
+
+    def _for_env(env: str):
+        trade_date = datetime.now(tz=TZ_TAIPEI).date()
+        trade_date_iso = trade_date.isoformat()
+        top_key = f"{env}:state:index_contrib:{index_code}:{trade_date_iso}:ranking:top"
+        bottom_key = f"{env}:state:index_contrib:{index_code}:{trade_date_iso}:ranking:bottom"
+        top_entries = redis_client.zrevrange(top_key, 0, max(limit - 1, 0), withscores=True)
+        bottom_entries = redis_client.zrange(bottom_key, 0, max(limit - 1, 0), withscores=True)
+        if not top_entries and not bottom_entries:
+            return None
+        top: list[dict[str, Any]] = []
+        bottom: list[dict[str, Any]] = []
+        for idx, (member, score) in enumerate(top_entries or [], start=1):
+            symbol = member.decode("utf-8") if isinstance(member, bytes) else str(member)
+            top.append({"rank_no": idx, "symbol": symbol, "contribution_points": float(score)})
+        for idx, (member, score) in enumerate(bottom_entries or [], start=1):
+            symbol = member.decode("utf-8") if isinstance(member, bytes) else str(member)
+            bottom.append({"rank_no": idx, "symbol": symbol, "contribution_points": float(score)})
+        return {
+            "index_code": index_code,
+            "trade_date": trade_date.isoformat(),
+            "top": top,
+            "bottom": bottom,
+        }
+
+    result = _for_env(SERVING_ENV)
+    if result is None and LATEST_STATE_ENV and LATEST_STATE_ENV != SERVING_ENV:
+        logger.debug(
+            "index_contrib ranking not found for SERVING_ENV=%s, trying LATEST_STATE_ENV=%s",
+            SERVING_ENV,
+            LATEST_STATE_ENV,
         )
-    for idx, (member, score) in enumerate(bottom_entries or [], start=1):
-        symbol = member.decode("utf-8") if isinstance(member, bytes) else str(member)
-        bottom.append(
-            {"rank_no": idx, "symbol": symbol, "contribution_points": float(score)},
-        )
-    return {
-        "index_code": index_code,
-        "trade_date": trade_date.isoformat(),
-        "top": top,
-        "bottom": bottom,
-    }
+        result = _for_env(LATEST_STATE_ENV)
+    return result
 
 
 def fetch_index_contrib_sector_latest(index_code: str) -> dict[str, Any] | None:
+    """Fetch sector aggregate; try SERVING_ENV then LATEST_STATE_ENV if absent."""
     redis_client = get_serving_redis_client()
-    trade_date = trade_date_for(datetime.now(tz=TZ_TAIPEI))
-    key = f"{SERVING_ENV}:state:index_contrib:{index_code}:{trade_date.isoformat()}:sector"
-    raw = redis_client.get(key)
-    if raw is None:
-        return None
-    payload = raw.decode("utf-8") if isinstance(raw, bytes) else str(raw)
-    try:
-        sectors = json.loads(payload)
-    except json.JSONDecodeError:
+
+    def _for_env(env: str):
+        trade_date = datetime.now(tz=TZ_TAIPEI).date()
+        key = f"{env}:state:index_contrib:{index_code}:{trade_date.isoformat()}:sector"
+        raw = redis_client.get(key)
+        if raw is None:
+            return None
+        payload = raw.decode("utf-8") if isinstance(raw, bytes) else str(raw)
+        try:
+            sectors = json.loads(payload)
+        except json.JSONDecodeError:
+            return None
+        if isinstance(sectors, (dict, list)):
+            return {
+                "index_code": index_code,
+                "trade_date": trade_date.isoformat(),
+                "sectors": sectors,
+            }
         return None
 
-    # Support both old format (dict) and new format (array)
-    if isinstance(sectors, dict):
-        # Old format: {"Semiconductor": 4.3, "Finance": -1.2}
-        # Keep for backward compatibility but not used by treemap
-        return {
-            "index_code": index_code,
-            "trade_date": trade_date.isoformat(),
-            "sectors": sectors,
-        }
-    elif isinstance(sectors, list):
-        # New format: [{"name": "semiconductor", "children": [...]}]
-        return {
-            "index_code": index_code,
-            "trade_date": trade_date.isoformat(),
-            "sectors": sectors,
-        }
-
-    return None
+    result = _for_env(SERVING_ENV)
+    if result is None and LATEST_STATE_ENV and LATEST_STATE_ENV != SERVING_ENV:
+        logger.debug(
+            "index_contrib sector not found for SERVING_ENV=%s, trying LATEST_STATE_ENV=%s",
+            SERVING_ENV,
+            LATEST_STATE_ENV,
+        )
+        result = _for_env(LATEST_STATE_ENV)
+    return result
 
 
 def fetch_quote_latest(code: str) -> dict[str, Any] | None:
-    redis_client = get_serving_redis_client()
-    trade_date = trade_date_for(datetime.now(tz=TZ_TAIPEI))
-    key = build_state_key(SERVING_ENV, code, trade_date, "quote_features:latest")
-    raw = redis_client.get(key)
+    try:
+        redis_client = get_serving_redis_client()
+        trade_date = trade_date_for(datetime.now(tz=TZ_TAIPEI))
+        key = build_state_key(SERVING_ENV, code, trade_date, "quote_features:latest")
+        raw = redis_client.get(key)
+    except Exception:
+        return None
     if raw is None:
         return None
     payload = raw.decode("utf-8") if isinstance(raw, bytes) else str(raw)
@@ -559,16 +577,30 @@ def normalize_spot_latest(payload: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
+def normalize_spot_market_distribution(payload: dict[str, Any]) -> dict[str, Any]:
+    result = dict(payload)
+    return result
+
+
 def _load_spot_symbols() -> list[str]:
     now = datetime.now(tz=TZ_TAIPEI).timestamp()
     cached_symbols = _SPOT_SYMBOLS_CACHE.get("symbols")
     cached_ts = float(_SPOT_SYMBOLS_CACHE.get("ts", 0.0))
     if isinstance(cached_symbols, list) and (now - cached_ts) < _SPOT_SYMBOLS_TTL_SECONDS:
         return [str(item) for item in cached_symbols]
-    symbols = load_and_validate_spot_symbols(
-        path=INGESTOR_SPOT_SYMBOLS_FILE,
-        expected_count=INGESTOR_SPOT_SYMBOLS_EXPECTED_COUNT,
-    )
+    parsed_symbols = load_spot_symbols_from_file(INGESTOR_SPOT_SYMBOLS_FILE)
+    classified = classify_spot_symbols(parsed_symbols)
+    symbols = classified.valid_symbols
+    if classified.invalid_symbols or classified.duplicate_symbols:
+        logger.warning(
+            "serving spot symbol registry sanitized file=%s expected=%s valid=%s "
+            "invalid=%s duplicates=%s",
+            INGESTOR_SPOT_SYMBOLS_FILE,
+            INGESTOR_SPOT_SYMBOLS_EXPECTED_COUNT,
+            len(symbols),
+            classified.invalid_symbols[:10],
+            classified.duplicate_symbols[:10],
+        )
     _SPOT_SYMBOLS_CACHE["symbols"] = symbols
     _SPOT_SYMBOLS_CACHE["ts"] = now
     return symbols
@@ -586,6 +618,101 @@ def fetch_spot_latest(symbol: str) -> dict[str, Any] | None:
     except json.JSONDecodeError:
         return None
     return normalize_spot_latest(data)
+
+
+def fetch_spot_market_distribution_latest() -> dict[str, Any] | None:
+    redis_client = get_serving_redis_client()
+    trade_date = trade_date_for(datetime.now(tz=TZ_TAIPEI))
+
+    def _try_env(env: str) -> dict[str, Any] | None:
+        # First try the dated key (new format): {env}:state:{code}:{trade_date}:{suffix}
+        key = build_state_key(
+            env,
+            SPOT_MARKET_CODE,
+            trade_date,
+            "spot_distribution:latest",
+        )
+        raw = redis_client.get(key)
+        if raw is None:
+            # Fallback to legacy key without trade_date: {env}:state:{code}:spot_distribution:latest
+            legacy_key = f"{env}:state:{SPOT_MARKET_CODE}:spot_distribution:latest"
+            raw = redis_client.get(legacy_key)
+            if raw is None:
+                return None
+        payload = raw.decode("utf-8") if isinstance(raw, bytes) else str(raw)
+        try:
+            data = json.loads(payload)
+        except json.JSONDecodeError:
+            return None
+        return normalize_spot_market_distribution(data)
+
+    # Try SERVING_ENV first, then fall back to LATEST_STATE_ENV for compatibility
+    result = _try_env(SERVING_ENV)
+    if result is None and LATEST_STATE_ENV and LATEST_STATE_ENV != SERVING_ENV:
+        logger.debug(
+            "spot_distribution latest not found for SERVING_ENV=%s, trying LATEST_STATE_ENV=%s",
+            SERVING_ENV,
+            LATEST_STATE_ENV,
+        )
+        result = _try_env(LATEST_STATE_ENV)
+    return result
+
+
+def fetch_spot_market_distribution_today_range(
+    time_range: TimeRange | None = None,
+) -> list[dict[str, Any]]:
+    redis_client = get_serving_redis_client()
+
+    def _entries_for_env(env: str):
+        if time_range is None:
+            trade_date = trade_date_for(datetime.now(tz=TZ_TAIPEI))
+            key = build_state_key(
+                env,
+                SPOT_MARKET_CODE,
+                trade_date,
+                "spot_distribution:zset",
+            )
+            entries = redis_client.zrangebyscore(key, float("-inf"), float("inf"))
+            if entries:
+                return entries
+            # Fallback to legacy key without trade_date
+            legacy_key = f"{env}:state:{SPOT_MARKET_CODE}:spot_distribution:zset"
+            return redis_client.zrangebyscore(legacy_key, float("-inf"), float("inf"))
+        else:
+            trade_date = trade_date_for(time_range.end)
+            key = build_state_key(
+                env,
+                SPOT_MARKET_CODE,
+                trade_date,
+                "spot_distribution:zset",
+            )
+            start_score = int(time_range.start.timestamp() * 1000)
+            end_score = int(time_range.end.timestamp() * 1000)
+            entries = redis_client.zrangebyscore(key, start_score, end_score)
+            if entries:
+                return entries
+            # Fallback to legacy key without trade_date
+            legacy_key = f"{env}:state:{SPOT_MARKET_CODE}:spot_distribution:zset"
+            return redis_client.zrangebyscore(legacy_key, start_score, end_score)
+
+    entries = _entries_for_env(SERVING_ENV)
+    if not entries and LATEST_STATE_ENV and LATEST_STATE_ENV != SERVING_ENV:
+        logger.debug(
+            "spot_distribution series empty for SERVING_ENV=%s, trying LATEST_STATE_ENV=%s",
+            SERVING_ENV,
+            LATEST_STATE_ENV,
+        )
+        entries = _entries_for_env(LATEST_STATE_ENV)
+
+    result: list[dict[str, Any]] = []
+    for entry in entries or []:
+        payload = entry.decode("utf-8") if isinstance(entry, bytes) else str(entry)
+        try:
+            data = json.loads(payload)
+        except json.JSONDecodeError:
+            continue
+        result.append(normalize_spot_market_distribution(data))
+    return result
 
 
 def fetch_spot_latest_list() -> dict[str, Any]:
