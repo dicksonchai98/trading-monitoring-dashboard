@@ -185,17 +185,24 @@ flowchart TB
 
 ```txt
 trading-monitoring-dashboard/
+├─ .github/                     # CI/CD workflows
 ├─ apps/
 │  ├─ frontend/                 # React SPA
 │  │  └─ src/
 │  │     ├─ app/
+│  │     ├─ assets/
+│  │     ├─ data/
 │  │     ├─ features/
 │  │     ├─ components/
+│  │     ├─ hooks/
 │  │     ├─ lib/
-│  │     └─ styles/
+│  │     ├─ styles/
+│  │     └─ test/
 │  └─ backend/                  # FastAPI + workers
 │     ├─ app/
 │     │  └─ modules/
+│     ├─ docs/
+│     ├─ scripts/
 │     ├─ workers/
 │     ├─ tests/
 │     └─ alembic/
@@ -206,6 +213,10 @@ trading-monitoring-dashboard/
 ├─ infra/
 ├─ docs/
 ├─ openspec/
+├─ scripts/
+├─ docker-compose.yml
+├─ docker-compose.ec2.yml
+├─ AGENTS.md
 └─ README.md
 ```
 
