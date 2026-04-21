@@ -94,9 +94,7 @@ def event_stats(
 
     if event_id == "all":
         if version != "latest":
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail="invalid_version"
-            )
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="invalid_version")
         items = service.get_latest_event_stats_by_code(code=code)
         return {"items": [_to_item(entity) for entity in items]}
 
