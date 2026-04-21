@@ -483,14 +483,17 @@ class LatestStateRunner:
                 series_key = f"{self._env}:state:{SPOT_MARKET_CODE}:spot_distribution:zset"
                 latest_value = json.dumps(latest_payload, ensure_ascii=True)
                 series_value = json.dumps(series_payload, ensure_ascii=True)
+                can_pipe_zadd = pipe is not None and hasattr(pipe, "zadd")
                 if pipe is not None:
                     pipe.set(latest_key, latest_value)
                     pipe.expire(latest_key, self._state_ttl_seconds)
-                    pipe.zadd(series_key, {series_value: latest_payload["ts"]})
-                    pipe.expire(series_key, self._state_ttl_seconds)
+                    if can_pipe_zadd:
+                        pipe.zadd(series_key, {series_value: latest_payload["ts"]})
+                        pipe.expire(series_key, self._state_ttl_seconds)
                 else:
                     self._redis.set(latest_key, latest_value)
                     self._redis.expire(latest_key, self._state_ttl_seconds)
+                if not can_pipe_zadd:
                     self._redis.zadd(series_key, {series_value: latest_payload["ts"]})
                     self._redis.expire(series_key, self._state_ttl_seconds)
             if pipe is not None:

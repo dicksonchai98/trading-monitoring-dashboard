@@ -112,10 +112,11 @@ class UserRepository:
         email: str,
         password_hash: str,
         role: str,
+        username: str | None = None,
     ) -> UserRecord:
         with self._session_factory() as session:
             model = UserModel(
-                username=email,
+                username=username or email,
                 user_id=user_id,
                 email=email,
                 password_hash=password_hash,

@@ -7,6 +7,7 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app import state
 from app.config import (
     SERVING_CORS_ALLOW_ORIGINS,
     validate_stripe_settings,
@@ -23,7 +24,6 @@ from app.routes import (
     realtime,
     serving,
 )
-from app.state import metrics
 
 logging.basicConfig(level=logging.INFO)
 
@@ -56,4 +56,4 @@ async def validate_billing_configuration() -> None:
 
 @app.get("/metrics")
 def metrics_route() -> dict[str, dict[str, int]]:
-    return {"counters": metrics.counters}
+    return {"counters": state.metrics.counters}
