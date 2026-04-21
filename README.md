@@ -68,21 +68,26 @@ flowchart LR
     FE[Frontend SPA<br/>React + Vite]
 
     subgraph Backend[FastAPI Backend]
-        API[API Layer<br/>Auth / RBAC / Subscription / History / Realtime]
+        API[API Layer<br/>Auth / RBAC / Subscription / History]
         RT[Realtime SSE Hub]
-        WH[Billing Webhook Handler]
+        BILL[Billing Service]
+        WH[Webhook Handler]
         CRON[Cron / Scheduler]
-
-        subgraph Workers[Worker Pipeline]
-            ING[Ingestor Worker]
-            TICK[Tick Worker]
-            BIDASK[BidAsk Worker]
-            QUOTE[Quote Worker]
-            LATEST[Latest State Worker]
-        end
     end
 
-    Redis[(Redis<br/>Streams + Cache)]
+    subgraph Pipeline[Market Data Pipeline]
+        ING[Ingestor Worker]
+        NORM[Tick / BidAsk / Quote Normalizer Workers]
+        ENR[Indicator / Analytics Workers]
+        SNAP[Latest Snapshot Builder Worker]
+    end
+
+    subgraph MQ[Event Backbone]
+        Redis[(Redis Streams + Cache)]
+        RETRY[Retry Worker]
+        DLQ[(Dead Letter Queue)]
+    end
+
     Postgres[(PostgreSQL)]
     Source[Shioaji Market Data]
     Stripe[Stripe]
@@ -95,26 +100,31 @@ flowchart LR
 
     Source -->|Raw Tick/BidAsk/Quote| ING
     ING -->|事件寫入| Redis
-    Redis -->|stream consume| TICK
-    Redis -->|stream consume| BIDASK
-    Redis -->|stream consume| QUOTE
-    TICK -->|計算/彙整| LATEST
-    BIDASK -->|計算/彙整| LATEST
-    QUOTE -->|計算/彙整| LATEST
-    LATEST -->|latest snapshot| Redis
-    LATEST -->|snapshot persist| Postgres
+    Redis -->|consume| NORM
+    NORM -->|normalized events| Redis
+    Redis -->|consume| ENR
+    ENR -->|indicators/events| Redis
+    Redis -->|consume| SNAP
+    SNAP -->|latest snapshot| Redis
+    SNAP -->|snapshot persist| Postgres
+    Redis -->|failed events| RETRY
+    RETRY -->|replay| Redis
+    RETRY -->|exhausted| DLQ
 
     API -->|讀取 latest snapshot| Redis
     API -->|查詢歷史/交易資料| Postgres
+    RT -->|讀取 latest snapshot| Redis
     API -->|派發背景任務| CRON
 
     FE -->|建立訂閱/付款| API
-    API -->|create checkout session| Stripe
+    API -->|create checkout session| BILL
+    BILL -->|create session| Stripe
     Stripe -->|webhook events| WH
-    WH -->|更新訂閱狀態與權限| Postgres
-    WH -->|派發通知任務| Workers
+    WH -->|update subscription / entitlement| BILL
+    BILL -->|訂閱與權限狀態更新| Postgres
+    BILL -->|事件通知| Redis
 
-    CRON -->|排程觸發| Workers
+    CRON -->|排程觸發| Pipeline
     CRON -->|資料清理/補償作業| Postgres
     CRON -->|快取預熱/失效| Redis
 ```
@@ -134,6 +144,7 @@ flowchart TB
         end
 
         subgraph Private[Private Subnet]
+            Nginx[Nginx Reverse Proxy]
             API[backend-api<br/>FastAPI]
             Ingestor[backend-ingestor-worker]
             Tick[backend-tick-worker]
@@ -150,7 +161,8 @@ flowchart TB
     User -->|HTTPS| CloudFront
     CloudFront -->|Static SPA| S3
     CloudFront -->|/api, /sse| ALB
-    ALB --> API
+    ALB --> Nginx
+    Nginx -->|proxy /api /sse| API
 
     API --> Redis
     API --> Pg
