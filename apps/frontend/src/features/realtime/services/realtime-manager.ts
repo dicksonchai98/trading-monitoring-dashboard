@@ -23,7 +23,7 @@ import { shouldBlockInsecureTransport } from "@/lib/api/transport";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api";
 const STREAM_PATH = "/v1/stream/sse";
-const DEFAULT_STREAM_CODE = "TXFD6";
+const DEFAULT_STREAM_CODE = "TXFE6";
 const SESSION_START_HHMM = "09:00:00";
 const SESSION_END_HHMM = "13:45:00";
 const TAIPEI_DATE_FORMATTER = new Intl.DateTimeFormat("en-CA", {
@@ -35,7 +35,8 @@ const TAIPEI_DATE_FORMATTER = new Intl.DateTimeFormat("en-CA", {
 const ENABLE_SPOT_GAP_K_MOCK =
   String(import.meta.env.VITE_ENABLE_SPOT_GAP_K_MOCK ?? "").toLowerCase() ===
   "true";
-const ENABLE_SSE_WORKER = String(import.meta.env.VITE_ENABLE_SSE_WORKER ?? "").toLowerCase() === "true";
+const ENABLE_SSE_WORKER =
+  String(import.meta.env.VITE_ENABLE_SSE_WORKER ?? "").toLowerCase() === "true";
 const SPOT_GAP_K_SYMBOLS = [
   "2330",
   "2317",
@@ -75,11 +76,15 @@ interface ServingSseBatch {
   >;
   marketSummaryMap?: Record<
     string,
-    ReturnType<typeof useRealtimeStore.getState>["marketSummaryLatestByCode"][string]
+    ReturnType<
+      typeof useRealtimeStore.getState
+    >["marketSummaryLatestByCode"][string]
   >;
   otcSummaryMap?: Record<
     string,
-    ReturnType<typeof useRealtimeStore.getState>["otcSummaryLatestByCode"][string]
+    ReturnType<
+      typeof useRealtimeStore.getState
+    >["otcSummaryLatestByCode"][string]
   >;
   quoteLatestMap?: Record<
     string,
@@ -88,8 +93,12 @@ interface ServingSseBatch {
   spotLatestList?: SpotLatestListPayload;
   spotMarketDistributionLatest?: SpotMarketDistributionLatestPayload;
   spotMarketDistributionSeries?: SpotMarketDistributionSeriesPayload;
-  indexContribRanking?: ReturnType<typeof useRealtimeStore.getState>["indexContribRanking"] | null;
-  indexContribSector?: ReturnType<typeof useRealtimeStore.getState>["indexContribSector"] | null;
+  indexContribRanking?:
+    | ReturnType<typeof useRealtimeStore.getState>["indexContribRanking"]
+    | null;
+  indexContribSector?:
+    | ReturnType<typeof useRealtimeStore.getState>["indexContribSector"]
+    | null;
   heartbeatTs?: number;
 }
 
@@ -540,7 +549,8 @@ export function collectServingSseEvent(
     } catch (e) {
       // ignore
     }
-    const payloadCode = parsed.data.code || parsed.data.market_code || fallbackCode;
+    const payloadCode =
+      parsed.data.code || parsed.data.market_code || fallbackCode;
     batch.marketSummaryMap = batch.marketSummaryMap || {};
     batch.marketSummaryMap[payloadCode] = parsed.data;
     return;
@@ -671,7 +681,9 @@ export class RealtimeManager {
   // Pending batch for client-side time-window aggregation
   private pendingBatch: ServingSseBatch | null = null;
   private pendingBatchTimer: ReturnType<typeof setTimeout> | null = null;
-  private readonly BATCH_WINDOW_MS = Number(import.meta.env.VITE_SSE_BATCH_WINDOW_MS ?? 100);
+  private readonly BATCH_WINDOW_MS = Number(
+    import.meta.env.VITE_SSE_BATCH_WINDOW_MS ?? 100,
+  );
   private worker: Worker | null = null;
 
   connect(token: string): void {
@@ -735,8 +747,8 @@ export class RealtimeManager {
   private handleWorkerMessage(ev: MessageEvent): void {
     try {
       const data = ev.data;
-      if (!data || typeof data !== 'object') return;
-      if (data.type === 'batch' && data.batch) {
+      if (!data || typeof data !== "object") return;
+      if (data.type === "batch" && data.batch) {
         this.mergeIntoPendingBatch(data.batch);
       }
     } catch (e) {
@@ -892,7 +904,8 @@ export class RealtimeManager {
       return;
     }
 
-    const hasMapEntries = (m?: Record<string, unknown>) => m && Object.keys(m).length > 0;
+    const hasMapEntries = (m?: Record<string, unknown>) =>
+      m && Object.keys(m).length > 0;
     const shouldApply =
       Boolean(batch.kbarCurrent) ||
       hasMapEntries(batch.metricLatestMap) ||
@@ -913,8 +926,10 @@ export class RealtimeManager {
 
   private mergeIntoPendingBatch(incoming: ServingSseBatch): void {
     // quick check for empty incoming
-    const hasMapEntries = (m?: Record<string, unknown>) => m && Object.keys(m).length > 0;
-    const isEmpty = !incoming.kbarCurrent &&
+    const hasMapEntries = (m?: Record<string, unknown>) =>
+      m && Object.keys(m).length > 0;
+    const isEmpty =
+      !incoming.kbarCurrent &&
       !hasMapEntries(incoming.metricLatestMap) &&
       !hasMapEntries(incoming.marketSummaryMap) &&
       !hasMapEntries(incoming.otcSummaryMap) &&
@@ -931,10 +946,18 @@ export class RealtimeManager {
       // shallow clone to avoid accidental external mutations
       this.pendingBatch = {
         ...incoming,
-        metricLatestMap: incoming.metricLatestMap ? { ...incoming.metricLatestMap } : undefined,
-        marketSummaryMap: incoming.marketSummaryMap ? { ...incoming.marketSummaryMap } : undefined,
-        otcSummaryMap: incoming.otcSummaryMap ? { ...incoming.otcSummaryMap } : undefined,
-        quoteLatestMap: incoming.quoteLatestMap ? { ...incoming.quoteLatestMap } : undefined,
+        metricLatestMap: incoming.metricLatestMap
+          ? { ...incoming.metricLatestMap }
+          : undefined,
+        marketSummaryMap: incoming.marketSummaryMap
+          ? { ...incoming.marketSummaryMap }
+          : undefined,
+        otcSummaryMap: incoming.otcSummaryMap
+          ? { ...incoming.otcSummaryMap }
+          : undefined,
+        quoteLatestMap: incoming.quoteLatestMap
+          ? { ...incoming.quoteLatestMap }
+          : undefined,
       };
       this.scheduleFlushPendingBatch();
       return;
@@ -943,19 +966,26 @@ export class RealtimeManager {
     const target = this.pendingBatch;
     // single-value fields: prefer newer incoming value if present
     if (incoming.kbarCurrent) target.kbarCurrent = incoming.kbarCurrent;
-    if (typeof incoming.heartbeatTs === "number") target.heartbeatTs = incoming.heartbeatTs;
-    if (incoming.spotLatestList) target.spotLatestList = incoming.spotLatestList;
+    if (typeof incoming.heartbeatTs === "number")
+      target.heartbeatTs = incoming.heartbeatTs;
+    if (incoming.spotLatestList)
+      target.spotLatestList = incoming.spotLatestList;
     if (incoming.spotMarketDistributionLatest)
-      target.spotMarketDistributionLatest = incoming.spotMarketDistributionLatest;
+      target.spotMarketDistributionLatest =
+        incoming.spotMarketDistributionLatest;
     if (incoming.spotMarketDistributionSeries)
-      target.spotMarketDistributionSeries = incoming.spotMarketDistributionSeries;
+      target.spotMarketDistributionSeries =
+        incoming.spotMarketDistributionSeries;
     if (incoming.indexContribRanking !== undefined)
       target.indexContribRanking = incoming.indexContribRanking;
     if (incoming.indexContribSector !== undefined)
       target.indexContribSector = incoming.indexContribSector;
 
     // merge maps
-    const mergeMap = (key: keyof ServingSseBatch, incomingMap?: Record<string, unknown>) => {
+    const mergeMap = (
+      key: keyof ServingSseBatch,
+      incomingMap?: Record<string, unknown>,
+    ) => {
       if (!incomingMap) return;
       if (!target[key]) {
         target[key] = { ...incomingMap } as any;
@@ -970,7 +1000,6 @@ export class RealtimeManager {
     mergeMap("quoteLatestMap", incoming.quoteLatestMap as any);
 
     this.scheduleFlushPendingBatch();
-
   }
 
   private async stream(signal: AbortSignal, token: string): Promise<void> {
@@ -999,7 +1028,11 @@ export class RealtimeManager {
 
     // In test environments, Response bodies may not be a streaming reader. Read full text and process.
     try {
-      if (typeof process !== "undefined" && (process as any).env && (process as any).env.NODE_ENV === "test") {
+      if (
+        typeof process !== "undefined" &&
+        (process as any).env &&
+        (process as any).env.NODE_ENV === "test"
+      ) {
         const text = await response.text();
         let buffer = "";
         buffer += text;
@@ -1016,7 +1049,11 @@ export class RealtimeManager {
             continue;
           }
           if (!shouldApplyDashboardSseEvent(parsed.event, payload)) continue;
-          collectServingSseEvent(parsed.event as ServingSseEventName, payload, batch);
+          collectServingSseEvent(
+            parsed.event as ServingSseEventName,
+            payload,
+            batch,
+          );
         }
         // Merge into pendingBatch so the same flush path is used as streaming chunks.
         this.mergeIntoPendingBatch(batch);
@@ -1045,7 +1082,11 @@ export class RealtimeManager {
             continue;
           }
           if (!shouldApplyDashboardSseEvent(parsed.event, payload)) continue;
-          collectServingSseEvent(parsed.event as ServingSseEventName, payload, batch);
+          collectServingSseEvent(
+            parsed.event as ServingSseEventName,
+            payload,
+            batch,
+          );
         }
         // Merge into pendingBatch so the same flush path is used as streaming chunks.
         this.mergeIntoPendingBatch(batch);
@@ -1062,7 +1103,8 @@ export class RealtimeManager {
         const worker = createSseWorker();
         if (worker) {
           this.worker = worker;
-          this.worker.onmessage = (ev) => this.handleWorkerMessage(ev as MessageEvent);
+          this.worker.onmessage = (ev) =>
+            this.handleWorkerMessage(ev as MessageEvent);
         }
       }
     } catch {
@@ -1094,7 +1136,7 @@ export class RealtimeManager {
       // If worker enabled, forward raw decoded chunks to worker and skip local parsing
       if (this.worker) {
         try {
-          this.worker.postMessage({ type: 'chunk', data: decodedChunk });
+          this.worker.postMessage({ type: "chunk", data: decodedChunk });
           processedAny = true;
         } catch (e) {
           // if postMessage fails, fall back to local parsing below
@@ -1153,9 +1195,17 @@ export class RealtimeManager {
               continue;
             }
             if (!shouldApplyDashboardSseEvent(parsed.event, payload)) continue;
-            collectServingSseEvent(parsed.event as ServingSseEventName, payload, batch);
+            collectServingSseEvent(
+              parsed.event as ServingSseEventName,
+              payload,
+              batch,
+            );
           }
-          if (typeof process !== "undefined" && (process as any).env && (process as any).env.NODE_ENV === "test") {
+          if (
+            typeof process !== "undefined" &&
+            (process as any).env &&
+            (process as any).env.NODE_ENV === "test"
+          ) {
             applyServingSseBatch(batch);
           } else {
             this.mergeIntoPendingBatch(batch);

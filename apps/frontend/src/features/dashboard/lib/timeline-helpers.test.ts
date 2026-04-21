@@ -2,6 +2,7 @@
 import { findInsertIndex, upsertPoint } from './timeline-helpers';
 
 type Point = { minuteTs: number; value: number };
+type RichPoint = { minuteTs: number; value: number; time: string };
 
 describe('findInsertIndex', () => {
   it('returns 0 for empty series', () => {
@@ -92,6 +93,17 @@ describe('upsertPoint', () => {
     const { nextSeries, nextIndexMap, didChange } = upsertPoint(s, m, p);
     expect(nextSeries[2]).toEqual(p);
     expect(nextIndexMap.get(30)).toBe(2);
+    expect(didChange).toBe(true);
+  });
+
+  it('repairs stale indexMap and updates existing minute without crashing', () => {
+    const s: RichPoint[] = [{ minuteTs: 10, value: 1, time: '09:00' }];
+    // stale map points to an out-of-range index for minuteTs=10
+    const m = new Map<number, number>([[10, 1]]);
+    const p: RichPoint = { minuteTs: 10, value: 2, time: '09:01' };
+    const { nextSeries, nextIndexMap, didChange } = upsertPoint(s, m, p);
+    expect(nextSeries).toEqual([p]);
+    expect(nextIndexMap.get(10)).toBe(0);
     expect(didChange).toBe(true);
   });
 });

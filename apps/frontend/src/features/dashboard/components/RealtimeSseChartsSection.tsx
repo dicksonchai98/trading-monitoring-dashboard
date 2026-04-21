@@ -13,10 +13,10 @@ import { Badge } from "@/components/ui/badge";
 import { BentoGridSection } from "@/components/ui/bento-grid";
 import { PanelCard } from "@/components/ui/panel-card";
 import { useRealtimeConnection } from "@/features/realtime/hooks/use-realtime-connection";
-import { useThrottledSubscription } from '@/hooks/use-throttled-subscription';
+import { useThrottledSubscription } from "@/hooks/use-throttled-subscription";
 import { useT } from "@/lib/i18n";
 
-const ACTIVE_CODE = "TXFD6";
+const ACTIVE_CODE = "TXFE6";
 
 interface SeriesPoint {
   ts: number;
@@ -105,8 +105,14 @@ function EmptyState(): JSX.Element {
 export function RealtimeSseChartsSection(): JSX.Element {
   const t = useT();
   const { connectionStatus } = useRealtimeConnection();
-  const kbar = useThrottledSubscription((s) => s.kbarCurrentByCode?.[ACTIVE_CODE] ?? null, 100);
-  const metric = useThrottledSubscription((s) => s.metricLatestByCode?.[ACTIVE_CODE] ?? null, 100);
+  const kbar = useThrottledSubscription(
+    (s) => s.kbarCurrentByCode?.[ACTIVE_CODE] ?? null,
+    100,
+  );
+  const metric = useThrottledSubscription(
+    (s) => s.metricLatestByCode?.[ACTIVE_CODE] ?? null,
+    100,
+  );
 
   const closeSeriesRef = useRef<SeriesPoint[]>([]);
   const spreadSeriesRef = useRef<SpreadPoint[]>([]);

@@ -17,7 +17,7 @@ type WorkerBatch = {
   heartbeatTs?: number;
 };
 
-const DEFAULT_STREAM_CODE = "TXFD6";
+const DEFAULT_STREAM_CODE = "TXFE6";
 const DEFAULT_OTC_CODE = "OTC001";
 const SESSION_START_HHMM = "09:00:00";
 const SESSION_END_HHMM = "13:45:00";
@@ -40,7 +40,10 @@ function resolveTaipeiDatePart(tsMs: number): string {
   return TAIPEI_DATE_FORMATTER.format(new Date(tsMs));
 }
 
-function resolveSessionBoundsForTs(tsMs: number): { startMs: number; endMs: number } {
+function resolveSessionBoundsForTs(tsMs: number): {
+  startMs: number;
+  endMs: number;
+} {
   const datePart = resolveTaipeiDatePart(tsMs);
   if (cachedSessionDatePart === datePart && cachedSessionBounds) {
     return cachedSessionBounds;
@@ -67,11 +70,17 @@ function toEpochMs(raw: unknown): number | null {
   return null;
 }
 
-function shouldApplyDashboardSseEvent(eventName: string, data: unknown): boolean {
+function shouldApplyDashboardSseEvent(
+  eventName: string,
+  data: unknown,
+): boolean {
   if (eventName === "heartbeat") {
     return true;
   }
-  if (eventName === "index_contrib_ranking" || eventName === "index_contrib_sector") {
+  if (
+    eventName === "index_contrib_ranking" ||
+    eventName === "index_contrib_sector"
+  ) {
     return true;
   }
   if (!data || typeof data !== "object") {
@@ -125,7 +134,10 @@ function splitSseBuffer(buf: string): { frames: string[]; rest: string } {
   };
 }
 
-function parseSseFrame(frame: string): { event: string | null; data: string | null } {
+function parseSseFrame(frame: string): {
+  event: string | null;
+  data: string | null;
+} {
   const lines = frame.split("\n");
   let event: string | null = null;
   const dataParts: string[] = [];
@@ -165,13 +177,16 @@ function scheduleFlush(): void {
   if (flushTimer !== null) {
     return;
   }
-  flushTimer = (setTimeout(() => {
+  flushTimer = setTimeout(() => {
     flushTimer = null;
     emitBatchNow();
-  }, FLUSH_MS) as unknown) as number;
+  }, FLUSH_MS) as unknown as number;
 }
 
-function collectEvent(eventName: string, payload: Record<string, unknown>): void {
+function collectEvent(
+  eventName: string,
+  payload: Record<string, unknown>,
+): void {
   if (eventName === "kbar_current") {
     pendingBatch.kbarCurrent = payload;
     return;

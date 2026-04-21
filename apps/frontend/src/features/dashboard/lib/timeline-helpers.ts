@@ -29,34 +29,58 @@ export function upsertPoint<T extends { minuteTs: number }>(
   indexMap: Map<number, number>,
   point: T
 ): { nextSeries: T[]; nextIndexMap: Map<number, number>; didChange: boolean } {
-  const idx = indexMap.get(point.minuteTs);
-  if (idx !== undefined) {
-    const existing = series[idx];
-    // Shallow compare all fields
-    const keys = Object.keys(point) as (keyof T)[];
-    let identical = true;
+  const rebuildIndexMap = (rows: T[]): Map<number, number> => {
+    const nextIndexMap = new Map<number, number>();
+    for (let i = 0; i < rows.length; ++i) {
+      nextIndexMap.set(rows[i].minuteTs, i);
+    }
+    return nextIndexMap;
+  };
+
+  const isSamePoint = (a: T, b: T): boolean => {
+    const keys = Object.keys(b) as (keyof T)[];
     for (const k of keys) {
-      if (existing[k] !== point[k]) {
-        identical = false;
-        break;
+      if (a[k] !== b[k]) {
+        return false;
       }
     }
-    if (identical) {
+    return true;
+  };
+
+  const indexed = indexMap.get(point.minuteTs);
+  const hasValidIndexedPoint =
+    indexed !== undefined &&
+    indexed >= 0 &&
+    indexed < series.length &&
+    series[indexed]?.minuteTs === point.minuteTs;
+
+  if (hasValidIndexedPoint) {
+    const idx = indexed as number;
+    const existing = series[idx];
+    if (isSamePoint(existing, point)) {
       return { nextSeries: series, nextIndexMap: indexMap, didChange: false };
     }
-    // Replace only the changed point
     const nextSeries = series.slice();
     nextSeries[idx] = point;
     return { nextSeries, nextIndexMap: indexMap, didChange: true };
-  } else {
-    // Insert new point
-    const insertIdx = findInsertIndex(series, point.minuteTs);
-    const nextSeries = series.slice(0, insertIdx).concat([point], series.slice(insertIdx));
-    // Rebuild indexMap
-    const nextIndexMap = new Map<number, number>();
-    for (let i = 0; i < nextSeries.length; ++i) {
-      nextIndexMap.set(nextSeries[i].minuteTs, i);
-    }
-    return { nextSeries, nextIndexMap, didChange: true };
   }
+
+  // Fallback for stale indexMap: use current series ordering to upsert safely.
+  const insertIdx = findInsertIndex(series, point.minuteTs);
+  const hasExistingAtMinuteTs =
+    insertIdx >= 0 &&
+    insertIdx < series.length &&
+    series[insertIdx]?.minuteTs === point.minuteTs;
+
+  if (hasExistingAtMinuteTs) {
+    if (isSamePoint(series[insertIdx], point)) {
+      return { nextSeries: series, nextIndexMap: rebuildIndexMap(series), didChange: false };
+    }
+    const nextSeries = series.slice();
+    nextSeries[insertIdx] = point;
+    return { nextSeries, nextIndexMap: rebuildIndexMap(nextSeries), didChange: true };
+  }
+
+  const nextSeries = series.slice(0, insertIdx).concat([point], series.slice(insertIdx));
+  return { nextSeries, nextIndexMap: rebuildIndexMap(nextSeries), didChange: true };
 }
