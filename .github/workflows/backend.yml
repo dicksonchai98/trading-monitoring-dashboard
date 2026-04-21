@@ -24,11 +24,14 @@ jobs:
             cd ~/trading-monitoring-dashboard
 
             git stash push -m "ci-auto-stash-$(date +%Y%m%d-%H%M%S)" || true
-            git pull origin master
+            git fetch origin master
+            git reset --hard origin/master
+            git clean -fd -e .env.production
             docker compose --env-file .env.production -f docker-compose.yml -f docker-compose.ec2.yml up -d postgres redis
-            docker compose --env-file .env.production -f docker-compose.yml -f docker-compose.ec2.yml run --rm backend-api alembic -c alembic.ini upgrade head
-            docker compose --env-file .env.production -f docker-compose.yml -f docker-compose.ec2.yml up -d backend-api nginx
-            docker compose --env-file .env.production -f docker-compose.yml -f docker-compose.ec2.yml --profile full up -d \
+            docker compose --env-file .env.production -f docker-compose.yml -f docker-compose.ec2.yml build backend-api
+            docker compose --env-file .env.production -f docker-compose.yml -f docker-compose.ec2.yml run --rm backend-api alembic -c alembic.ini upgrade heads
+            docker compose --env-file .env.production -f docker-compose.yml -f docker-compose.ec2.yml up -d --build backend-api nginx
+            docker compose --env-file .env.production -f docker-compose.yml -f docker-compose.ec2.yml --profile full up -d --build \
               backend-ingestor-worker \
               backend-tick-worker \
               backend-bidask-worker \
