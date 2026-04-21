@@ -13,6 +13,7 @@ export interface AdminAuditLogsQuery {
 export function getAdminAuditLogs(
   token: string,
   query: AdminAuditLogsQuery = {},
+  signal?: AbortSignal,
 ): Promise<AdminAuditLogsResponse> {
   const params = new URLSearchParams();
   if (query.action && query.action !== "all") {
@@ -40,5 +41,6 @@ export function getAdminAuditLogs(
     headers: {
       Authorization: `Bearer ${token}`,
     },
+    signal,
   });
 }

@@ -1,3 +1,4 @@
+import * as apiClient from "@/lib/api/client";
 import { ApiError, getJson, postJson } from "@/lib/api/client";
 
 describe("postJson", () => {
@@ -64,5 +65,40 @@ describe("getJson", () => {
     await expect(getJson("/billing/status")).resolves.toEqual({
       status: "active",
     });
+  });
+
+  it("forwards the provided abort signal to fetch", async () => {
+    const controller = new AbortController();
+    const options: Parameters<typeof getJson>[1] & { signal: AbortSignal } = {
+      signal: controller.signal,
+    };
+
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ status: "active" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await getJson("/billing/status", options);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        method: "GET",
+        signal: controller.signal,
+      }),
+    );
+  });
+});
+
+describe("isAbortError", () => {
+  it("returns true for abort-shaped errors", () => {
+    const abortError = new DOMException("The operation was aborted.", "AbortError");
+    const isAbortError = (apiClient as Record<string, unknown>)["isAbortError"] as
+      | ((error: unknown) => boolean)
+      | undefined;
+
+    expect(isAbortError?.(abortError)).toBe(true);
   });
 });

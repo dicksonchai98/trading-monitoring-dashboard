@@ -137,6 +137,7 @@ describe("SubscriptionPage", () => {
       expect.objectContaining({
         credentials: "include",
         method: "GET",
+        signal: expect.any(AbortSignal),
       }),
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
@@ -145,6 +146,7 @@ describe("SubscriptionPage", () => {
       expect.objectContaining({
         credentials: "include",
         method: "GET",
+        signal: expect.any(AbortSignal),
       }),
     );
     expect(fetchMock).toHaveBeenNthCalledWith(

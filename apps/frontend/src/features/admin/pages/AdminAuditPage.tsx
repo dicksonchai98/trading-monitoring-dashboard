@@ -94,7 +94,7 @@ export function AdminAuditPage(): JSX.Element {
       actorFilter,
       pathFilter,
     ],
-    queryFn: () =>
+    queryFn: ({ signal }) =>
       getAdminAuditLogs(token ?? "", {
         action: actionFilter,
         result: resultFilter,
@@ -102,7 +102,7 @@ export function AdminAuditPage(): JSX.Element {
         path: pathFilter,
         limit: 200,
         offset: 0,
-      }),
+      }, signal),
     enabled: Boolean(token),
   });
   const events = useMemo(

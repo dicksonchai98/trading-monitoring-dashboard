@@ -132,6 +132,7 @@ describe("CheckoutResultPage", () => {
         expect.stringContaining("/billing/checkout-session/cs_test_store_cancel"),
         expect.objectContaining({
           method: "GET",
+          signal: expect.any(AbortSignal),
         }),
       ),
     );
@@ -140,6 +141,7 @@ describe("CheckoutResultPage", () => {
         expect.stringContaining("/billing/status"),
         expect.objectContaining({
           method: "GET",
+          signal: expect.any(AbortSignal),
         }),
       ),
     );
