@@ -88,7 +88,8 @@ class StreamProcessingWorkerRuntime:
                         else:
                             self._state = "running"
                         return
-                    self._last_tick_ts = asyncio.get_running_loop().time()
+                    now = asyncio.get_running_loop().time()
+                    self._last_tick_ts = max(now, self._last_tick_ts + 1e-6)
                 await asyncio.sleep(self._heartbeat_interval_seconds)
         except asyncio.CancelledError:
             await self.stop()

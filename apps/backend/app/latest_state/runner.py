@@ -494,8 +494,10 @@ class LatestStateRunner:
                     self._redis.set(latest_key, latest_value)
                     self._redis.expire(latest_key, self._state_ttl_seconds)
                 if not can_pipe_zadd:
-                    self._redis.zadd(series_key, {series_value: latest_payload["ts"]})
-                    self._redis.expire(series_key, self._state_ttl_seconds)
+                    redis_zadd = getattr(self._redis, "zadd", None)
+                    if callable(redis_zadd):
+                        redis_zadd(series_key, {series_value: latest_payload["ts"]})
+                        self._redis.expire(series_key, self._state_ttl_seconds)
             if pipe is not None:
                 pipe.execute()
             for symbol in to_flush:

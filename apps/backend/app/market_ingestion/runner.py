@@ -524,8 +524,13 @@ class MarketIngestionRunner:
             self._market_contract = resolve_market_contract(self._client.api, self._market_code)
             subscribe_market_topic(self._client.api, self._market_contract)
         if self._otc_enabled:
-            self._otc_contract = resolve_market_contract(self._client.api, self._otc_code)
-            subscribe_market_topic(self._client.api, self._otc_contract)
+            try:
+                self._otc_contract = resolve_market_contract(self._client.api, self._otc_code)
+                subscribe_market_topic(self._client.api, self._otc_contract)
+            except Exception:
+                logger.warning("ingestor OTC subscription disabled: unable to resolve contract")
+                self._otc_enabled = False
+                self._otc_contract = None
         self._subscribe_spot_symbols()
         logger.info(
             "ingestor subscribed code=%s quote_types=%s",
@@ -541,8 +546,13 @@ class MarketIngestionRunner:
             self._market_contract = resolve_market_contract(self._client.api, self._market_code)
             subscribe_market_topic(self._client.api, self._market_contract)
         if self._otc_enabled:
-            self._otc_contract = resolve_market_contract(self._client.api, self._otc_code)
-            subscribe_market_topic(self._client.api, self._otc_contract)
+            try:
+                self._otc_contract = resolve_market_contract(self._client.api, self._otc_code)
+                subscribe_market_topic(self._client.api, self._otc_contract)
+            except Exception:
+                logger.warning("ingestor OTC resubscribe disabled: unable to resolve contract")
+                self._otc_enabled = False
+                self._otc_contract = None
         if self._spot_enabled:
             self._resubscribe_spot_symbols()
         logger.info(

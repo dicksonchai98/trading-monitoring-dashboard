@@ -86,8 +86,7 @@ def resolve_default_code(requested_code: str | None) -> str:
         return requested_code
     if SERVING_DEFAULT_CODE:
         return SERVING_DEFAULT_CODE
-    discovered = _discover_code_from_streams()
-    return discovered or INGESTOR_CODE
+    return INGESTOR_CODE
 
 
 def _discover_code_from_streams() -> str | None:
@@ -457,10 +456,13 @@ def fetch_index_contrib_sector_latest(index_code: str) -> dict[str, Any] | None:
 
 
 def fetch_quote_latest(code: str) -> dict[str, Any] | None:
-    redis_client = get_serving_redis_client()
-    trade_date = trade_date_for(datetime.now(tz=TZ_TAIPEI))
-    key = build_state_key(SERVING_ENV, code, trade_date, "quote_features:latest")
-    raw = redis_client.get(key)
+    try:
+        redis_client = get_serving_redis_client()
+        trade_date = trade_date_for(datetime.now(tz=TZ_TAIPEI))
+        key = build_state_key(SERVING_ENV, code, trade_date, "quote_features:latest")
+        raw = redis_client.get(key)
+    except Exception:
+        return None
     if raw is None:
         return None
     payload = raw.decode("utf-8") if isinstance(raw, bytes) else str(raw)

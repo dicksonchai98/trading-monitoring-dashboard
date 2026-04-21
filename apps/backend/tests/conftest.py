@@ -10,13 +10,18 @@ from fastapi.testclient import TestClient
 _TEST_DB_FILE = f"test_backend_{os.getpid()}.db"
 # Ensure DB URL is set before importing app modules that create engine/session.
 os.environ["DATABASE_URL"] = f"sqlite+pysqlite:///./{_TEST_DB_FILE}"
-os.environ.setdefault("STRIPE_SECRET_KEY", "sk_test_local")
-os.environ.setdefault("STRIPE_WEBHOOK_SECRET", "whsec_local")
-os.environ.setdefault("STRIPE_PRICE_ID", "price_local")
-os.environ.setdefault("STRIPE_SUCCESS_URL", "https://example.com/success")
-os.environ.setdefault("STRIPE_CANCEL_URL", "https://example.com/cancel")
-os.environ.setdefault("OTP_FIXED_CODE_FOR_TESTS", "123456")
-os.environ.setdefault("SENDGRID_WEBHOOK_SIGNING_KEY", "test-sendgrid-signing-key")
+os.environ["STRIPE_SECRET_KEY"] = "sk_test_local"  # noqa: S105 - test credential only
+os.environ["STRIPE_WEBHOOK_SECRET"] = "whsec_local"  # noqa: S105 - test credential only
+os.environ["STRIPE_PRICE_ID"] = "price_local"
+os.environ["STRIPE_SUCCESS_URL"] = "https://example.com/success"
+os.environ["STRIPE_CANCEL_URL"] = "https://example.com/cancel"
+os.environ["OTP_FIXED_CODE_FOR_TESTS"] = "123456"
+os.environ["INGESTOR_CODE"] = "MTX"
+os.environ["SENDGRID_API_KEY"] = ""
+os.environ["SENDGRID_OTP_TEMPLATE_ID"] = "otp_verification"
+os.environ["SENDGRID_WEBHOOK_SIGNING_KEY"] = "test-sendgrid-signing-key"
+os.environ["SERVING_SSE_INCLUDE_QUOTE"] = "1"
+os.environ["SERVING_POLL_INTERVAL_MS"] = "50"
 
 from app.db.base import Base
 from app.db.session import engine

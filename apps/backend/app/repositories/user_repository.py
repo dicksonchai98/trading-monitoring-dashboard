@@ -108,17 +108,26 @@ class UserRepository:
 
     def create_user(
         self,
-        user_id: str,
-        email: str,
-        password_hash: str,
-        role: str,
+        user_id: str | None = None,
+        email: str | None = None,
+        password_hash: str | None = None,
+        role: str | None = None,
         username: str | None = None,
     ) -> UserRecord:
+        if not password_hash:
+            raise ValueError("invalid_password_hash")
+        if not role:
+            raise ValueError("invalid_role")
+        canonical_username = (username or email or user_id or "").strip()
+        canonical_user_id = (user_id or canonical_username).strip()
+        canonical_email = (email or canonical_username).strip()
+        if not canonical_username or not canonical_user_id or not canonical_email:
+            raise ValueError("invalid_user_payload")
         with self._session_factory() as session:
             model = UserModel(
-                username=username or email,
-                user_id=user_id,
-                email=email,
+                username=canonical_username,
+                user_id=canonical_user_id,
+                email=canonical_email,
                 password_hash=password_hash,
                 role=role,
             )

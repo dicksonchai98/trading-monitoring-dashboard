@@ -50,12 +50,10 @@ class AuthService:
 
     @staticmethod
     def is_valid_password(password: str) -> bool:
-        if len(password) < 8:
+        if len(password) < 5:
             return False
-        has_upper = any(ch.isupper() for ch in password)
-        has_lower = any(ch.islower() for ch in password)
-        has_digit = any(ch.isdigit() for ch in password)
-        return has_upper and has_lower and has_digit
+        has_non_alpha = any(not ch.isalpha() for ch in password)
+        return has_non_alpha
 
     def email_exists(self, email: str) -> bool:
         return self._user_repository.get_by_email(email) is not None
@@ -68,6 +66,8 @@ class AuthService:
 
     def login(self, user_id: str, password: str) -> tuple[str, str]:
         user = self._user_repository.get_by_user_id(user_id)
+        if user is None:
+            user = self._user_repository.get_by_username(user_id)
         if user is None or not verify_password(password, user.password_hash):
             self._metrics.inc("login_failure")
             raise ValueError("invalid_credentials")
