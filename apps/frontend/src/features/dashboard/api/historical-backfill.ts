@@ -23,7 +23,7 @@ export function triggerHistoricalBackfillJob(
   return postJson<
     HistoricalBackfillTriggerResponse,
     HistoricalBackfillTriggerRequest
-  >("api/admin/batch/backfill/jobs", payload, {
+  >("/admin/batch/backfill/jobs", payload, {
     headers: {
       Authorization: `Bearer ${token}`,
     },

@@ -35,7 +35,7 @@ export function getAdminAuditLogs(
     params.set("offset", String(query.offset));
   }
   const queryString = params.toString();
-  const url = queryString.length > 0 ? `/api/admin/logs?${queryString}` : "/api/admin/logs";
+  const url = queryString.length > 0 ? `/admin/logs?${queryString}` : "/admin/logs";
 
   return getJson<AdminAuditLogsResponse>(url, {
     headers: {
