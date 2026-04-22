@@ -13,7 +13,7 @@ interface I18nContextValue {
 }
 
 function normalizeLanguage(value: string | null | undefined): LanguagePreset {
-  return value === "zh-TW" ? "zh-TW" : "en";
+  return value === "en" ? "en" : "zh-TW";
 }
 
 function applyLanguagePresetToDocument(value: LanguagePreset): void {
@@ -29,7 +29,7 @@ function readInitialLanguage(): LanguagePreset {
     const savedLanguage = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
     return normalizeLanguage(savedLanguage);
   }
-  return "en";
+  return "zh-TW";
 }
 
 function formatMessage(template: string, variables?: TranslationVariables): string {
@@ -43,9 +43,9 @@ function formatMessage(template: string, variables?: TranslationVariables): stri
 }
 
 const fallbackContext: I18nContextValue = {
-  locale: "en",
+  locale: "zh-TW",
   setLocale: () => undefined,
-  t: (key, variables) => formatMessage(messages.en[key], variables),
+  t: (key, variables) => formatMessage(messages["zh-TW"][key] ?? messages.en[key], variables),
 };
 
 const I18nContext = createContext<I18nContextValue>(fallbackContext);
