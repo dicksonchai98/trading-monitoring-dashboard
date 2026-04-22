@@ -25,7 +25,7 @@ export function triggerCrawlerJob(
   payload: CrawlerSingleDateJobRequest | CrawlerRangeJobRequest,
 ): Promise<CrawlerJobResponse> {
   return postJson<CrawlerJobResponse, typeof payload>(
-    "/admin/batch/crawler/jobs",
+    "/api/admin/batch/crawler/jobs",
     payload,
     {
       headers: {
