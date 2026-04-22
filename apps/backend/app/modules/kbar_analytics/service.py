@@ -394,6 +394,28 @@ class KbarAnalyticsService:
             stmt = stmt.order_by(KbarEventStatModel.version.desc()).limit(1)
         return self.session.execute(stmt).scalar_one_or_none()
 
+    def get_latest_event_stats(
+        self,
+        *,
+        event_id: str,
+        code: str,
+        version: int | None,
+    ) -> KbarEventStatModel | None:
+        ensure_event_exists(event_id)
+        stmt = (
+            select(KbarEventStatModel)
+            .where(KbarEventStatModel.event_id == event_id)
+            .where(KbarEventStatModel.code == code)
+        )
+        if version is not None:
+            stmt = stmt.where(KbarEventStatModel.version == version)
+        stmt = stmt.order_by(
+            KbarEventStatModel.end_date.desc(),
+            KbarEventStatModel.start_date.desc(),
+            KbarEventStatModel.version.desc(),
+        ).limit(1)
+        return self.session.execute(stmt).scalar_one_or_none()
+
     def get_latest_event_stats_by_code(self, *, code: str) -> list[KbarEventStatModel]:
         rows = list(
             self.session.execute(

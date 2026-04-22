@@ -135,6 +135,17 @@ def test_kbar_analytics_endpoints_and_jobs_flow() -> None:
     assert stats_res.status_code == 200
     assert stats_res.json()["sample_count"] >= 1
 
+    latest_event_stats_without_dates_res = client.get(
+        "/analytics/events/day_up_gt_100/stats",
+        params={
+            "code": "TXF",
+            "version": "latest",
+        },
+        headers=headers,
+    )
+    assert latest_event_stats_without_dates_res.status_code == 200
+    assert latest_event_stats_without_dates_res.json()["event_id"] == "day_up_gt_100"
+
     all_stats_res = client.get(
         "/analytics/events/all/stats",
         params={
@@ -193,7 +204,7 @@ def test_kbar_analytics_rejects_unknown_registry_ids() -> None:
         params={"code": "TXF"},
         headers=headers,
     )
-    assert missing_date_res.status_code == 400
+    assert missing_date_res.status_code == 404
 
     dist_res = client.get(
         "/analytics/distributions/not-exist",
