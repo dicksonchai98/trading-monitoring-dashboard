@@ -99,10 +99,17 @@ def event_stats(
         return {"items": [_to_item(entity) for entity in items]}
 
     if start_date is None or end_date is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="missing_required_params",
+        entity = service.get_latest_event_stats(
+            event_id=event_id,
+            code=code,
+            version=parsed_version,
         )
+        if entity is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="event_stats_not_found",
+            )
+        return _to_item(entity)
 
     try:
         entity = service.get_event_stats(
