@@ -81,7 +81,7 @@ public class AccountController(IAccountService accountService) : Controller
     }
 
     [HttpPost]
-    [ValidateAntiForgeryToken]
+    [IgnoreAntiforgeryToken]
     public async Task<IActionResult> Logout()
     {
         await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
