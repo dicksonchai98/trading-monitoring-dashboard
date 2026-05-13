@@ -16,6 +16,14 @@ public class PostsController(IPostService postService, ICommentService commentSe
     {
         var posts = await _postService.GetFeedAsync(cancellationToken);
         ViewBag.NewPost = new PostEditViewModel();
+        var commentMap = new Dictionary<int, IReadOnlyList<SocialMediaApp.Web.Entities.Comment>>();
+        foreach (var post in posts)
+        {
+            var comments = await _commentService.GetByPostIdAsync(post.PostId, cancellationToken);
+            commentMap[post.PostId] = comments;
+        }
+
+        ViewBag.CommentMap = commentMap;
         return View(posts);
     }
 

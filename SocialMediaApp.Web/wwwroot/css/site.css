@@ -19,6 +19,8 @@ html {
 
 body {
   margin-bottom: 60px;
+  background: #f7f9f9;
+  color: #0f1419;
 }
 
 .form-floating > .form-control-plaintext::placeholder, .form-floating > .form-control::placeholder {
@@ -28,4 +30,149 @@ body {
 
 .form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
   text-align: start;
+}
+
+.timeline-wrap {
+  max-width: 980px;
+  margin: 0 auto;
+}
+
+.tweet-card {
+  background: #fff;
+  border: 1px solid #eff3f4;
+  border-radius: 16px;
+  padding: 14px 16px;
+  transition: background-color .2s ease;
+}
+
+.tweet-card:hover {
+  background: #fbfdff;
+}
+
+.tweet-row {
+  display: flex;
+  gap: 12px;
+}
+
+.tweet-avatar {
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #1d9bf0, #4cb4f8);
+  color: #fff;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tweet-body {
+  min-width: 0;
+  flex: 1;
+}
+
+.tweet-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+  font-size: .95rem;
+}
+
+.tweet-name {
+  font-weight: 700;
+}
+
+.tweet-handle,
+.tweet-time,
+.tweet-dot {
+  color: #536471;
+}
+
+.tweet-content {
+  margin-bottom: 8px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.tweet-media {
+  width: 100%;
+  max-height: 420px;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid #e6ecf0;
+}
+
+.tweet-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 8px;
+}
+
+.tweet-action {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: #536471;
+  font-size: .9rem;
+  text-decoration: none;
+  padding: 0;
+}
+
+.tweet-action:hover {
+  color: #1d9bf0;
+  text-decoration: none;
+}
+
+.tweet-action-danger:hover {
+  color: #f4212e;
+}
+
+.tweet-compose-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.tweet-input {
+  border-radius: 12px;
+  border-color: #cfd9de;
+}
+
+.tweet-input:focus {
+  border-color: #1d9bf0;
+  box-shadow: 0 0 0 .2rem rgba(29, 155, 240, .18);
+}
+
+.tweet-btn-primary {
+  border-radius: 999px;
+  font-weight: 700;
+  padding: 8px 18px;
+}
+
+.tweet-empty {
+  border: 1px dashed #cfd9de;
+  border-radius: 12px;
+  background: #fff;
+  color: #536471;
+  padding: 14px;
+}
+
+.tweet-side-title {
+  font-weight: 800;
+  margin-bottom: 10px;
+}
+
+.tweet-reply {
+  border: 1px solid #eff3f4;
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+.tweet-reply-meta {
+  color: #536471;
+  font-size: .82rem;
+  margin-bottom: 4px;
 }

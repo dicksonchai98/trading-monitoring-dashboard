@@ -18,12 +18,12 @@ public class CommentsController(ICommentService commentService) : Controller
         if (!ModelState.IsValid)
         {
             TempData["Error"] = "Invalid comment.";
-            return RedirectToAction("Details", "Posts", new { id = model.PostId });
+            return Redirect($"/Posts#post-{model.PostId}");
         }
 
         var result = await _commentService.CreateAsync(GetCurrentUserId(), model, cancellationToken);
         TempData[result.IsSuccess ? "Success" : "Error"] = result.IsSuccess ? "Comment added." : result.Error;
-        return RedirectToAction("Details", "Posts", new { id = model.PostId });
+        return Redirect($"/Posts#post-{model.PostId}");
     }
 
     private int GetCurrentUserId() => int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);

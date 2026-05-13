@@ -6,48 +6,58 @@
 }
 
 <div class="row g-4">
-    <div class="col-12 col-lg-7">
-        <div class="card shadow-sm">
-            <div class="card-body">
-                <p>@Model.Content</p>
+    <div class="col-12 col-lg-8">
+        <article class="tweet-card">
+            <div class="tweet-row">
+                <div class="tweet-avatar" aria-hidden="true">Y</div>
+                <div class="tweet-body">
+                    <div class="tweet-meta">
+                        <span class="tweet-name">Community User</span>
+                        <span class="tweet-handle">@("@social_user")</span>
+                        <span class="tweet-dot">·</span>
+                        <span class="tweet-time">@Model.CreatedAt.ToLocalTime().ToString("MMM d")</span>
+                    </div>
+                    <p class="tweet-content">@Model.Content</p>
                 @if (!string.IsNullOrWhiteSpace(Model.Image))
                 {
-                    <img src="@Model.Image" class="img-fluid rounded" alt="post image" />
+                        <img src="@Model.Image" class="tweet-media" alt="post image" />
+                    }
                 }
             </div>
-        </div>
+        </article>
     </div>
-    <div class="col-12 col-lg-5">
-        <div class="card shadow-sm mb-3">
-            <div class="card-body">
-                <h5>Comments</h5>
+    <div class="col-12 col-lg-4">
+        <div class="tweet-card mb-3">
+            <h6 class="tweet-side-title">Replies</h6>
                 @if (!comments.Any())
                 {
-                    <div class="text-muted">No comments yet.</div>
+                <div class="text-muted">No replies yet.</div>
                 }
                 else
                 {
                     @foreach (var c in comments)
                     {
-                        <div class="border rounded p-2 mb-2">@c.Content</div>
+                        <div class="tweet-reply mb-2">
+                            <div class="tweet-reply-meta">@("@reply_user") · just now</div>
+                            <div>@c.Content</div>
+                        </div>
                     }
                 }
             </div>
-        </div>
 
         @if (User.Identity?.IsAuthenticated == true)
         {
-            <div class="card shadow-sm">
-                <div class="card-body">
-                    <h6>Add Comment</h6>
+            <div class="tweet-card">
+                <h6 class="tweet-side-title">Post your reply</h6>
                     <form asp-controller="Comments" asp-action="Create" method="post">
                         @Html.AntiForgeryToken()
                         <input type="hidden" name="PostId" value="@input.PostId" />
-                        <textarea class="form-control mb-2" name="Content" rows="3" maxlength="2000"></textarea>
-                        <button type="submit" class="btn btn-primary w-100">Submit</button>
+                    <textarea class="form-control tweet-input mb-2" name="Content" rows="3" maxlength="2000" placeholder="Tweet your reply"></textarea>
+                    <div class="d-flex justify-content-end">
+                        <button type="submit" class="btn btn-primary tweet-btn-primary">Reply</button>
+                    </div>
                     </form>
                 </div>
-            </div>
         }
     </div>
 </div>
