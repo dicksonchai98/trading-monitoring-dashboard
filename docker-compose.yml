@@ -20,6 +20,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    volumes:
+      - app_keys:/root/.aspnet/DataProtection-Keys
     healthcheck:
       test: ["CMD", "dotnet", "--info"]
       interval: 10s
@@ -58,4 +60,5 @@ services:
 
 volumes:
   db_data:
+  app_keys:
 
