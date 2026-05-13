@@ -1,0 +1,58 @@
+@model IReadOnlyList<SocialMediaApp.Web.Entities.Post>
+@{
+    ViewData["Title"] = "Posts";
+    var input = (SocialMediaApp.Web.ViewModels.PostEditViewModel)ViewBag.NewPost;
+}
+
+<div class="row g-4">
+    <div class="col-12 col-lg-4">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h5 class="card-title">Create Post</h5>
+                <form asp-action="Create" method="post">
+                    @Html.AntiForgeryToken()
+                    <div class="mb-2">
+                        <label class="form-label">Content</label>
+                        <textarea class="form-control" name="Content" rows="4" maxlength="5000"></textarea>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Image URL</label>
+                        <input class="form-control" name="Image" maxlength="500" />
+                    </div>
+                    <button class="btn btn-primary w-100" type="submit">Publish</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-lg-8">
+        @if (!Model.Any())
+        {
+            <div class="alert alert-info">No posts yet.</div>
+        }
+
+        @foreach (var post in Model)
+        {
+            <div class="card mb-3 shadow-sm">
+                <div class="card-body">
+                    <p class="mb-2">@post.Content</p>
+                    @if (!string.IsNullOrWhiteSpace(post.Image))
+                    {
+                        <img src="@post.Image" class="img-fluid rounded mb-2" alt="post image" />
+                    }
+                    <div class="d-flex gap-2 flex-wrap">
+                        <a class="btn btn-sm btn-outline-secondary" asp-action="Details" asp-route-id="@post.PostId">Details</a>
+                        @if (User.Identity?.IsAuthenticated == true)
+                        {
+                            <a class="btn btn-sm btn-outline-primary" asp-action="Edit" asp-route-id="@post.PostId">Edit</a>
+                            <form asp-action="Delete" method="post" class="d-inline">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="id" value="@post.PostId" />
+                                <button class="btn btn-sm btn-outline-danger" type="submit">Delete</button>
+                            </form>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+</div>

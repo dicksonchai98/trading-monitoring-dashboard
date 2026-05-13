@@ -1,0 +1,53 @@
+@model SocialMediaApp.Web.Entities.Post
+@{
+    ViewData["Title"] = "Post Details";
+    var comments = (IReadOnlyList<SocialMediaApp.Web.Entities.Comment>)ViewBag.Comments;
+    var input = (SocialMediaApp.Web.ViewModels.CommentCreateViewModel)ViewBag.CommentInput;
+}
+
+<div class="row g-4">
+    <div class="col-12 col-lg-7">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <p>@Model.Content</p>
+                @if (!string.IsNullOrWhiteSpace(Model.Image))
+                {
+                    <img src="@Model.Image" class="img-fluid rounded" alt="post image" />
+                }
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-lg-5">
+        <div class="card shadow-sm mb-3">
+            <div class="card-body">
+                <h5>Comments</h5>
+                @if (!comments.Any())
+                {
+                    <div class="text-muted">No comments yet.</div>
+                }
+                else
+                {
+                    @foreach (var c in comments)
+                    {
+                        <div class="border rounded p-2 mb-2">@c.Content</div>
+                    }
+                }
+            </div>
+        </div>
+
+        @if (User.Identity?.IsAuthenticated == true)
+        {
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h6>Add Comment</h6>
+                    <form asp-controller="Comments" asp-action="Create" method="post">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="PostId" value="@input.PostId" />
+                        <textarea class="form-control mb-2" name="Content" rows="3" maxlength="2000"></textarea>
+                        <button type="submit" class="btn btn-primary w-100">Submit</button>
+                    </form>
+                </div>
+            </div>
+        }
+    </div>
+</div>
