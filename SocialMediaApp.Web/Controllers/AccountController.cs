@@ -1,16 +1,19 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.AspNetCore.Mvc;
 using SocialMediaApp.Web.Services.Interfaces;
 using SocialMediaApp.Web.ViewModels;
 
 namespace SocialMediaApp.Web.Controllers;
 
-public class AccountController(IAccountService accountService) : Controller
+public class AccountController(IAccountService accountService, IMemoryCache memoryCache) : Controller
 {
     private readonly IAccountService _accountService = accountService;
-    private static readonly Dictionary<string, (int Count, DateTime Until)> LoginAttempts = new();
+    private readonly IMemoryCache _memoryCache = memoryCache;
+    private const int MaxLoginAttempts = 5;
+    private static readonly TimeSpan LockoutWindow = TimeSpan.FromMinutes(5);
 
     [HttpGet]
     public IActionResult Register() => View(new RegisterViewModel());
@@ -48,7 +51,9 @@ public class AccountController(IAccountService accountService) : Controller
         }
 
         var key = model.PhoneNumber.Trim();
-        if (LoginAttempts.TryGetValue(key, out var state) && state.Until > DateTime.UtcNow)
+        var cacheKey = $"login-attempts:{key}";
+        var state = _memoryCache.Get<LoginAttemptState>(cacheKey) ?? new LoginAttemptState();
+        if (state.LockedUntil.HasValue && state.LockedUntil.Value > DateTime.UtcNow)
         {
             ModelState.AddModelError(string.Empty, "Account temporarily locked. Try again later.");
             return View(model);
@@ -57,14 +62,21 @@ public class AccountController(IAccountService accountService) : Controller
         var result = await _accountService.LoginAsync(model, cancellationToken);
         if (!result.IsSuccess || result.Value is null)
         {
-            var count = state.Count + 1;
-            var until = count >= 5 ? DateTime.UtcNow.AddMinutes(5) : DateTime.MinValue;
-            LoginAttempts[key] = (count, until);
+            state.Count++;
+            if (state.Count >= MaxLoginAttempts)
+            {
+                state.LockedUntil = DateTime.UtcNow.Add(LockoutWindow);
+            }
+
+            _memoryCache.Set(cacheKey, state, new MemoryCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = LockoutWindow
+            });
             ModelState.AddModelError(string.Empty, result.Error);
             return View(model);
         }
 
-        LoginAttempts.Remove(key);
+        _memoryCache.Remove(cacheKey);
         var userId = result.Value.UserId;
         var displayName = result.Value.DisplayName;
         var claims = new List<Claim>
@@ -81,10 +93,16 @@ public class AccountController(IAccountService accountService) : Controller
     }
 
     [HttpPost]
-    [IgnoreAntiforgeryToken]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> Logout()
     {
         await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
         return RedirectToAction(nameof(Login));
+    }
+
+    private sealed class LoginAttemptState
+    {
+        public int Count { get; set; }
+        public DateTime? LockedUntil { get; set; }
     }
 }

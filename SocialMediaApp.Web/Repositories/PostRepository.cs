@@ -15,13 +15,17 @@ public class PostRepository(AppDbContext dbContext) : IPostRepository
     {
         return await _dbContext.Posts
             .AsNoTracking()
+            .Include(x => x.User)
+            .Where(x => !x.IsDeleted)
             .OrderByDescending(x => x.CreatedAt)
             .ToListAsync(cancellationToken);
     }
 
     public async Task<Post?> GetByIdAsync(int postId, CancellationToken cancellationToken = default)
     {
-        return await _dbContext.Posts.FirstOrDefaultAsync(x => x.PostId == postId, cancellationToken);
+        return await _dbContext.Posts
+            .Include(x => x.User)
+            .FirstOrDefaultAsync(x => x.PostId == postId, cancellationToken);
     }
 
     public async Task<int> CreateAsync(Post post, CancellationToken cancellationToken = default)

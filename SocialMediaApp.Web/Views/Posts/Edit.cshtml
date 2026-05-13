@@ -16,11 +16,6 @@
                     <textarea asp-for="Content" class="form-control tweet-input" rows="5"></textarea>
                 <span asp-validation-for="Content" class="text-danger"></span>
             </div>
-            <div class="mb-3">
-                    <label asp-for="Image" class="form-label"></label>
-                    <input asp-for="Image" class="form-control tweet-input" />
-                <span asp-validation-for="Image" class="text-danger"></span>
-            </div>
                 <div class="d-flex gap-2 justify-content-end">
                     <a asp-action="Index" class="btn btn-light border">Cancel</a>
                     <button class="btn btn-primary tweet-btn-primary" type="submit">Save</button>

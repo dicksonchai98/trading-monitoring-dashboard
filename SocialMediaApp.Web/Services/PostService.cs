@@ -26,7 +26,6 @@ public class PostService(
         {
             UserId = currentUserId,
             Content = model.Content,
-            Image = model.Image,
             CreatedAt = DateTime.UtcNow
         };
 
@@ -60,7 +59,7 @@ public class PostService(
         }
 
         postResult.Value.Content = model.Content;
-        postResult.Value.Image = model.Image;
+        postResult.Value.Image = null;
         await _postRepository.UpdateAsync(postResult.Value, cancellationToken);
         return Result.Success();
     }

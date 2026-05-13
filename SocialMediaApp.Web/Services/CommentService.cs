@@ -35,4 +35,7 @@ public class CommentService(
 
     public Task<IReadOnlyList<Comment>> GetByPostIdAsync(int postId, CancellationToken cancellationToken = default)
         => _commentRepository.GetByPostIdAsync(postId, cancellationToken);
+
+    public Task<IReadOnlyList<Comment>> GetByPostIdsAsync(IReadOnlyCollection<int> postIds, CancellationToken cancellationToken = default)
+        => _commentRepository.GetByPostIdsAsync(postIds, cancellationToken);
 }

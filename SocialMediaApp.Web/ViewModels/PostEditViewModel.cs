@@ -8,7 +8,4 @@ public class PostEditViewModel
 
     [Required, MaxLength(5000)]
     public string Content { get; set; } = string.Empty;
-
-    [MaxLength(500)]
-    public string? Image { get; set; }
 }

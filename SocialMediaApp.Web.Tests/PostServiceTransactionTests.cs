@@ -61,6 +61,7 @@ public class PostServiceTransactionTests
     {
         public Task<Comment> CreateAsync(Comment comment, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<IReadOnlyList<Comment>> GetByPostIdAsync(int postId, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<IReadOnlyList<Comment>> GetByPostIdsAsync(IReadOnlyCollection<int> postIds, CancellationToken cancellationToken = default) => throw new NotImplementedException();
 
         public Task SoftDeleteByPostIdAsync(int postId, CancellationToken cancellationToken = default)
             => throw new InvalidOperationException("boom");

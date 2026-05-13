@@ -16,12 +16,12 @@ public class PostsController(IPostService postService, ICommentService commentSe
     {
         var posts = await _postService.GetFeedAsync(cancellationToken);
         ViewBag.NewPost = new PostEditViewModel();
-        var commentMap = new Dictionary<int, IReadOnlyList<SocialMediaApp.Web.Entities.Comment>>();
-        foreach (var post in posts)
-        {
-            var comments = await _commentService.GetByPostIdAsync(post.PostId, cancellationToken);
-            commentMap[post.PostId] = comments;
-        }
+        ViewBag.CurrentUserId = TryGetCurrentUserId();
+        var postIds = posts.Select(x => x.PostId).ToArray();
+        var allComments = await _commentService.GetByPostIdsAsync(postIds, cancellationToken);
+        var commentMap = allComments
+            .GroupBy(x => x.PostId)
+            .ToDictionary(x => x.Key, x => (IReadOnlyList<SocialMediaApp.Web.Entities.Comment>)x.ToList());
 
         ViewBag.CommentMap = commentMap;
         return View(posts);
@@ -42,8 +42,7 @@ public class PostsController(IPostService postService, ICommentService commentSe
         return View(new PostEditViewModel
         {
             PostId = result.Value.PostId,
-            Content = result.Value.Content,
-            Image = result.Value.Image
+            Content = result.Value.Content
         });
     }
 
@@ -98,20 +97,10 @@ public class PostsController(IPostService postService, ICommentService commentSe
         return RedirectToAction(nameof(Index));
     }
 
-    [HttpGet]
-    public async Task<IActionResult> Details(int id, CancellationToken cancellationToken)
-    {
-        var posts = await _postService.GetFeedAsync(cancellationToken);
-        var post = posts.FirstOrDefault(x => x.PostId == id);
-        if (post is null)
-        {
-            return RedirectToAction(nameof(Index));
-        }
-
-        ViewBag.Comments = await _commentService.GetByPostIdAsync(id, cancellationToken);
-        ViewBag.CommentInput = new CommentCreateViewModel { PostId = id };
-        return View(post);
-    }
-
     private int GetCurrentUserId() => int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+    private int? TryGetCurrentUserId()
+    {
+        var claim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        return int.TryParse(claim, out var id) ? id : null;
+    }
 }

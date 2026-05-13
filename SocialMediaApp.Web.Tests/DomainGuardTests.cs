@@ -39,6 +39,7 @@ public class DomainGuardTests
     {
         public Task<Comment> CreateAsync(Comment comment, CancellationToken cancellationToken = default) => Task.FromResult(comment);
         public Task<IReadOnlyList<Comment>> GetByPostIdAsync(int postId, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<Comment>>([]);
+        public Task<IReadOnlyList<Comment>> GetByPostIdsAsync(IReadOnlyCollection<int> postIds, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<Comment>>([]);
         public Task SoftDeleteByPostIdAsync(int postId, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 }

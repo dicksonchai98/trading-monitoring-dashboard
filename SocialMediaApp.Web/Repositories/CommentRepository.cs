@@ -41,7 +41,23 @@ public class CommentRepository(AppDbContext dbContext) : ICommentRepository
     {
         return await _dbContext.Comments
             .AsNoTracking()
-            .Where(x => x.PostId == postId)
+            .Include(x => x.User)
+            .Where(x => x.PostId == postId && !x.IsDeleted)
+            .OrderBy(x => x.CreatedAt)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<Comment>> GetByPostIdsAsync(IReadOnlyCollection<int> postIds, CancellationToken cancellationToken = default)
+    {
+        if (postIds.Count == 0)
+        {
+            return Array.Empty<Comment>();
+        }
+
+        return await _dbContext.Comments
+            .AsNoTracking()
+            .Include(x => x.User)
+            .Where(x => postIds.Contains(x.PostId) && !x.IsDeleted)
             .OrderBy(x => x.CreatedAt)
             .ToListAsync(cancellationToken);
     }
